@@ -66,6 +66,13 @@
       "dependencies": [
         "etcd-cpp-apiv3"
       ]
+    },
+    "tikv": {
+      "description": "TIKV dependencies",
+      "dependencies": [
+        "tikvclientc",
+        "poco"
+      ]
     }
   },
   "builtin-baseline": "7e3dcf74e37034eea358934a90a11d618520e139"

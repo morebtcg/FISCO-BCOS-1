@@ -15,9 +15,11 @@ list(APPEND SRC_LIST src/RocksDBStorage.cpp)
 set(LIB_LIST ${TABLE_TARGET} bcos-framework Boost::serialization Boost::filesystem zstd::libzstd_static RocksDB::rocksdb)
 
 if(WITH_TIKV)
-  include(ProjectTiKVClient)
+  find_package(tikvclientc REQUIRED)
+  find_package(Poco REQUIRED Foundation XML)
+  find_package(gRPC REQUIRED)
   list(APPEND SRC_LIST src/TiKVStorage.cpp)
-  list(APPEND LIB_LIST kv_client)
+  list(APPEND LIB_LIST tikvclientc::kv_client)
 endif()
 
 add_library(${STORAGE_TARGET} ${SRC_LIST})
