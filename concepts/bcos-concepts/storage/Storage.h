@@ -1,12 +1,26 @@
 #pragma once
 
 #include "../Basic.h"
+#include "../ByteBuffer.h"
 #include <bcos-framework/storage/Entry.h>
 #include <bcos-utilities/Ranges.h>
 #include <type_traits>
 
 namespace bcos::concepts::storage
 {
+
+template <class KeyType>
+concept Key = requires(KeyType key)
+{
+    bytebuffer::ByteBuffer<decltype(std::get<0>(key))>;
+    bytebuffer::ByteBuffer<decltype(std::get<1>(key))>;
+};
+
+template <class ValueType>
+concept Value = requires(ValueType value)
+{
+    true;
+};
 
 template <class Impl>
 class StorageBase

@@ -29,8 +29,8 @@ concept Transaction = requires(TransactionType transaction)
     bcos::concepts::serialize::Serializable<TransactionType>;
     TransactionType{};
     TransactionData<decltype(transaction.data)>;
-    transaction.dataHash;
-    transaction.signature;
+    bytebuffer::ByteBuffer<decltype(transaction.dataHash)>;
+    bytebuffer::ByteBuffer<decltype(transaction.signature)>;
     transaction.sender;
     std::integral<decltype(transaction.importTime)>;
     std::integral<decltype(transaction.attribute)>;
