@@ -25,7 +25,8 @@ aux_source_directory(src/libledger/utilities SRCS)
 find_package(Boost REQUIRED serialization)
 
 add_library(${LEDGER_TARGET} ${SRCS})
-target_link_libraries(${LEDGER_TARGET} PUBLIC ${CODEC_TARGET} ${TABLE_TARGET} ${PROTOCOL_TARGET} bcos-concepts Boost::serialization)
+target_include_directories(${LEDGER_TARGET} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(${LEDGER_TARGET} PUBLIC ${CODEC_TARGET} ${TABLE_TARGET} ${PROTOCOL_TARGET} bcos-task bcos-concepts Boost::serialization)
 
 # test related
 if (TESTS)

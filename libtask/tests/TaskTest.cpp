@@ -3,6 +3,7 @@
 #include <tbb/task_group.h>
 #include <boost/test/unit_test.hpp>
 #include <chrono>
+#include <coroutine>
 #include <thread>
 
 using namespace bcos::task;
@@ -50,8 +51,6 @@ Task<void> level1()
 
 BOOST_AUTO_TEST_CASE(normalTask)
 {
-    // auto task = nothingTask();
-
     bool finished = false;
 
     bcos::task::wait(

@@ -10,8 +10,6 @@
 #include <type_traits>
 #include <variant>
 
-#include <iostream>
-
 namespace bcos::task
 {
 
@@ -29,7 +27,7 @@ public:
 
     struct PromiseVoid;
     struct PromiseValue;
-    using promise_type = std::conditional_t<std::is_same_v<Value, void>, PromiseVoid, PromiseValue>;
+    using promise_type = std::conditional_t<std::is_void_v<Value>, PromiseVoid, PromiseValue>;
 
     template <class PromiseImpl>
     struct PromiseBase

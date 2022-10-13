@@ -22,6 +22,7 @@
  */
 
 #include "Ledger.h"
+#include "../../bcos-ledger/LedgerImpl.h"
 #include "bcos-tool/VersionConverter.h"
 #include "utilities/Common.h"
 #include <bcos-codec/scale/Scale.h>
