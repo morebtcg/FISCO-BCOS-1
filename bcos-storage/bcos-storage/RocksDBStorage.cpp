@@ -27,7 +27,6 @@
 #include <rocksdb/options.h>
 #include <rocksdb/slice.h>
 #include <tbb/concurrent_vector.h>
-#include <tbb/spin_mutex.h>
 #include <boost/algorithm/hex.hpp>
 #include <csignal>
 #include <exception>
@@ -353,15 +352,21 @@ void RocksDBStorage::asyncPrepare(const TwoPCParams& param, const TraverseStorag
                     }
                     ++putCount;
 
-                    std::string value(entry.get().data(), entry.get().size());
+                    auto value = entry.get();
                     // Storage security
                     if (!value.empty() && m_dataEncryption)
                     {
-                        value = m_dataEncryption->encrypt(value);
-                    }
+                        std::string encryptValue(value);
+                        encryptValue = m_dataEncryption->encrypt(encryptValue);
 
-                    std::unique_lock lock(m_writeBatchMutex);
-                    auto status = m_writeBatch->Put(dbKey, std::move(value));
+                        std::unique_lock lock(m_writeBatchMutex);
+                        auto status = m_writeBatch->Put(dbKey, encryptValue);
+                    }
+                    else
+                    {
+                        std::unique_lock lock(m_writeBatchMutex);
+                        auto status = m_writeBatch->Put(dbKey, value);
+                    }
                 }
                 return true;
             });
@@ -470,8 +475,8 @@ bcos::Error::Ptr RocksDBStorage::setRows(
     std::vector<std::string> realKeys(keys.size());
     std::vector<std::string> encryptedValues;
     encryptedValues.resize(values.size());
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, keys.size()), [&](const tbb::blocked_range<size_t>& range) {
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size(), 256),
+        [&](const tbb::blocked_range<size_t>& range) {
             for (size_t i = range.begin(); i != range.end(); ++i)
             {
                 realKeys[i] = toDBKey(table, keys[i]);

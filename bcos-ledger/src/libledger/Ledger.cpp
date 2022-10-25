@@ -236,7 +236,7 @@ void Ledger::asyncPrewriteBlock(bcos::storage::StorageInterface::Ptr storage,
     // hash 2 receipts
     std::atomic_int64_t totalCount = 0;
     std::atomic_int64_t failedCount = 0;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, block->receiptsSize()),
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, block->receiptsSize(), 32),
         [&storage, &transactionsBlock, &block, &failedCount, &totalCount, &setRowCallback](
             const tbb::blocked_range<size_t>& range) {
             for (size_t i = range.begin(); i < range.end(); ++i)

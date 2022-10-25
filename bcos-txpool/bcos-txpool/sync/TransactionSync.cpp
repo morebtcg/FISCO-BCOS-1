@@ -521,7 +521,7 @@ bool TransactionSync::importDownloadedTxs(
     // verify the transactions
     std::atomic_bool verifySuccess = {true};
     tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, txsSize), [&](const tbb::blocked_range<size_t>& _r) {
+        tbb::blocked_range<size_t>(0, txsSize, 32), [&](const tbb::blocked_range<size_t>& _r) {
             for (size_t i = _r.begin(); i < _r.end(); i++)
             {
                 auto tx = (*_txs)[i];

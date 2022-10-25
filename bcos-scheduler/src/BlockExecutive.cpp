@@ -12,6 +12,7 @@
 #include <bcos-utilities/Error.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for_each.h>
+#include <tbb/pipeline.h>
 #include <boost/algorithm/hex.hpp>
 #include <boost/asio/defer.hpp>
 #include <boost/exception/diagnostic_information.hpp>
@@ -163,100 +164,121 @@ void BlockExecutive::buildExecutivesFromMetaData()
     m_blockTxs = fetchBlockTxsFromTxPool(m_block, m_txPool);  // no need to async
 
     m_executiveResults.resize(m_block->transactionsMetaDataSize());
+
+    std::atomic_int64_t index = 0;
+    auto fromTX = [&](tbb::flow_control& control)
+        -> std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool> {
+        auto i = index.fetch_add(1);
+        if (static_cast<size_t>(i) >= m_block->transactionsMetaDataSize())
+        {
+            control.stop();
+            return std::tuple{std::string{}, protocol::ExecutionMessage::UniquePtr{}, false};
+        }
+
+        auto metaData = m_block->transactionMetaData(i);
+        if (metaData)
+        {
+            m_executiveResults[i].transactionHash = metaData->hash();
+            m_executiveResults[i].source = metaData->source();
+        }
+        auto contextID = i + m_startContextID;
+        auto message = buildMessage(contextID, (*m_blockTxs)[i]);
+        std::string toAddress = {message->to().data(), message->to().size()};
+        bool enableDAG = metaData->attribute() & bcos::protocol::Transaction::Attribute::DAG;
+
+        return {std::move(toAddress), std::move(message), enableDAG};
+    };
+
+    auto fromTXHASH = [&](tbb::flow_control& control)
+        -> std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool> {
+        auto i = index.fetch_add(1);
+        if (static_cast<size_t>(i) >= m_block->transactionsMetaDataSize())
+        {
+            control.stop();
+            return std::tuple{std::string{}, protocol::ExecutionMessage::UniquePtr{}, false};
+        }
+
+        auto metaData = m_block->transactionMetaData(i);
+        if (metaData)
+        {
+            m_executiveResults[i].transactionHash = metaData->hash();
+            m_executiveResults[i].source = metaData->source();
+        }
+
+        auto message = m_scheduler->m_executionMessageFactory->createExecutionMessage();
+        auto contextID = i + m_startContextID;
+
+        message->setContextID(contextID);
+        message->setType(protocol::ExecutionMessage::TXHASH);
+        // Note: set here for fetching txs when send_back
+        message->setTransactionHash(metaData->hash());
+
+        if (metaData->attribute() & bcos::protocol::Transaction::Attribute::LIQUID_SCALE_CODEC)
+        {
+            // LIQUID
+            if (metaData->attribute() & bcos::protocol::Transaction::Attribute::LIQUID_CREATE)
+            {
+                message->setCreate(true);
+            }
+            message->setTo(std::string(metaData->to()));
+        }
+        else
+        {
+            // SOLIDITY
+            if (metaData->to().empty())
+            {
+                message->setCreate(true);
+            }
+            else
+            {
+                message->setTo(preprocessAddress(metaData->to()));
+            }
+        }
+
+        message->setDepth(0);
+        message->setGasAvailable(m_gasLimit);
+        if (precompiled::c_systemTxsAddress.count({metaData->to().data(), metaData->to().size()}))
+        {
+            message->setGasAvailable(TRANSACTION_GAS);
+        }
+        message->setStaticCall(false);
+        bool enableDAG = metaData->attribute() & bcos::protocol::Transaction::Attribute::DAG;
+
+        std::string to = {message->to().data(), message->to().size()};
+
+        return {std::move(to), std::move(message), enableDAG};
+    };
+
+    auto toSave = [&](std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool> input) {
+        auto& [to, message, enableDAG] = input;
+        if (message)
+        {
+            m_hasDAG = m_hasDAG || enableDAG;
+            saveMessage(std::move(to), std::move(message), enableDAG);
+        }
+    };
+
     if (m_blockTxs)
     {
-        std::mutex saveMutex;
-        // can fetch tx from txpool, build message which type is MESSAGE
-        tbb::parallel_for(tbb::blocked_range<size_t>(0U, m_block->transactionsMetaDataSize()),
-            [this, &saveMutex](auto const& range) {
-                for (auto i = range.begin(); i < range.end(); ++i)
-                {
-                    auto metaData = m_block->transactionMetaData(i);
-                    if (metaData)
-                    {
-                        m_executiveResults[i].transactionHash = metaData->hash();
-                        m_executiveResults[i].source = metaData->source();
-                    }
-                    auto contextID = i + m_startContextID;
-                    auto message = buildMessage(contextID, (*m_blockTxs)[i]);
-                    std::string to = {message->to().data(), message->to().size()};
-                    bool enableDAG =
-                        metaData->attribute() & bcos::protocol::Transaction::Attribute::DAG;
-
-                    std::unique_lock lock(saveMutex);
-                    m_hasDAG = m_hasDAG || enableDAG;
-                    saveMessage(std::move(to), std::move(message), enableDAG);
-                }
-            });
+        tbb::parallel_pipeline(m_block->transactionsMetaDataSize(),
+            tbb::make_filter<void,
+                std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>>(
+                tbb::filter::parallel, fromTX) &
+                tbb::make_filter<
+                    std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>, void>(
+                    tbb::filter::serial, toSave));
     }
     else
     {
-        std::mutex saveMutex;
-        // only has txHash, build message which type is TXHASH
-        tbb::parallel_for(tbb::blocked_range<size_t>(0U, m_block->transactionsMetaDataSize()),
-            [this, &saveMutex](auto const& range) {
-                for (auto i = range.begin(); i < range.end(); ++i)
-                {
-                    auto metaData = m_block->transactionMetaData(i);
-                    if (metaData)
-                    {
-                        m_executiveResults[i].transactionHash = metaData->hash();
-                        m_executiveResults[i].source = metaData->source();
-                    }
-
-                    auto message = m_scheduler->m_executionMessageFactory->createExecutionMessage();
-                    auto contextID = i + m_startContextID;
-
-                    message->setContextID(contextID);
-                    message->setType(protocol::ExecutionMessage::TXHASH);
-                    // Note: set here for fetching txs when send_back
-                    message->setTransactionHash(metaData->hash());
-
-                    if (metaData->attribute() &
-                        bcos::protocol::Transaction::Attribute::LIQUID_SCALE_CODEC)
-                    {
-                        // LIQUID
-                        if (metaData->attribute() &
-                            bcos::protocol::Transaction::Attribute::LIQUID_CREATE)
-                        {
-                            message->setCreate(true);
-                        }
-                        message->setTo(std::string(metaData->to()));
-                    }
-                    else
-                    {
-                        // SOLIDITY
-                        if (metaData->to().empty())
-                        {
-                            message->setCreate(true);
-                        }
-                        else
-                        {
-                            message->setTo(preprocessAddress(metaData->to()));
-                        }
-                    }
-
-                    message->setDepth(0);
-                    message->setGasAvailable(m_gasLimit);
-                    if (precompiled::c_systemTxsAddress.count(
-                            {metaData->to().data(), metaData->to().size()}))
-                    {
-                        message->setGasAvailable(TRANSACTION_GAS);
-                    }
-                    message->setStaticCall(false);
-                    bool enableDAG =
-                        metaData->attribute() & bcos::protocol::Transaction::Attribute::DAG;
-
-                    std::string to = {message->to().data(), message->to().size()};
-
-                    std::unique_lock lock(saveMutex);
-                    m_hasDAG = m_hasDAG || enableDAG;
-                    saveMessage(to, std::move(message), enableDAG);
-                }
-            });
+        tbb::parallel_pipeline(m_block->transactionsMetaDataSize(),
+            tbb::make_filter<void,
+                std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>>(
+                tbb::filter::parallel, fromTXHASH) &
+                tbb::make_filter<
+                    std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>, void>(
+                    tbb::filter::serial, toSave));
     }
 }
-
 
 void BlockExecutive::buildExecutivesFromNormalTransaction()
 {
@@ -267,11 +289,19 @@ void BlockExecutive::buildExecutivesFromNormalTransaction()
 
     m_executiveResults.resize(m_block->transactionsSize());
 
-    std::mutex saveMutex;
-    tbb::parallel_for(tbb::blocked_range<size_t>(0U, m_block->transactionsSize()),
-        [this, &saveMutex](auto const& range) {
-            for (auto i = range.begin(); i < range.end(); ++i)
-            {
+    std::atomic_int64_t index = 0;
+    tbb::parallel_pipeline(m_block->transactionsSize(),
+        tbb::make_filter<void,
+            std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>>(
+            tbb::filter::parallel,
+            [&](tbb::flow_control& control)
+                -> std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool> {
+                auto i = index.fetch_add(1);
+                if (static_cast<size_t>(i) >= m_block->transactionsSize())
+                {
+                    control.stop();
+                    return {std::string{}, protocol::ExecutionMessage::UniquePtr{}, false};
+                }
                 auto tx = m_block->transaction(i);
                 m_executiveResults[i].transactionHash = tx->hash();
                 m_executiveResults[i].source = tx->source();
@@ -281,11 +311,18 @@ void BlockExecutive::buildExecutivesFromNormalTransaction()
                 std::string to = {message->to().data(), message->to().size()};
                 bool enableDAG = tx->attribute() & bcos::protocol::Transaction::Attribute::DAG;
 
-                std::unique_lock lock(saveMutex);
-                m_hasDAG = m_hasDAG || enableDAG;
-                saveMessage(to, std::move(message), enableDAG);
-            }
-        });
+                return {std::move(to), std::move(message), enableDAG};
+            }) &
+            tbb::make_filter<std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool>,
+                void>(tbb::filter::serial,
+                [&](std::tuple<std::string, protocol::ExecutionMessage::UniquePtr, bool> input) {
+                    auto& [to, message, enableDAG] = input;
+                    if (message)
+                    {
+                        m_hasDAG = m_hasDAG || enableDAG;
+                        saveMessage(std::move(to), std::move(message), enableDAG);
+                    }
+                }));
 }
 
 bcos::protocol::TransactionsPtr BlockExecutive::fetchBlockTxsFromTxPool(
@@ -308,7 +345,6 @@ bcos::protocol::TransactionsPtr BlockExecutive::fetchBlockTxsFromTxPool(
             std::make_shared<std::promise<bcos::protocol::TransactionsPtr>>();
         txPool->asyncFillBlock(
             txHashes, [txsPromise](Error::Ptr error, bcos::protocol::TransactionsPtr txs) {
-                boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
                 if (!txsPromise)
                 {
                     return;
@@ -959,7 +995,7 @@ void BlockExecutive::DMCExecute(
         // for each dmcExecutor
         // Use isolate task_arena to avoid error
         tbb::this_task_arena::isolate([this, &contractAddress, &executorCallback] {
-            tbb::parallel_for(tbb::blocked_range<size_t>(0U, contractAddress.size()),
+            tbb::parallel_for(tbb::blocked_range<size_t>(0U, contractAddress.size(), 32),
                 [this, &contractAddress, &executorCallback](auto const& range) {
                     for (auto i = range.begin(); i < range.end(); ++i)
                     {

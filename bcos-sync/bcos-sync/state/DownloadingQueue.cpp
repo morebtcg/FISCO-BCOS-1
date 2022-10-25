@@ -503,7 +503,7 @@ void DownloadingQueue::commitBlock(bcos::protocol::Block::Ptr _block)
     txsData->resize(txsSize);
     txsHashList->resize(txsSize);
     tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, txsSize), [&](const tbb::blocked_range<size_t>& range) {
+        tbb::blocked_range<size_t>(0, txsSize, 32), [&](const tbb::blocked_range<size_t>& range) {
             for (size_t i = range.begin(); i < range.end(); ++i)
             {
                 // maintain lifetime for tx
