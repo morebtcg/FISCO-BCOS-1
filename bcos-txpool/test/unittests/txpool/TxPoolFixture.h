@@ -87,7 +87,7 @@ class FakeMemoryStorage : public MemoryStorage
 {
 public:
     FakeMemoryStorage(TxPoolConfig::Ptr _config, size_t _notifyWorkerNum = 2)
-      : MemoryStorage(_config, _notifyWorkerNum)
+      : MemoryStorage(_config, std::make_shared<ThreadPool>("txpool", 2))
     {
         m_preStoreTxs = true;
     }

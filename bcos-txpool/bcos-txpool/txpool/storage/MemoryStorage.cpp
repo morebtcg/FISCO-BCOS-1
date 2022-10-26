@@ -32,19 +32,19 @@ using namespace bcos::txpool;
 using namespace bcos::crypto;
 using namespace bcos::protocol;
 
-MemoryStorage::MemoryStorage(TxPoolConfig::Ptr _config, size_t _notifyWorkerNum,
+MemoryStorage::MemoryStorage(TxPoolConfig::Ptr _config, ThreadPool::Ptr asyncWorkers,
     int64_t _txsExpirationTime, bool _preStoreTxs)
-  : m_config(_config), m_txsExpirationTime(_txsExpirationTime), m_preStoreTxs(_preStoreTxs)
+  : m_config(std::move(_config)),
+    m_asyncWorkers(std::move(asyncWorkers)),
+    m_txsExpirationTime(_txsExpirationTime),
+    m_preStoreTxs(_preStoreTxs)
 {
-    m_notifier = std::make_shared<ThreadPool>("txNotifier", _notifyWorkerNum);
-    m_worker = std::make_shared<ThreadPool>("txpoolWorker", 1);
     m_blockNumberUpdatedTime = utcTime();
     // Trigger a transaction cleanup operation every 3s
     m_cleanUpTimer = std::make_shared<Timer>(3000, "txpoolTimer");
     m_cleanUpTimer->registerTimeoutHandler(
         boost::bind(&MemoryStorage::cleanUpExpiredTransactions, this));
     TXPOOL_LOG(INFO) << LOG_DESC("init MemoryStorage of txpool")
-                     << LOG_KV("txNotifierWorkerNum", _notifyWorkerNum)
                      << LOG_KV("txsExpriationTime", m_txsExpirationTime)
                      << LOG_KV("preStoreTxs", m_preStoreTxs);
 }
@@ -59,13 +59,13 @@ void MemoryStorage::start()
 
 void MemoryStorage::stop()
 {
-    if (m_notifier)
+    if (m_asyncWorkers)
     {
-        m_notifier->stop();
+        m_asyncWorkers->stop();
     }
-    if (m_worker)
+    if (m_asyncWorkers)
     {
-        m_worker->stop();
+        m_asyncWorkers->stop();
     }
     if (m_cleanUpTimer)
     {
@@ -317,47 +317,39 @@ TransactionStatus MemoryStorage::insertWithoutLock(Transaction::ConstPtr _tx)
 
 void MemoryStorage::preCommitTransaction(Transaction::ConstPtr _tx)
 {
-    auto self = weak_from_this();
-    m_worker->enqueue([self, _tx]() {
-        try
+    try
+    {
+        // the transaction has already been stored to backend
+        if (_tx->storeToBackend())
         {
-            auto txpoolStorage = self.lock();
-            if (!txpoolStorage)
-            {
-                return;
-            }
-            // the transaction has already been stored to backend
-            if (_tx->storeToBackend())
-            {
-                return;
-            }
-            bcos::bytes encodeData;
-            _tx->encode(encodeData);
-            auto txsToStore = std::make_shared<std::vector<bytesConstPtr>>();
-            txsToStore->emplace_back(std::make_shared<bytes>(std::move(encodeData)));
-            auto txsHash = std::make_shared<HashList>();
-            auto txHash = _tx->hash();
-            txsHash->emplace_back(txHash);
-            txpoolStorage->m_config->ledger()->asyncStoreTransactions(
-                txsToStore, txsHash, [_tx, txHash](Error::Ptr _error) {
-                    if (_error == nullptr)
-                    {
-                        _tx->setStoreToBackend(true);
-                        return;
-                    }
-                    TXPOOL_LOG(WARNING) << LOG_DESC("asyncPreStoreTransaction failed")
-                                        << LOG_KV("errorCode", _error->errorCode())
-                                        << LOG_KV("errorMsg", _error->errorMessage())
-                                        << LOG_KV("tx", txHash.abridged());
-                });
+            return;
         }
-        catch (std::exception const& e)
-        {
-            TXPOOL_LOG(WARNING) << LOG_DESC("preCommitTransaction exception")
-                                << LOG_KV("error", boost::diagnostic_information(e))
-                                << LOG_KV("tx", _tx->hash().abridged());
-        }
-    });
+        bcos::bytes encodeData;
+        _tx->encode(encodeData);
+        auto txsToStore = std::make_shared<std::vector<bytesConstPtr>>(1);
+        (*txsToStore)[0] = (std::make_shared<bytes>(std::move(encodeData)));
+        auto txsHash = std::make_shared<HashList>(1);
+        auto txHash = _tx->hash();
+        (*txsHash)[0] = txHash;
+        m_config->ledger()->asyncStoreTransactions(
+            txsToStore, txsHash, [_tx = std::move(_tx), txHash](Error::Ptr _error) {
+                if (_error == nullptr)
+                {
+                    _tx->setStoreToBackend(true);
+                    return;
+                }
+                TXPOOL_LOG(WARNING) << LOG_DESC("asyncPreStoreTransaction failed")
+                                    << LOG_KV("errorCode", _error->errorCode())
+                                    << LOG_KV("errorMsg", _error->errorMessage())
+                                    << LOG_KV("tx", txHash.abridged());
+            });
+    }
+    catch (std::exception const& e)
+    {
+        TXPOOL_LOG(WARNING) << LOG_DESC("preCommitTransaction exception")
+                            << LOG_KV("error", boost::diagnostic_information(e))
+                            << LOG_KV("tx", _tx->hash().abridged());
+    }
 }
 
 void MemoryStorage::batchInsert(Transactions const& _txs)
@@ -494,62 +486,61 @@ void MemoryStorage::batchRemove(BlockNumber batchId, TransactionSubmitResults co
         // batch remove
         WriteGuard lock(x_txpoolMutex);
 
-        // for (const auto& it : txsResult)
-        // {
-        //     auto const& txResult = *it;
-        //     auto tx = removeWithoutLock(txResult.txHash());
+        for (const auto& it : txsResult)
+        {
+            auto const& txResult = *it;
+            auto tx = removeWithoutLock(txResult.txHash());
 
-        //     if (!tx && txResult.nonce() != NonceType(-1))
-        //     {
-        //         nonceList->emplace_back(txResult.nonce());
-        //     }
-        //     else if (tx)
-        //     {
-        //         ++succCount;
-        //         nonceList->emplace_back(tx->nonce());
-        //         m_notifier->enqueue(
-        //             [this, tx = std::move(tx), txResult = it]() { notifyTxResult(*tx, txResult);
-        //             });
-        //     }
-        // }
-        auto it = txsResult.begin();
-        // auto maxToken =
-        //     std::min(, static_cast<size_t>(std::thread::hardware_concurrency()));
-        tbb::parallel_pipeline(txsResult.size(),
-            tbb::make_filter<void, std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr>>(
-                tbb::filter::serial,
-                [this, &txsResult, &it, &nonceList, &succCount](tbb::flow_control& control)
-                    -> std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr> {
-                    if (it == txsResult.end())
-                    {
-                        control.stop();
-                        return {};
-                    }
-                    auto const& txResult = *it;
-                    auto tx = removeWithoutLock(txResult->txHash());
+            if (!tx && txResult.nonce() != NonceType(-1))
+            {
+                nonceList->emplace_back(txResult.nonce());
+            }
+            else if (tx)
+            {
+                ++succCount;
+                nonceList->emplace_back(tx->nonce());
+                m_asyncWorkers->enqueue(
+                    [this, tx = std::move(tx), txResult = it]() { notifyTxResult(*tx, txResult); });
+            }
+        }
+        // auto it = txsResult.begin();
+        // tbb::parallel_pipeline(txsResult.size(),
+        //     tbb::make_filter<void, std::tuple<Transaction::ConstPtr,
+        //     TransactionSubmitResult::Ptr>>(
+        //         tbb::filter::serial,
+        //         [this, &txsResult, &it, &nonceList, &succCount](tbb::flow_control& control)
+        //             -> std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr> {
+        //             if (it == txsResult.end())
+        //             {
+        //                 control.stop();
+        //                 return {};
+        //             }
+        //             auto const& txResult = *it;
+        //             auto tx = removeWithoutLock(txResult->txHash());
 
-                    if (!tx && txResult->nonce() != NonceType(-1))
-                    {
-                        nonceList->emplace_back(txResult->nonce());
-                    }
-                    else if (tx)
-                    {
-                        ++succCount;
-                        nonceList->emplace_back(tx->nonce());
-                    }
+        //             if (!tx && txResult->nonce() != NonceType(-1))
+        //             {
+        //                 nonceList->emplace_back(txResult->nonce());
+        //             }
+        //             else if (tx)
+        //             {
+        //                 ++succCount;
+        //                 nonceList->emplace_back(tx->nonce());
+        //             }
 
-                    ++it;
-                    return {std::move(tx), txResult};
-                }) &
-                tbb::make_filter<std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr>,
-                    void>(tbb::filter::parallel,
-                    [this](std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr> input) {
-                        auto& [tx, txResult] = input;
-                        if (tx)
-                        {
-                            notifyTxResult(*tx, std::move(txResult));
-                        }
-                    }));
+        //             ++it;
+        //             return {std::move(tx), txResult};
+        //         }) &
+        //         tbb::make_filter<std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr>,
+        //             void>(tbb::filter::parallel,
+        //             [this](std::tuple<Transaction::ConstPtr, TransactionSubmitResult::Ptr> input)
+        //             {
+        //                 auto& [tx, txResult] = input;
+        //                 if (tx)
+        //                 {
+        //                     notifyTxResult(*tx, std::move(txResult));
+        //                 }
+        //             }));
 
         if (batchId > m_blockNumber)
         {
@@ -752,7 +743,7 @@ void MemoryStorage::batchFetchTxs(Block::Ptr _txsList, Block::Ptr _sysTxsList, s
 void MemoryStorage::removeInvalidTxs()
 {
     auto self = weak_from_this();
-    m_notifier->enqueue([self]() {
+    m_asyncWorkers->enqueue([self]() {
         try
         {
             auto memoryStorage = self.lock();

@@ -23,6 +23,8 @@
 #pragma once
 #include "Common.h"
 #include <boost/asio.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/exception/diagnostic_information.hpp>
 #include <boost/thread/thread.hpp>
 #include <iosfwd>
 #include <memory>
@@ -32,46 +34,61 @@ namespace bcos
 class ThreadPool
 {
 public:
-    typedef std::shared_ptr<ThreadPool> Ptr;
+    using Ptr = std::shared_ptr<ThreadPool>;
 
-    explicit ThreadPool(const std::string& threadName, size_t size) : m_work(_ioService)
+    ThreadPool(const std::string& threadName, size_t size)
     {
-        _threadName = threadName;
-
-        for (size_t i = 0; i < size; ++i)
+        for (auto i = 0U; i < size; ++i)
         {
-            _workers.create_thread([this] {
-                bcos::pthread_setThreadName(_threadName);
-                _ioService.run();
+            m_workers.create_thread([this, threadName = threadName] {
+                bcos::pthread_setThreadName(threadName);
+                boost::asio::io_service::work work(m_ioService);
+                m_ioService.run();
             });
         }
     }
-    void stop()
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool(ThreadPool&&) noexcept = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool& operator=(ThreadPool&&) noexcept = delete;
+    ~ThreadPool() noexcept { stop(); }
+
+    void stop() noexcept
     {
-        _ioService.stop();
-        if (!_workers.is_this_thread_in())
+        if (!m_ioService.stopped())
         {
-            _workers.join_all();
+            try
+            {
+                m_ioService.stop();
+
+                if (!m_workers.is_this_thread_in())
+                {
+                    m_workers.join_all();
+                }
+            }
+            catch (std::exception& e)
+            {
+                std::cout << "Error on stop threadpool!" << boost::diagnostic_information(e)
+                          << std::endl;
+            }
+            catch (...)
+            {
+                std::cout << "Unknown exception!" << std::endl;
+            }
         }
     }
 
-    ~ThreadPool() { stop(); }
-
-    // Add new work item to the pool.
     template <class F>
-    void enqueue(F f)
+    void enqueue(F task)
     {
-        _ioService.post(f);
+        m_ioService.post(std::move(task));
     }
 
-    bool hasStopped() { return _ioService.stopped(); }
+    bool hasStopped() { return m_ioService.stopped(); }
 
 private:
-    std::string _threadName;
-    boost::thread_group _workers;
-    boost::asio::io_service _ioService;
-    // m_work ensures that io_service's run() function will not exit while work is underway
-    boost::asio::io_service::work m_work;
+    boost::thread_group m_workers;
+    boost::asio::io_service m_ioService;
 };
 
 }  // namespace bcos

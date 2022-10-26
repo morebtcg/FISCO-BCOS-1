@@ -35,17 +35,14 @@ class TxPool : public TxPoolInterface, public std::enable_shared_from_this<TxPoo
 public:
     using Ptr = std::shared_ptr<TxPool>;
     TxPool(TxPoolConfig::Ptr _config, TxPoolStorageInterface::Ptr _txpoolStorage,
-        bcos::sync::TransactionSyncInterface::Ptr _transactionSync, size_t _verifierWorkerNum = 1)
-      : m_config(_config), m_txpoolStorage(_txpoolStorage), m_transactionSync(_transactionSync)
+        bcos::sync::TransactionSyncInterface::Ptr _transactionSync, ThreadPool::Ptr asyncWorker)
+      : m_config(std::move(_config)),
+        m_txpoolStorage(std::move(_txpoolStorage)),
+        m_transactionSync(std::move(_transactionSync)),
+        m_asyncWorker(std::move(asyncWorker))
     {
-        // threadpool for submit txs
-        m_worker = std::make_shared<ThreadPool>("submitter", _verifierWorkerNum);
         // threadpool for verify block
-        m_verifier = std::make_shared<ThreadPool>("verifier", 4);
-        m_sealer = std::make_shared<ThreadPool>("txsSeal", 1);
-        m_filler = std::make_shared<ThreadPool>("txsFiller", std::thread::hardware_concurrency());
-        TXPOOL_LOG(INFO) << LOG_DESC("create TxPool")
-                         << LOG_KV("submitterWorkerNum", _verifierWorkerNum);
+        TXPOOL_LOG(INFO) << LOG_DESC("create TxPool");
     }
 
     ~TxPool() noexcept override { stop(); }
@@ -163,10 +160,7 @@ private:
         bytesConstRef _data)>
         m_sendResponseHandler;
 
-    ThreadPool::Ptr m_worker;
-    ThreadPool::Ptr m_verifier;
-    ThreadPool::Ptr m_sealer;
-    ThreadPool::Ptr m_filler;
+    ThreadPool::Ptr m_asyncWorker;
     std::atomic_bool m_running = {false};
 };
 }  // namespace txpool

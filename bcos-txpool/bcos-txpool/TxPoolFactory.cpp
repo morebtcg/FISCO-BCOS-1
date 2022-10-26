@@ -61,9 +61,11 @@ TxPool::Ptr TxPoolFactory::createTxPool(size_t _notifyWorkerNum, size_t _verifie
     auto txpoolConfig = std::make_shared<TxPoolConfig>(
         validator, m_txResultFactory, m_blockFactory, m_ledger, txpoolNonceChecker, m_blockLimit);
 
+    auto txpoolThreadPool =
+        std::make_shared<ThreadPool>("TXPOOL", std::thread::hardware_concurrency());
     TXPOOL_LOG(INFO) << LOG_DESC("create transaction storage");
     auto txpoolStorage = std::make_shared<MemoryStorage>(
-        txpoolConfig, _notifyWorkerNum, _txsExpirationTime, _preStoreTxs);
+        txpoolConfig, txpoolThreadPool, _txsExpirationTime, _preStoreTxs);
 
     auto syncMsgFactory = std::make_shared<TxsSyncMsgFactoryImpl>();
     TXPOOL_LOG(INFO) << LOG_DESC("create sync config");
@@ -74,5 +76,5 @@ TxPool::Ptr TxPoolFactory::createTxPool(size_t _notifyWorkerNum, size_t _verifie
 
     TXPOOL_LOG(INFO) << LOG_DESC("create txpool") << LOG_KV("submitWorkerNum", _verifierWorkerNum)
                      << LOG_KV("notifyWorkerNum", _notifyWorkerNum);
-    return std::make_shared<TxPool>(txpoolConfig, txpoolStorage, txsSync, _verifierWorkerNum);
+    return std::make_shared<TxPool>(txpoolConfig, txpoolStorage, txsSync, txpoolThreadPool);
 }

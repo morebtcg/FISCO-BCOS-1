@@ -51,9 +51,9 @@ void TxPool::stop()
         TXPOOL_LOG(INFO) << LOG_DESC("The txpool has already been stopped!");
         return;
     }
-    if (m_worker)
+    if (m_asyncWorker)
     {
-        m_worker->stop();
+        m_asyncWorker->stop();
     }
     if (m_txpoolStorage)
     {
@@ -93,7 +93,7 @@ void TxPool::asyncSealTxs(uint64_t _txsLimit, TxsHashSetPtr _avoidTxs,
 {
     // Note: not block seal new block here
     auto self = weak_from_this();
-    m_sealer->enqueue([self, _txsLimit, _avoidTxs, _sealCallback]() {
+    m_asyncWorker->enqueue([self, _txsLimit, _avoidTxs, _sealCallback]() {
         auto txpool = self.lock();
         if (!txpool)
         {
@@ -109,11 +109,14 @@ void TxPool::asyncSealTxs(uint64_t _txsLimit, TxsHashSetPtr _avoidTxs,
 void TxPool::asyncNotifyBlockResult(BlockNumber _blockNumber, TransactionSubmitResultsPtr txsResult,
     std::function<void(Error::Ptr)> _onNotifyFinished)
 {
+    m_asyncWorker->enqueue([this, _blockNumber, txsResult = std::move(txsResult)] {
+        m_txpoolStorage->batchRemove(_blockNumber, *txsResult);
+    });
+
     if (_onNotifyFinished)
     {
         _onNotifyFinished(nullptr);
     }
-    m_txpoolStorage->batchRemove(_blockNumber, *txsResult);
 }
 
 void TxPool::asyncVerifyBlock(PublicPtr _generatedNodeID, bytesConstRef const& _block,
@@ -127,7 +130,7 @@ void TxPool::asyncVerifyBlock(PublicPtr _generatedNodeID, bytesConstRef const& _
     // Note: here must have thread pool for lock in the callback
     // use single thread here to decrease thread competition
     auto self = weak_from_this();
-    m_verifier->enqueue([self, _generatedNodeID, blockHeader, block, _onVerifyFinished]() {
+    m_asyncWorker->enqueue([self, _generatedNodeID, blockHeader, block, _onVerifyFinished]() {
         try
         {
             auto startT = utcTime();
@@ -265,7 +268,7 @@ void TxPool::getTxsFromLocalLedger(HashListPtr _txsHash, HashListPtr _missedTxs,
 {
     // fetch from the local ledger
     auto self = weak_from_this();
-    m_worker->enqueue([self, _txsHash, _missedTxs, _onBlockFilled]() {
+    m_asyncWorker->enqueue([self, _txsHash, _missedTxs, _onBlockFilled]() {
         auto txpool = self.lock();
         if (!txpool)
         {
@@ -296,19 +299,10 @@ void TxPool::getTxsFromLocalLedger(HashListPtr _txsHash, HashListPtr _missedTxs,
     });
 }
 
-// Note: the transaction must be all hit in local txpool
 void TxPool::asyncFillBlock(
     HashListPtr _txsHash, std::function<void(Error::Ptr, TransactionsPtr)> _onBlockFilled)
 {
-    auto self = weak_from_this();
-    m_filler->enqueue([self, _txsHash, _onBlockFilled]() {
-        auto txpool = self.lock();
-        if (!txpool)
-        {
-            return;
-        }
-        txpool->fillBlock(_txsHash, _onBlockFilled, true);
-    });
+    fillBlock(_txsHash, _onBlockFilled, true);
 }
 
 void TxPool::fillBlock(HashListPtr _txsHash,

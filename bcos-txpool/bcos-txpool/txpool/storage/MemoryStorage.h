@@ -35,7 +35,7 @@ class MemoryStorage : public TxPoolStorageInterface,
 {
 public:
     // the default txsExpirationTime is 10 minutes
-    explicit MemoryStorage(TxPoolConfig::Ptr _config, size_t _notifyWorkerNum = 2,
+    explicit MemoryStorage(TxPoolConfig::Ptr _config, ThreadPool::Ptr asyncWorkers,
         int64_t _txsExpirationTime = 10 * 60 * 1000, bool _preStoreTxs = false);
     ~MemoryStorage() override = default;
 
@@ -132,8 +132,7 @@ protected:
 
 protected:
     TxPoolConfig::Ptr m_config;
-    ThreadPool::Ptr m_notifier;
-    ThreadPool::Ptr m_worker;
+    ThreadPool::Ptr m_asyncWorkers;
 
     tbb::concurrent_unordered_map<bcos::crypto::HashType, bcos::protocol::Transaction::ConstPtr,
         std::hash<bcos::crypto::HashType>>
