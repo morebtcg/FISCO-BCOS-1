@@ -129,7 +129,6 @@ TransactionExecutor::TransactionExecutor(bcos::ledger::LedgerInterface::Ptr ledg
     m_ledgerFetcher(std::make_shared<bcos::tool::LedgerConfigFetcher>(ledger))
 {
     assert(m_backendStorage);
-
     m_ledgerFetcher->fetchCompatibilityVersion();
     m_blockVersion = m_ledgerFetcher->ledgerConfig()->compatibilityVersion();
     GlobalHashImpl::g_hashImpl = m_hashImpl;
@@ -328,8 +327,7 @@ void TransactionExecutor::nextBlockHeader(int64_t schedulerTermId,
     try
     {
         EXECUTOR_NAME_LOG(INFO) << BLOCK_NUMBER(blockHeader->number())
-                                << "NextBlockH"
-                                   "eader request: "
+                                << "NextBlockHeader request: "
                                 << LOG_KV("blockVersion", blockHeader->version())
                                 << LOG_KV("schedulerTermId", schedulerTermId);
         m_blockVersion = blockHeader->version();
@@ -1498,22 +1496,36 @@ void TransactionExecutor::dagExecuteTransactionsInternal(
                                     auto entry = table->getRow(ACCOUNT_CODE_HASH);
                                     if (!entry || entry->get().empty())
                                     {
-                                        EXECUTOR_NAME_LOG(ERROR)
-                                            << "No codeHash found, please deploy first ";
+                                        executionResults[i] =
+                                            toExecutionResult(std::move(inputs[i]));
+                                        executionResults[i]->setType(ExecutionMessage::SEND_BACK);
+                                        EXECUTOR_NAME_LOG(INFO)
+                                            << "No codeHash found, please deploy first "
+                                            << LOG_KV("tableName", tableName);
                                         continue;
                                     }
-                                    std::string_view codeHashStr = entry->getField(0);
+
+                                    auto codeHashBin = std::string(entry->getField(0));
+                                    auto codeHash = h256(
+                                        codeHashBin, FixedBytes<32>::StringDataType::FromBinary)
+                                                        .hex();
+
                                     // get abi according to codeHash
                                     auto abiTable =
                                         storage->openTable(bcos::ledger::SYS_CONTRACT_ABI);
-                                    auto abiEntry = abiTable->getRow(codeHashStr);
+                                    auto abiEntry = abiTable->getRow(codeHash);
                                     if (!abiEntry || abiEntry->get().empty())
                                     {
                                         abiEntry = table->getRow(ACCOUNT_ABI);
                                         if (!abiEntry || abiEntry->get().empty())
                                         {
-                                            EXECUTOR_NAME_LOG(ERROR)
-                                                << "No ABI found, please deploy first ";
+                                            executionResults[i] =
+                                                toExecutionResult(std::move(inputs[i]));
+                                            executionResults[i]->setType(
+                                                ExecutionMessage::SEND_BACK);
+                                            EXECUTOR_NAME_LOG(INFO)
+                                                << "No ABI found, please deploy first "
+                                                << LOG_KV("tableName", tableName);
                                             continue;
                                         }
                                     }
@@ -1523,12 +1535,6 @@ void TransactionExecutor::dagExecuteTransactionsInternal(
                                 {
                                     // old logic
                                     auto entry = table->getRow(ACCOUNT_ABI);
-                                    if (!entry || entry->get().empty())
-                                    {
-                                        EXECUTOR_NAME_LOG(ERROR)
-                                            << "No ABI found, please deploy first ";
-                                        continue;
-                                    }
                                     abiStr = entry->getField(0);
                                 }
                                 bool isSmCrypto =
@@ -1647,7 +1653,7 @@ void TransactionExecutor::prepare(
     auto first = m_stateStorages.begin();
     if (first == m_stateStorages.end())
     {
-        auto errorMessage = "Prepare error: empty stateStorages";
+        const auto* errorMessage = "Prepare error: empty stateStorages";
         EXECUTOR_NAME_LOG(ERROR) << errorMessage;
         callback(BCOS_ERROR_PTR(-1, errorMessage));
 
@@ -1907,7 +1913,7 @@ void TransactionExecutor::getCode(
                 callback(nullptr, std::move(codeBytes));
             });
     };
-    if (m_blockContext->blockVersion() >= uint32_t(bcos::protocol::Version::V3_1_VERSION))
+    if (m_blockVersion >= uint32_t(bcos::protocol::Version::V3_1_VERSION))
     {
         auto codeHash = getCodeHash(contractTableName, stateStorage);
         // asyncGetRow key should not be empty
@@ -2011,7 +2017,7 @@ void TransactionExecutor::getABI(
                 callback(nullptr, std::string(abi));
             });
     };
-    if (m_blockContext->blockVersion() >= uint32_t(bcos::protocol::Version::V3_1_VERSION))
+    if (m_blockVersion >= uint32_t(bcos::protocol::Version::V3_1_VERSION))
     {
         auto codeHash = getCodeHash(contractTableName, stateStorage);
         // asyncGetRow key should not be empty
@@ -2465,6 +2471,7 @@ std::unique_ptr<CallParameters> TransactionExecutor::createCallParameters(
     callParameters->staticCall = staticCall;
     callParameters->newEVMContractAddress = input.newEVMContractAddress();
     callParameters->keyLocks = input.takeKeyLocks();
+    callParameters->logEntries = input.takeLogEntries();
     if (input.create())
     {
         callParameters->abi = input.abi();
@@ -2500,6 +2507,7 @@ std::unique_ptr<CallParameters> TransactionExecutor::createCallParameters(
     callParameters->message = input.message();
     callParameters->data = tx.input().toBytes();
     callParameters->keyLocks = input.takeKeyLocks();
+    callParameters->logEntries = input.takeLogEntries();
     callParameters->abi = tx.abi();
     callParameters->delegateCall = false;
     callParameters->delegateCallCode = bytes();
