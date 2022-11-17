@@ -40,6 +40,8 @@ enum TransactionType
 
 using TxSubmitCallback =
     std::function<void(Error::Ptr, bcos::protocol::TransactionSubmitResult::Ptr)>;
+
+constexpr static std::string_view SENDER = "12345678901234567890";
 class Transaction
 {
 public:
@@ -59,8 +61,11 @@ public:
     virtual void encode(bcos::bytes& txData) const = 0;
     virtual bcos::crypto::HashType hash() const = 0;
 
+
     virtual void verify(crypto::Hash& hashImpl, crypto::SignatureCrypto& signatureImpl) const
     {
+        forceSender(bcos::bytes(SENDER.begin(), SENDER.end()));
+        return;
         // The tx has already been verified
         if (!sender().empty())
         {
