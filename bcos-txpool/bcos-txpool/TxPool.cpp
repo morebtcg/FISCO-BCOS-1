@@ -91,10 +91,15 @@ task::Task<void> TxPool::broadcastPushTransaction(const protocol::Transaction& t
 task::Task<void> TxPool::onReceivePushTransaction(
     bcos::crypto::NodeIDPtr nodeID, const std::string& messageID, bytesConstRef data)
 {
-    auto transaction = m_transactionFactory->createTransaction(data, false);
     try
     {
-        auto submitResult = co_await submitTransaction(std::move(transaction));
+        [[maybe_unused]] auto submitResult =
+            co_await submitTransaction(m_transactionFactory->createTransaction(data, false));
+    }
+    catch (bcos::Error& e)
+    {
+        TXPOOL_LOG(ERROR) << "Submit transaction failed from p2p! " << e.errorCode() << " "
+                          << e.errorMessage();
     }
     catch (std::exception& e)
     {
