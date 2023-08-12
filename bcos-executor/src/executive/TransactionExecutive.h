@@ -32,6 +32,7 @@
 #include "bcos-framework/protocol/BlockHeader.h"
 #include "bcos-framework/protocol/Transaction.h"
 #include "bcos-protocol/TransactionStatus.h"
+#include "bcos-table/src/StorageWrapperInterface.h"
 #include <bcos-codec/abi/ContractABICodec.h>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <functional>
@@ -82,7 +83,7 @@ public:
     // External call request
     virtual CallParameters::UniquePtr externalCall(CallParameters::UniquePtr input);
 
-    auto& storage()
+    storage::StorageWrapperInterface& storage()
     {
         assert(m_storageWrapper);
         return *m_storageWrapper;

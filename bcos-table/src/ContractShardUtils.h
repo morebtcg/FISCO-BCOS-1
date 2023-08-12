@@ -33,17 +33,17 @@ static const std::string_view ACCOUNT_SHARD = "shard";
 class ContractShardUtils
 {
 public:
-    static void setContractShard(bcos::storage::StorageWrapper& storage,
+    static void setContractShard(bcos::storage::StorageWrapperInterface& storage,
         const std::string_view& contractTableName, const std::string_view& shard);
     static std::string getContractShard(
-        bcos::storage::StorageWrapper& storage, const std::string_view& contractTableName);
+        bcos::storage::StorageWrapperInterface& storage, const std::string_view& contractTableName);
     static void setContractShardByParent(bcos::storage::StorageWrapper& storage,
         const std::string_view& parentTableName, const std::string_view& contractTableName);
 
 private:
     static std::optional<bcos::storage::Entry> getShard(
-        bcos::storage::StorageWrapper& storage, const std::string_view& contractTableName);
-    static void setShard(bcos::storage::StorageWrapper& storage,
+        bcos::storage::StorageWrapperInterface& storage, const std::string_view& contractTableName);
+    static void setShard(bcos::storage::StorageWrapperInterface& storage,
         const std::string_view& contractTableName, const std::string_view& shard);
 
     static bool isInherent(std::optional<bcos::storage::Entry> entry)

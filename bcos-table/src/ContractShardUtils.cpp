@@ -23,7 +23,7 @@
 
 using namespace bcos::storage;
 
-void ContractShardUtils::setContractShard(bcos::storage::StorageWrapper& storage,
+void ContractShardUtils::setContractShard(bcos::storage::StorageWrapperInterface& storage,
     const std::string_view& contractTableName, const std::string_view& shard)
 {
     CONTRACT_SHARD_LOG(TRACE) << LOG_BADGE("ContractShard") << "setContractShard "
@@ -34,7 +34,7 @@ void ContractShardUtils::setContractShard(bcos::storage::StorageWrapper& storage
 }
 
 std::optional<bcos::storage::Entry> ContractShardUtils::getShard(
-    bcos::storage::StorageWrapper& storage, const std::string_view& contractTableName)
+    bcos::storage::StorageWrapperInterface& storage, const std::string_view& contractTableName)
 {
     CONTRACT_SHARD_LOG(TRACE) << LOG_BADGE("ContractShard") << "getContractShard "
                               << LOG_KV("contractTableName", contractTableName);
@@ -54,7 +54,7 @@ std::optional<bcos::storage::Entry> ContractShardUtils::getShard(
     return storage.getRow(contractTableName, ACCOUNT_SHARD);
 }
 
-void ContractShardUtils::setShard(bcos::storage::StorageWrapper& storage,
+void ContractShardUtils::setShard(bcos::storage::StorageWrapperInterface& storage,
     const std::string_view& contractTableName, const std::string_view& shard)
 {
     auto contractTable = storage.openTable(contractTableName);
@@ -75,7 +75,7 @@ void ContractShardUtils::setShard(bcos::storage::StorageWrapper& storage,
 }
 
 std::string ContractShardUtils::getContractShard(
-    bcos::storage::StorageWrapper& storage, const std::string_view& contractTableName)
+    bcos::storage::StorageWrapperInterface& storage, const std::string_view& contractTableName)
 {
     CONTRACT_SHARD_LOG(TRACE) << LOG_BADGE("ContractShard") << "getContractShard "
                               << LOG_KV("contractTableName", contractTableName);
