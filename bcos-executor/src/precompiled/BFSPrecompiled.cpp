@@ -73,14 +73,14 @@ std::shared_ptr<PrecompiledExecResult> BFSPrecompiled::call(
     PrecompiledExecResult::Ptr _callParameters)
 {
     uint32_t func = getParamFunc(_callParameters->input());
-    uint32_t version = _executive->blockContext().blockVersion();
+    auto version = _executive->blockContext().blockVersion();
 
     if (func == name2Selector[FILE_SYSTEM_METHOD_LIST])
     {
         // list(string) => (int32,fileList)
         listDir(_executive, _callParameters);
     }
-    else if (version >= static_cast<uint32_t>(BlockVersion::V3_1_VERSION) &&
+    else if (version >= BlockVersion::V3_1_VERSION &&
              func == name2Selector[FILE_SYSTEM_METHOD_LIST_PAGE])
     {
         // list(string,uint,uint) => (int32,fileList)
@@ -96,7 +96,7 @@ std::shared_ptr<PrecompiledExecResult> BFSPrecompiled::call(
         // link(string name, string version, address, abi) => int32
         linkAdaptCNS(_executive, _callParameters);
     }
-    else if (version >= static_cast<uint32_t>(BlockVersion::V3_1_VERSION) &&
+    else if (version >= BlockVersion::V3_1_VERSION &&
              func == name2Selector[FILE_SYSTEM_METHOD_LINK])
     {
         // link(absolutePath, address, abi) => int32
@@ -111,7 +111,7 @@ std::shared_ptr<PrecompiledExecResult> BFSPrecompiled::call(
         // touch(string absolute,string type) => int32
         touch(_executive, _callParameters);
     }
-    else if (version >= static_cast<uint32_t>(BlockVersion::V3_1_VERSION) &&
+    else if (version >= BlockVersion::V3_1_VERSION &&
              func == name2Selector[FILE_SYSTEM_METHOD_INIT])
     {
         // initBfs for the first time
@@ -701,7 +701,7 @@ void BFSPrecompiled::readLink(const std::shared_ptr<executor::TransactionExecuti
 }
 
 bool BFSPrecompiled::checkPathPrefixValid(
-    const std::string_view& path, uint32_t blockVersion, const std::string_view& type)
+    const std::string_view& path, protocol::BlockVersion blockVersion, const std::string_view& type)
 {
     if (!path.starts_with(USER_APPS_PREFIX) && !path.starts_with(USER_TABLE_PREFIX))
     {

@@ -60,8 +60,8 @@ private:
 
     std::string_view getLinkRootDir() override { return executor::USER_SHARD_PREFIX; }
 
-    bool checkPathPrefixValid(
-        const std::string_view& path, uint32_t blockVersion, const std::string_view& type) override;
+    bool checkPathPrefixValid(const std::string_view& path, protocol::BlockVersion blockVersion,
+        const std::string_view& type) override;
 
     bool checkContractAddressValid(bool isWasm, const std::string& address,
         uint32_t blockVersion = static_cast<uint32_t>(protocol::BlockVersion::V3_3_VERSION));

@@ -1252,7 +1252,7 @@ CallParameters::UniquePtr TransactionExecutive::parseEVMCResult(
 }
 
 void TransactionExecutive::creatAuthTable(std::string_view _tableName, std::string_view _origin,
-    std::string_view _sender, uint32_t version)
+    std::string_view _sender, protocol::BlockVersion version)
 {
     // Create the access table
     //  /sys/ not create

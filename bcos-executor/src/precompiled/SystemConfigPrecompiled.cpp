@@ -45,7 +45,8 @@ SystemConfigPrecompiled::SystemConfigPrecompiled(crypto::Hash::Ptr hashImpl) : P
 {
     name2Selector[SYSCONFIG_METHOD_SET_STR] = getFuncSelector(SYSCONFIG_METHOD_SET_STR, hashImpl);
     name2Selector[SYSCONFIG_METHOD_GET_STR] = getFuncSelector(SYSCONFIG_METHOD_GET_STR, hashImpl);
-    auto defaultCmp = [](std::string_view _key, int64_t _value, int64_t _minValue, uint32_t version,
+    auto defaultCmp = [](std::string_view _key, int64_t _value, int64_t _minValue,
+                          protocol::BlockVersion version,
                           BlockVersion minVersion = BlockVersion::V3_0_VERSION) {
         if (versionCompareTo(version, minVersion) < 0) [[unlikely]]
         {
@@ -59,41 +60,42 @@ SystemConfigPrecompiled::SystemConfigPrecompiled(crypto::Hash::Ptr hashImpl) : P
             "Invalid value " + std::to_string(_value) + " ,the value for " + std::string{_key} +
             " must be no less than " + std::to_string(_minValue)));
     };
-    m_sysValueCmp.insert(
-        std::make_pair(SYSTEM_KEY_TX_GAS_LIMIT, [defaultCmp](int64_t _value, uint32_t version) {
+    m_sysValueCmp.insert(std::make_pair(
+        SYSTEM_KEY_TX_GAS_LIMIT, [defaultCmp](int64_t _value, protocol::BlockVersion version) {
             defaultCmp(SYSTEM_KEY_TX_GAS_LIMIT, _value, TX_GAS_LIMIT_MIN, version);
         }));
-    m_sysValueCmp.insert(std::make_pair(
-        SYSTEM_KEY_CONSENSUS_LEADER_PERIOD, [defaultCmp](int64_t _value, uint32_t version) {
+    m_sysValueCmp.insert(std::make_pair(SYSTEM_KEY_CONSENSUS_LEADER_PERIOD,
+        [defaultCmp](int64_t _value, protocol::BlockVersion version) {
             defaultCmp(SYSTEM_KEY_CONSENSUS_LEADER_PERIOD, _value, 1, version);
         }));
-    m_sysValueCmp.insert(
-        std::make_pair(SYSTEM_KEY_TX_COUNT_LIMIT, [defaultCmp](int64_t _value, uint32_t version) {
+    m_sysValueCmp.insert(std::make_pair(
+        SYSTEM_KEY_TX_COUNT_LIMIT, [defaultCmp](int64_t _value, protocol::BlockVersion version) {
             defaultCmp(SYSTEM_KEY_TX_COUNT_LIMIT, _value, TX_COUNT_LIMIT_MIN, version);
         }));
-    m_sysValueCmp.insert(std::make_pair(SYSTEM_KEY_AUTH_CHECK_STATUS, [defaultCmp](int64_t _value,
-                                                                          uint32_t version) {
-        defaultCmp(SYSTEM_KEY_AUTH_CHECK_STATUS, _value, 0, version, BlockVersion::V3_3_VERSION);
-        if (_value > (decltype(_value))UINT8_MAX) [[unlikely]]
-        {
-            BOOST_THROW_EXCEPTION(PrecompiledError(
-                "Invalid status value, must less than " + std::to_string(UINT8_MAX)));
-        }
-    }));
     m_sysValueCmp.insert(std::make_pair(
-        SYSTEM_KEY_RPBFT_EPOCH_BLOCK_NUM, [defaultCmp](int64_t _value, uint32_t version) {
+        SYSTEM_KEY_AUTH_CHECK_STATUS, [defaultCmp](int64_t _value, protocol::BlockVersion version) {
+            defaultCmp(
+                SYSTEM_KEY_AUTH_CHECK_STATUS, _value, 0, version, BlockVersion::V3_3_VERSION);
+            if (_value > (decltype(_value))UINT8_MAX) [[unlikely]]
+            {
+                BOOST_THROW_EXCEPTION(PrecompiledError(
+                    "Invalid status value, must less than " + std::to_string(UINT8_MAX)));
+            }
+        }));
+    m_sysValueCmp.insert(std::make_pair(SYSTEM_KEY_RPBFT_EPOCH_BLOCK_NUM,
+        [defaultCmp](int64_t _value, protocol::BlockVersion version) {
             defaultCmp(SYSTEM_KEY_RPBFT_EPOCH_BLOCK_NUM, _value, RPBFT_EPOCH_BLOCK_NUM_MIN, version,
                 BlockVersion::V3_5_VERSION);
         }));
-    m_sysValueCmp.insert(std::make_pair(
-        SYSTEM_KEY_RPBFT_EPOCH_SEALER_NUM, [defaultCmp](int64_t _value, uint32_t version) {
+    m_sysValueCmp.insert(std::make_pair(SYSTEM_KEY_RPBFT_EPOCH_SEALER_NUM,
+        [defaultCmp](int64_t _value, protocol::BlockVersion version) {
             defaultCmp(SYSTEM_KEY_RPBFT_EPOCH_SEALER_NUM, _value, RPBFT_EPOCH_SEALER_NUM_MIN,
                 version, BlockVersion::V3_5_VERSION);
         }));
     // for compatibility
     // Note: the compatibility_version is not compatibility
-    m_sysValueCmp.insert(
-        std::make_pair(SYSTEM_KEY_COMPATIBILITY_VERSION, [](int64_t _value, uint32_t version) {
+    m_sysValueCmp.insert(std::make_pair(
+        SYSTEM_KEY_COMPATIBILITY_VERSION, [](int64_t _value, protocol::BlockVersion version) {
             if (_value < (uint32_t)(g_BCOSConfig.minSupportedVersion()))
             {
                 std::stringstream errorMsg;
@@ -105,7 +107,7 @@ SystemConfigPrecompiled::SystemConfigPrecompiled(crypto::Hash::Ptr hashImpl) : P
             }
         }));
     m_valueConverter.insert(std::make_pair(SYSTEM_KEY_COMPATIBILITY_VERSION,
-        [](const std::string& _value, uint32_t blockVersion) -> uint64_t {
+        [](const std::string& _value, protocol::BlockVersion blockVersion) -> int64_t {
             auto version = bcos::tool::toVersionNumber(_value);
             if (versionCompareTo(blockVersion, BlockVersion::V3_1_VERSION) >= 0)
             {
@@ -115,7 +117,7 @@ SystemConfigPrecompiled::SystemConfigPrecompiled(crypto::Hash::Ptr hashImpl) : P
                         "Set compatibility version should not lower than version nowadays."));
                 }
             }
-            return version;
+            return static_cast<int64_t>(version);
         }));
 }
 
@@ -159,9 +161,11 @@ std::shared_ptr<PrecompiledExecResult> SystemConfigPrecompiled::call(
 
             table->setRow(configKey, std::move(entry));
 
-            if (shouldUpgradeChain(configKey, blockContext.blockVersion(), value))
+            if (shouldUpgradeChain(configKey, blockContext.blockVersion(),
+                    static_cast<protocol::BlockVersion>(value)))
             {
-                upgradeChain(_executive, _callParameters, codec, value);
+                upgradeChain(
+                    _executive, _callParameters, codec, static_cast<protocol::BlockVersion>(value));
             }
 
             PRECOMPILED_LOG(INFO) << LOG_BADGE("SystemConfigPrecompiled")
@@ -194,7 +198,7 @@ std::shared_ptr<PrecompiledExecResult> SystemConfigPrecompiled::call(
 }
 
 int64_t SystemConfigPrecompiled::validate(
-    std::string_view _key, std::string_view value, uint32_t blockVersion)
+    std::string_view _key, std::string_view value, protocol::BlockVersion blockVersion)
 {
     int64_t configuredValue = 0;
     std::string key = std::string(_key);
@@ -288,8 +292,8 @@ std::pair<std::string, protocol::BlockNumber> SystemConfigPrecompiled::getSysCon
     }
 }
 
-bool bcos::precompiled::SystemConfigPrecompiled::shouldUpgradeChain(
-    std::string_view key, uint32_t fromVersion, uint32_t toVersion) noexcept
+bool bcos::precompiled::SystemConfigPrecompiled::shouldUpgradeChain(std::string_view key,
+    protocol::BlockVersion fromVersion, protocol::BlockVersion toVersion) noexcept
 {
     return key == bcos::ledger::SYSTEM_KEY_COMPATIBILITY_VERSION && toVersion > fromVersion;
 }
@@ -297,7 +301,7 @@ bool bcos::precompiled::SystemConfigPrecompiled::shouldUpgradeChain(
 void SystemConfigPrecompiled::upgradeChain(
     const std::shared_ptr<executor::TransactionExecutive>& _executive,
     const PrecompiledExecResult::Ptr& _callParameters, CodecWrapper const& codec,
-    uint32_t toVersion)
+    protocol::BlockVersion toVersion)
 {
     const auto& blockContext = _executive->blockContext();
     auto version = blockContext.blockVersion();

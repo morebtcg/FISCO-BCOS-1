@@ -49,7 +49,7 @@ public:
     uint64_t m_leaderSwitchPeriod = 1;
 
     // version config
-    protocol::BlockVersion m_compatibilityVersion;
+    protocol::BlockVersion m_compatibilityVersion{};
 
     // tx config
     uint64_t m_txGasLimit = 3000000000;

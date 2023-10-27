@@ -264,7 +264,7 @@ void TransactionExecutor::initEvmEnvironment()
     m_precompiled->insert(CRYPTO_ADDRESS, std::make_shared<CryptoPrecompiled>(m_hashImpl));
     m_precompiled->insert(BFS_ADDRESS, std::make_shared<BFSPrecompiled>(m_hashImpl));
     m_precompiled->insert(PAILLIER_ADDRESS, std::make_shared<PaillierPrecompiled>(m_hashImpl),
-        [](uint32_t, bool, ledger::Features const& features) {
+        [](protocol::BlockVersion, bool, ledger::Features const& features) {
             return features.get(ledger::Features::Flag::feature_paillier);
         });
     m_precompiled->insert(GROUP_SIG_ADDRESS, std::make_shared<GroupSigPrecompiled>(m_hashImpl));
@@ -273,18 +273,16 @@ void TransactionExecutor::initEvmEnvironment()
 
     m_precompiled->insert(AUTH_MANAGER_ADDRESS,
         std::make_shared<AuthManagerPrecompiled>(m_hashImpl, m_isWasm),
-        [](uint32_t version, bool isAuthCheck, ledger::Features const& features) -> bool {
-            return isAuthCheck || version >= BlockVersion::V3_3_VERSION;
-        });
+        [](protocol::BlockVersion version, bool isAuthCheck, ledger::Features const& features)
+            -> bool { return isAuthCheck || version >= BlockVersion::V3_3_VERSION; });
     m_precompiled->insert(AUTH_CONTRACT_MGR_ADDRESS,
         std::make_shared<ContractAuthMgrPrecompiled>(m_hashImpl, m_isWasm),
-        [](uint32_t version, bool isAuthCheck, ledger::Features const& features) -> bool {
-            return isAuthCheck || version >= BlockVersion::V3_3_VERSION;
-        });
+        [](protocol::BlockVersion version, bool isAuthCheck, ledger::Features const& features)
+            -> bool { return isAuthCheck || version >= BlockVersion::V3_3_VERSION; });
 
     m_precompiled->insert(SHARDING_PRECOMPILED_ADDRESS,
         std::make_shared<ShardingPrecompiled>(GlobalHashImpl::g_hashImpl),
-        [](uint32_t version, bool isAuthCheck, ledger::Features const& features) {
+        [](protocol::BlockVersion version, bool isAuthCheck, ledger::Features const& features) {
             return features.get(ledger::Features::Flag::feature_sharding);
         });
     m_precompiled->insert(CAST_ADDRESS,
@@ -330,7 +328,7 @@ void TransactionExecutor::initWasmEnvironment()
     m_precompiled->insert(CRYPTO_NAME, std::make_shared<CryptoPrecompiled>(m_hashImpl));
     m_precompiled->insert(BFS_NAME, std::make_shared<BFSPrecompiled>(m_hashImpl));
     m_precompiled->insert(PAILLIER_SIG_NAME, std::make_shared<PaillierPrecompiled>(m_hashImpl),
-        [](uint32_t, bool, ledger::Features const& features) {
+        [](protocol::BlockVersion, bool, ledger::Features const& features) {
             return features.get(ledger::Features::Flag::feature_paillier);
         });
     m_precompiled->insert(GROUP_SIG_NAME, std::make_shared<GroupSigPrecompiled>(m_hashImpl));

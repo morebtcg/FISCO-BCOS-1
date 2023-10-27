@@ -74,7 +74,7 @@ HostContext::HostContext(CallParameters::UniquePtr callParameters,
     wasm_interface = getWasmHostInterface();
 
     hash_fn = evm_hash_fn;
-    version = m_executive->blockContext().blockVersion();
+    version = static_cast<uint32_t>(m_executive->blockContext().blockVersion());
     isSMCrypto = false;
 
     if (hashImpl() && hashImpl()->getHashImplType() == crypto::HashImplType::Sm3Hash)
@@ -545,7 +545,7 @@ int64_t HostContext::blockNumber() const
     return m_executive->blockContext().number();
 }
 
-uint32_t HostContext::blockVersion() const
+protocol::BlockVersion HostContext::blockVersion() const
 {
     return m_executive->blockContext().blockVersion();
 }

@@ -47,15 +47,18 @@ public:
         const std::shared_ptr<executor::TransactionExecutive>& _executive, const std::string& _key);
 
 private:
-    int64_t validate(std::string_view key, std::string_view value, uint32_t blockVersion);
-    static bool shouldUpgradeChain(
-        std::string_view key, uint32_t fromVersion, uint32_t toVersion) noexcept;
+    int64_t validate(
+        std::string_view key, std::string_view value, protocol::BlockVersion blockVersion);
+    static bool shouldUpgradeChain(std::string_view key, protocol::BlockVersion fromVersion,
+        protocol::BlockVersion toVersion) noexcept;
     static void upgradeChain(const std::shared_ptr<executor::TransactionExecutive>& _executive,
         const PrecompiledExecResult::Ptr& _callParameters, CodecWrapper const& codec,
-        uint32_t toVersion);
+        protocol::BlockVersion toVersion);
 
-    std::map<std::string, std::function<int64_t(std::string, uint32_t)>> m_valueConverter;
-    std::unordered_map<std::string, std::function<void(int64_t, uint32_t)>> m_sysValueCmp;
+    std::map<std::string, std::function<int64_t(std::string, protocol::BlockVersion)>>
+        m_valueConverter;
+    std::unordered_map<std::string, std::function<void(int64_t, protocol::BlockVersion)>>
+        m_sysValueCmp;
 };
 
 }  // namespace bcos::precompiled

@@ -95,7 +95,7 @@ public:
     /// Hash of a block if within the last 256 blocks, or h256() otherwise.
     h256 blockHash(int64_t _number) const;
     int64_t blockNumber() const;
-    uint32_t blockVersion() const;
+    protocol::BlockVersion blockVersion() const;
     uint64_t timestamp() const;
     int64_t blockGasLimit() const
     {

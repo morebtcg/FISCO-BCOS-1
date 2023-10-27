@@ -404,7 +404,7 @@ void ShardingPrecompiled::handleSetContractShard(
 }
 
 bool ShardingPrecompiled::checkPathPrefixValid(
-    const std::string_view& path, uint32_t blockVersion, const std::string_view& type)
+    const std::string_view& path, protocol::BlockVersion blockVersion, const std::string_view& type)
 {
     if (blockVersion >= (uint32_t)(bcos::protocol::BlockVersion::V3_3_VERSION) &&
         path.starts_with(USER_SHARD_PREFIX))

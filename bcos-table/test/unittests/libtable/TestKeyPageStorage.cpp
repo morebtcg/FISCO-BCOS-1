@@ -621,9 +621,9 @@ BOOST_AUTO_TEST_CASE(hash_V3_1_0)
     auto hashImpl2 = make_shared<Header256Hash>();
     auto memoryStorage2 = make_shared<StateStorage>(nullptr);
     auto tableFactory2 = make_shared<KeyPageStorage>(
-        memoryStorage2, 10240, (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION);
+        memoryStorage2, 10240, bcos::protocol::BlockVersion::V3_1_VERSION);
     auto tableFactory1 = make_shared<KeyPageStorage>(
-        memoryStorage2, 10240, (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION);
+        memoryStorage2, 10240, bcos::protocol::BlockVersion::V3_0_VERSION);
 
     for (int i = 10; i < 20; ++i)
     {
@@ -685,9 +685,9 @@ BOOST_AUTO_TEST_CASE(hash_different_table_same_data)
     auto memoryStorage2 = make_shared<StateStorage>(nullptr);
 
     auto tableFactory1 = make_shared<KeyPageStorage>(
-        memoryStorage2, 10240, (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION);
+        memoryStorage2, 10240, bcos::protocol::BlockVersion::V3_0_VERSION);
     auto tableFactory2 = make_shared<KeyPageStorage>(
-        memoryStorage2, 10240, (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION);
+        memoryStorage2, 10240, bcos::protocol::BlockVersion::V3_0_VERSION);
     BOOST_REQUIRE(tableFactory1 != nullptr);
     BOOST_REQUIRE(tableFactory2 != nullptr);
 
@@ -3015,8 +3015,8 @@ BOOST_AUTO_TEST_CASE(TableMeta_read_write_mutex)
     auto meta = std::make_shared<storage::KeyPageStorage::TableMeta>();
     for (int i = 0; i < loop; ++i)
     {
-        meta->insertPageInfoNoLock(storage::KeyPageStorage::PageInfo(
-            std::to_string(i), i % 2 == 0 ? 0 : i, i, nullptr));
+        meta->insertPageInfoNoLock(
+            storage::KeyPageStorage::PageInfo(std::to_string(i), i % 2 == 0 ? 0 : i, i, nullptr));
     }
     std::shared_ptr<bcos::ThreadPool> threadPool = std::make_shared<bcos::ThreadPool>("test", 2);
     auto promise = std::make_shared<std::promise<void>>();
