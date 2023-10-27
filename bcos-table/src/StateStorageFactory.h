@@ -65,7 +65,7 @@ public:
     virtual ~StateStorageFactory() = default;
 
     virtual storage::StateStorageInterface::Ptr createStateStorage(
-        bcos::storage::StorageInterface::Ptr storage, uint32_t compatibilityVersion,
+        bcos::storage::StorageInterface::Ptr storage, protocol::BlockVersion compatibilityVersion,
         bool ignoreNotExist = false,
         std::shared_ptr<std::set<std::string, std::less<>>> const& keyPageIgnoreTables = nullptr)
     {
@@ -76,7 +76,7 @@ public:
 
         if (m_keyPageSize > 0)
         {
-            if (compatibilityVersion >= (uint32_t)protocol::BlockVersion::V3_1_VERSION &&
+            if (compatibilityVersion >= protocol::BlockVersion::V3_1_VERSION &&
                 keyPageIgnoreTables != nullptr)
             {
                 if (keyPageIgnoreTables->contains(tool::FS_ROOT))

@@ -77,7 +77,8 @@ public:
     }
 
     // notify the sealer the latest blockNumber
-    void registerStateNotifier(std::function<void(bcos::protocol::BlockNumber, crypto::HashType const&)> _stateNotifier)
+    void registerStateNotifier(
+        std::function<void(bcos::protocol::BlockNumber, crypto::HashType const&)> _stateNotifier)
     {
         m_pbftEngine->pbftConfig()->registerStateNotifier(std::move(_stateNotifier));
     }
@@ -142,12 +143,12 @@ public:
     virtual bool masterNode() const { return m_masterNode.load(); }
 
     virtual void registerVersionInfoNotification(
-        std::function<void(uint32_t _version)> _versionNotification)
+        std::function<void(protocol::BlockVersion _version)> _versionNotification)
     {
         m_pbftEngine->pbftConfig()->registerVersionInfoNotification(_versionNotification);
     }
 
-    uint32_t compatibilityVersion() const override
+    protocol::BlockVersion compatibilityVersion() const override
     {
         return m_pbftEngine->pbftConfig()->compatibilityVersion();
     }

@@ -90,7 +90,7 @@ public:
     using Ptr = std::shared_ptr<KeyPageStorage>;
 
     explicit KeyPageStorage(std::shared_ptr<StorageInterface> _prev, size_t _pageSize = 10240,
-        uint32_t _blockVersion = (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION,
+        protocol::BlockVersion _blockVersion = bcos::protocol::BlockVersion::V3_0_VERSION,
         std::shared_ptr<const std::set<std::string, std::less<>>> _ignoreTables = nullptr,
         bool _ignoreNotExist = false)
       : storage::StateStorageInterface(std::move(_prev)),
@@ -889,9 +889,9 @@ public:
             if (!entries.empty() && pageKey != entries.rbegin()->first)
             {
                 KeyPage_LOG(DEBUG) << LOG_DESC("import page with invalid pageKey")
-                                     << LOG_KV("pageKey", toHex(pageKey))
-                                     << LOG_KV("validPageKey", toHex(entries.rbegin()->first))
-                                     << LOG_KV("count", entries.size());
+                                   << LOG_KV("pageKey", toHex(pageKey))
+                                   << LOG_KV("validPageKey", toHex(entries.rbegin()->first))
+                                   << LOG_KV("count", entries.size());
                 m_invalidPageKeys.insert(std::string(pageKey));
             }
             if (entries.empty())
@@ -902,7 +902,7 @@ public:
             }
         }
         auto hash(const std::string& table, const bcos::crypto::Hash::Ptr& hashImpl,
-            uint32_t blockVersion) const -> crypto::HashType
+            protocol::BlockVersion blockVersion) const -> crypto::HashType
         {
             bcos::crypto::HashType pageHash(0);
             auto hash = hashImpl->hash(table);
@@ -1308,7 +1308,7 @@ private:
     std::pair<Error::UniquePtr, std::optional<Entry>> getEntryFromPage(
         std::string_view table, std::string_view key);
     Error::UniquePtr setEntryToPage(std::string table, std::string key, Entry entry);
-    uint32_t m_blockVersion = 0;
+    protocol::BlockVersion m_blockVersion{};
     size_t m_pageSize = 8 * 1024;
     size_t m_splitSize;
     size_t m_mergeSize;

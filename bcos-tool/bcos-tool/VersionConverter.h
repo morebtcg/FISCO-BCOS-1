@@ -27,7 +27,14 @@
 
 namespace bcos::tool
 {
-inline uint32_t toVersionNumber(std::string_view _version)
+inline std::string fromVersionNumber(protocol::BlockVersion version)
+{
+    std::stringstream ss;
+    ss << version;
+    return ss.str();
+}
+
+inline protocol::BlockVersion toVersionNumber(std::string_view _version)
 {
     std::string version{_version};
     boost::to_lower(version);
@@ -35,7 +42,7 @@ inline uint32_t toVersionNumber(std::string_view _version)
     if (_version.starts_with(bcos::protocol::RC_VERSION_PREFIX))
     {
         auto versionNumber = _version.substr(bcos::protocol::RC_VERSION_PREFIX.length());
-        return boost::lexical_cast<uint32_t>(versionNumber);
+        return protocol::BlockVersion(boost::lexical_cast<uint32_t>(versionNumber));
     }
     std::vector<std::string> versionFields;
     boost::split(versionFields, version, boost::is_any_of("."));
@@ -67,7 +74,8 @@ inline uint32_t toVersionNumber(std::string_view _version)
                                       std::to_string(bcos::protocol::MAX_MAJOR_VERSION) +
                                       ", version:" + std::string(_version)));
         }
-        return (majorVersion << 24) + (minorVersion << 16) + (patchVersion << 8);
+        return protocol::BlockVersion(
+            (majorVersion << 24) + (minorVersion << 16) + (patchVersion << 8));
     }
     catch (const boost::bad_lexical_cast& e)
     {

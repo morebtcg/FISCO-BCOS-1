@@ -3,6 +3,7 @@
 #include "Common.h"
 #include "bcos-framework/ledger/Features.h"
 #include "bcos-framework/ledger/Ledger.h"
+#include "bcos-framework/protocol/Protocol.h"
 #include "bcos-ledger/src/libledger/LedgerMethods.h"
 #include "bcos-task/Wait.h"
 #include "bcos-utilities/Common.h"
@@ -735,7 +736,7 @@ void SchedulerImpl::call(protocol::Transaction::Ptr tx,
     block->blockHeader()->setNumber(blockNumber);
     block->blockHeader()->calculateHash(*m_blockFactory->cryptoSuite()->hashImpl());
     block->appendTransaction(std::move(tx));
-    block->blockHeader()->setVersion(m_blockVersion);
+    block->blockHeader()->setVersion(static_cast<uint32_t>(m_blockVersion));
 
     // Create temp executive
 
@@ -987,7 +988,7 @@ bcos::protocol::BlockNumber SchedulerImpl::getCurrentBlockNumber()
 
 void SchedulerImpl::fetchConfig(protocol::BlockNumber _number)
 {
-    if (m_gasLimit > 0 && m_blockVersion > 0)
+    if (m_gasLimit > 0 && m_blockVersion > static_cast<protocol::BlockVersion>(0))
     {
         return;
     }

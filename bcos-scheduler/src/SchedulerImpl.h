@@ -193,7 +193,7 @@ private:
     std::atomic_int64_t m_calledContextID = 1;
 
     uint64_t m_gasLimit = 0;
-    uint32_t m_blockVersion = 0;
+    protocol::BlockVersion m_blockVersion{};
 
     ExecutorManager::Ptr m_executorManager;
     bcos::ledger::LedgerInterface::Ptr m_ledger;

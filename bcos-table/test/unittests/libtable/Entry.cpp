@@ -187,13 +187,12 @@ BOOST_AUTO_TEST_CASE(entryHash)
     entry.setField(0, data);
 
     auto sm3 = std::make_shared<bcos::crypto::SM3>();
-    auto oldHash = entry.hash(table, key, *sm3, 0);
+    auto oldHash = entry.hash(table, key, *sm3, {});
     auto oldExpect = sm3->hash(bytesConstRef((bcos::byte*)data.data(), data.size()));
     BOOST_CHECK_EQUAL(oldHash, oldExpect);
 
     entry.setStatus(Entry::DELETED);
-    auto deletedHash =
-        entry.hash(table, key, *sm3, (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION);
+    auto deletedHash = entry.hash(table, key, *sm3, bcos::protocol::BlockVersion::V3_1_VERSION);
 
     auto hasher = sm3->hasher();
     hasher.update(table);
@@ -205,8 +204,7 @@ BOOST_AUTO_TEST_CASE(entryHash)
 
     entry.setStatus(Entry::MODIFIED);
     entry.setField(0, data);
-    auto modifyHash =
-        entry.hash(table, key, *sm3, (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION);
+    auto modifyHash = entry.hash(table, key, *sm3, bcos::protocol::BlockVersion::V3_1_VERSION);
     hasher = sm3->hasher();
     hasher.update(table);
     hasher.update(key);
@@ -217,8 +215,7 @@ BOOST_AUTO_TEST_CASE(entryHash)
     BOOST_CHECK_EQUAL(modifyHash, modifyExpect);
 
     entry.setStatus(Entry::NORMAL);
-    auto normalHash =
-        entry.hash(table, key, *sm3, (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION);
+    auto normalHash = entry.hash(table, key, *sm3, bcos::protocol::BlockVersion::V3_1_VERSION);
     BOOST_CHECK_EQUAL(normalHash, bcos::crypto::HashType{});
 }
 

@@ -21,6 +21,7 @@
 #pragma once
 #include "../interfaces/PBFTMessageFactory.h"
 #include "../interfaces/PBFTProposalInterface.h"
+#include "bcos-framework/protocol/Protocol.h"
 #include "bcos-framework/txpool/TxPoolInterface.h"
 #include <bcos-framework/protocol/BlockFactory.h>
 #include <bcos-framework/protocol/TransactionSubmitResultFactory.h>
@@ -42,8 +43,9 @@ public:
 
     virtual void asyncResetTxsFlag(
         bytesConstRef _data, bool _flag, bool _emptyTxBatchHash = false) = 0;
-    virtual PBFTProposalInterface::Ptr generateEmptyProposal(uint32_t _proposalVersion,
-        PBFTMessageFactory::Ptr _factory, int64_t _index, int64_t _sealerId) = 0;
+    virtual PBFTProposalInterface::Ptr generateEmptyProposal(
+        protocol::BlockVersion _proposalVersion, PBFTMessageFactory::Ptr _factory, int64_t _index,
+        int64_t _sealerId) = 0;
 
     virtual void notifyTransactionsResult(
         bcos::protocol::Block::Ptr _block, bcos::protocol::BlockHeader::Ptr _header) = 0;
@@ -103,7 +105,7 @@ public:
         return m_resettingProposals.size();
     }
 
-    PBFTProposalInterface::Ptr generateEmptyProposal(uint32_t _proposalVersion,
+    PBFTProposalInterface::Ptr generateEmptyProposal(protocol::BlockVersion _proposalVersion,
         PBFTMessageFactory::Ptr _factory, int64_t _index, int64_t _sealerId) override
     {
         auto proposal = _factory->createPBFTProposal();
@@ -111,7 +113,7 @@ public:
         auto block = m_blockFactory->createBlock();
         auto blockHeader = m_blockFactory->blockHeaderFactory()->createBlockHeader();
         blockHeader->populateEmptyBlock(_index, _sealerId);
-        blockHeader->setVersion(_proposalVersion);
+        blockHeader->setVersion(static_cast<uint32_t>(_proposalVersion));
         blockHeader->calculateHash(*m_blockFactory->cryptoSuite()->hashImpl());
         block->setBlockHeader(blockHeader);
         auto encodedData = std::make_shared<bytes>();

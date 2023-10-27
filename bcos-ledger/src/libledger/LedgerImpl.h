@@ -737,7 +737,7 @@ private:
     bcos::storage::StorageInterface::Ptr m_backupStorage;
     Storage m_storage;
     crypto::merkle::Merkle<Hasher> m_merkle;  // Use the default width 2
-    uint32_t m_compatibilityVersion;
+    protocol::BlockVersion m_compatibilityVersion;
     size_t m_keyPageSize;
 };
 

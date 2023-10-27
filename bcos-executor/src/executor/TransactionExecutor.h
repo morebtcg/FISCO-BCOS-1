@@ -205,7 +205,7 @@ protected:
 
     virtual std::shared_ptr<BlockContext> createBlockContextForCall(
         bcos::protocol::BlockNumber blockNumber, h256 blockHash, uint64_t timestamp,
-        int32_t blockVersion, storage::StateStorageInterface::Ptr tableFactory);
+        protocol::BlockVersion blockVersion, storage::StateStorageInterface::Ptr tableFactory);
 
     void asyncExecute(std::shared_ptr<BlockContext> blockContext,
         bcos::protocol::ExecutionMessage::UniquePtr input, bool useCoroutine,
@@ -321,14 +321,14 @@ protected:
     bool m_isAuthCheck = false;
     bool m_isWasm = false;
     bool m_isRunning = false;
-    uint32_t m_blockVersion = 0;
+    protocol::BlockVersion m_blockVersion{};
     int64_t m_schedulerTermId = -1;
     std::shared_ptr<std::set<std::string, std::less<>>> m_keyPageIgnoreTables;
 
     bcos::ThreadPool::Ptr m_threadPool;
     mutable RecursiveMutex x_resetEnvironmentLock;
 
-    void setBlockVersion(uint32_t blockVersion);
+    void setBlockVersion(protocol::BlockVersion blockVersion);
     void initEvmEnvironment();
     void initWasmEnvironment();
     void resetEnvironment();

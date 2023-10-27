@@ -394,40 +394,40 @@ public:
     crypto::HashType hash(const bcos::crypto::Hash::Ptr& hashImpl, bool useHashV310) const override
     {
         bcos::crypto::HashType totalHash;
-        auto blockVersion = useHashV310 ? (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION :
-                                          (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION;
+        auto blockVersion = useHashV310 ? bcos::protocol::BlockVersion::V3_1_VERSION :
+                                          bcos::protocol::BlockVersion::V3_0_VERSION;
 
         std::vector<bcos::crypto::HashType> hashes(m_buckets.size());
-        tbb::parallel_for(tbb::blocked_range<size_t>(0U, m_buckets.size()), [&, this](
-                                                                                auto const& range) {
-            for (auto i = range.begin(); i < range.end(); ++i)
-            {
-                auto& bucket = m_buckets[i];
-
-                bcos::crypto::HashType bucketHash(0);
-                for (auto& it : bucket.container)
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0U, m_buckets.size()), [&, this](auto const& range) {
+                for (auto i = range.begin(); i < range.end(); ++i)
                 {
-                    auto& entry = it.entry;
-                    if (entry.dirty())
-                    {
-                        bcos::crypto::HashType entryHash;
-                        if (blockVersion >= (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION)
-                        {
-                            entryHash = entry.hash(it.table, it.key, *hashImpl, blockVersion);
-                        }
-                        else
-                        {  // v3.0.0-v3.2.0 use this which will make it not compatible with
-                           // v3.1.0 keyPageStorage
-                            entryHash = hashImpl->hash(it.table) ^ hashImpl->hash(it.key) ^
-                                        entry.hash(it.table, it.key, *hashImpl, blockVersion);
-                        }
-                        bucketHash ^= entryHash;
-                    }
-                }
+                    auto& bucket = m_buckets[i];
 
-                hashes[i] ^= bucketHash;
-            }
-        });
+                    bcos::crypto::HashType bucketHash(0);
+                    for (auto& it : bucket.container)
+                    {
+                        auto& entry = it.entry;
+                        if (entry.dirty())
+                        {
+                            bcos::crypto::HashType entryHash;
+                            if (blockVersion >= bcos::protocol::BlockVersion::V3_1_VERSION)
+                            {
+                                entryHash = entry.hash(it.table, it.key, *hashImpl, blockVersion);
+                            }
+                            else
+                            {  // v3.0.0-v3.2.0 use this which will make it not compatible with
+                               // v3.1.0 keyPageStorage
+                                entryHash = hashImpl->hash(it.table) ^ hashImpl->hash(it.key) ^
+                                            entry.hash(it.table, it.key, *hashImpl, blockVersion);
+                            }
+                            bucketHash ^= entryHash;
+                        }
+                    }
+
+                    hashes[i] ^= bucketHash;
+                }
+            });
 
         for (auto const& it : hashes)
         {

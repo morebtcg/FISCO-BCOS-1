@@ -75,10 +75,7 @@ public:
 
     ~BufferWriter() {}
 
-    void reset()
-    {
-        _len = 0;
-    }
+    void reset() { _len = 0; }
 
     void writeBuf(const ByteType* buf, size_t len)
     {
@@ -97,14 +94,8 @@ public:
         _buffer.resize(_len);
         return _buffer;
     }
-    const ByteType* getBuffer() const
-    {
-        return _buf;
-    }
-    size_t getLength() const
-    {
-        return _len;
-    }
+    const ByteType* getBuffer() const { return _buf; }
+    size_t getLength() const { return _len; }
     void swap(std::vector<ByteType>& v)
     {
         _buffer.resize(_len);
@@ -267,7 +258,8 @@ inline bcos::ledger::LedgerConfig::Ptr toLedgerConfig(
     ledgerConfig->setLeaderSwitchPeriod(_ledgerConfig.leaderSwitchPeriod);
     ledgerConfig->setSealerId(_ledgerConfig.sealerId);
     ledgerConfig->setGasLimit(std::make_tuple(_ledgerConfig.gasLimit, _ledgerConfig.blockNumber));
-    ledgerConfig->setCompatibilityVersion(_ledgerConfig.compatibilityVersion);
+    ledgerConfig->setCompatibilityVersion(
+        static_cast<bcos::protocol::BlockVersion>(_ledgerConfig.compatibilityVersion));
     return ledgerConfig;
 }
 
@@ -299,7 +291,8 @@ inline bcostars::LedgerConfig toTarsLedgerConfig(bcos::ledger::LedgerConfig::Ptr
     ledgerConfig.leaderSwitchPeriod = _ledgerConfig->leaderSwitchPeriod();
     ledgerConfig.sealerId = _ledgerConfig->sealerId();
     ledgerConfig.gasLimit = std::get<0>(_ledgerConfig->gasLimit());
-    ledgerConfig.compatibilityVersion = _ledgerConfig->compatibilityVersion();
+    ledgerConfig.compatibilityVersion =
+        static_cast<tars::Int32>(_ledgerConfig->compatibilityVersion());
 
     // set consensusNodeList
     ledgerConfig.consensusNodeList = toTarsConsensusNodeList(_ledgerConfig->consensusNodeList());

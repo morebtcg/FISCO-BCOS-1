@@ -157,9 +157,9 @@ void Sealer::submitProposal(bool _containSysTxs, bcos::protocol::Block::Ptr _blo
     _block->blockHeader()->setConsensusWeights(std::move(weightList));
     _block->blockHeader()->setSealer(m_sealerConfig->consensus()->nodeIndex());
     // set the version
-    auto version = std::min(m_sealerConfig->consensus()->compatibilityVersion(),
-        (uint32_t)g_BCOSConfig.maxSupportedVersion());
-    _block->blockHeader()->setVersion(version);
+    auto version = std::min(
+        m_sealerConfig->consensus()->compatibilityVersion(), g_BCOSConfig.maxSupportedVersion());
+    _block->blockHeader()->setVersion(static_cast<uint32_t>(version));
     _block->blockHeader()->calculateHash(*m_hashImpl);
 
     auto encodedData = std::make_shared<bytes>();

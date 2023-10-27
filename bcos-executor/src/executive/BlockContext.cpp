@@ -45,8 +45,8 @@ using namespace std;
 BlockContext::BlockContext(std::shared_ptr<storage::StateStorageInterface> storage,
     LedgerCache::Ptr ledgerCache, crypto::Hash::Ptr _hashImpl,
     bcos::protocol::BlockNumber blockNumber, h256 blockHash, uint64_t timestamp,
-    uint32_t blockVersion, const VMSchedule& _schedule, bool _isWasm, bool _isAuthCheck,
-    storage::StorageInterface::Ptr backendStorage)
+    protocol::BlockVersion blockVersion, const VMSchedule& _schedule, bool _isWasm,
+    bool _isAuthCheck, storage::StorageInterface::Ptr backendStorage)
   : m_blockNumber(blockNumber),
     m_blockHash(blockHash),
     m_timeStamp(timestamp),
@@ -74,8 +74,9 @@ BlockContext::BlockContext(std::shared_ptr<storage::StateStorageInterface> stora
     bool _isAuthCheck, storage::StorageInterface::Ptr backendStorage,
     std::shared_ptr<std::set<std::string, std::less<>>> _keyPageIgnoreTables)
   : BlockContext(std::move(storage), std::move(ledgerCache), std::move(_hashImpl),
-        _current->number(), _current->hash(), _current->timestamp(), _current->version(), _schedule,
-        _isWasm, _isAuthCheck, std::move(backendStorage))
+        _current->number(), _current->hash(), _current->timestamp(),
+        static_cast<protocol::BlockVersion>(_current->version()), _schedule, _isWasm, _isAuthCheck,
+        std::move(backendStorage))
 {
     if (_current->number() > 0 && !_current->parentInfo().empty())
     {

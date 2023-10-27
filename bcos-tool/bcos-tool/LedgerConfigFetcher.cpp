@@ -259,7 +259,7 @@ void LedgerConfigFetcher::fetchCompatibilityVersion()
     auto versionStr = fetchSystemConfig(SYSTEM_KEY_COMPATIBILITY_VERSION);
     if (versionStr.empty())
     {
-        m_ledgerConfig->setCompatibilityVersion((uint32_t)(bcos::protocol::DEFAULT_VERSION));
+        m_ledgerConfig->setCompatibilityVersion(bcos::protocol::DEFAULT_VERSION);
         TOOL_LOG(INFO) << LOG_DESC("fetchCompatibilityVersion: empty version, use " +
                                    bcos::protocol::DEFAULT_VERSION_STR + " as default version.");
         return;

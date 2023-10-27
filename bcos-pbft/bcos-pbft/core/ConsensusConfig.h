@@ -123,12 +123,13 @@ public:
         }
     }
 
-    virtual void registerVersionInfoNotification(std::function<void(uint32_t)> _versionNotification)
+    virtual void registerVersionInfoNotification(
+        std::function<void(protocol::BlockVersion)> _versionNotification)
     {
         m_versionNotification = std::move(_versionNotification);
     }
 
-    uint32_t compatibilityVersion() const { return m_compatibilityVersion; }
+    protocol::BlockVersion compatibilityVersion() const { return m_compatibilityVersion; }
 
     virtual bool shouldRotateSealers(protocol::BlockNumber) const { return false; }
     static bool compareConsensusNode(
@@ -152,7 +153,7 @@ protected:
     std::atomic_bool m_observerNodeListUpdated = {false};
     std::atomic_bool m_syncingState = {false};
     std::atomic_bool m_asMasterNode = {false};
-    uint32_t m_compatibilityVersion = (uint32_t)(bcos::protocol::DEFAULT_VERSION);
+    protocol::BlockVersion m_compatibilityVersion = bcos::protocol::DEFAULT_VERSION;
 
     // default timeout is 3000ms
     std::atomic<uint64_t> m_consensusTimeout = {3000};
@@ -165,6 +166,6 @@ protected:
 
     std::atomic<bcos::protocol::BlockNumber> m_progressedIndex = {0};
     bcos::protocol::BlockNumber m_syncingHighestNumber = {0};
-    std::function<void(uint32_t _version)> m_versionNotification;
+    std::function<void(protocol::BlockVersion _version)> m_versionNotification;
 };
 }  // namespace bcos::consensus

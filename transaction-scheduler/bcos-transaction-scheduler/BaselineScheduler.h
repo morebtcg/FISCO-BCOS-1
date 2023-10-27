@@ -113,8 +113,8 @@ private:
     friend task::Task<bcos::h256> calculateStateRoot(BaselineScheduler& scheduler, auto& storage,
         protocol::BlockHeader const& blockHeader, crypto::Hash const& hashImpl)
     {
-        auto blockVersion = true ? (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION :
-                                   (uint32_t)bcos::protocol::BlockVersion::V3_0_VERSION;
+        auto blockVersion = true ? bcos::protocol::BlockVersion::V3_1_VERSION :
+                                   bcos::protocol::BlockVersion::V3_0_VERSION;
 
         auto it = co_await storage.seek(storage2::STORAGE_BEGIN);
 
@@ -141,7 +141,7 @@ private:
                         entry = std::addressof(*deletedEntry);
                     }
 
-                    if (blockVersion >= (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION)
+                    if (blockVersion >= bcos::protocol::BlockVersion::V3_1_VERSION)
                     {
                         entryHash ^= entry->hash(tableName, keyName, hashImpl, blockVersion);
                     }

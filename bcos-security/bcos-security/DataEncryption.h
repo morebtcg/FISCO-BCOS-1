@@ -22,6 +22,7 @@
 
 #pragma once
 #include "Common.h"
+#include "bcos-framework/protocol/Protocol.h"
 #include <bcos-crypto/interfaces/crypto/SymmetricEncryption.h>
 #include <bcos-framework/security/DataEncryptInterface.h>
 #include <bcos-tool/NodeConfig.h>
@@ -40,10 +41,10 @@ public:
 public:
     DataEncryption(const bcos::tool::NodeConfig::Ptr nodeConfig);
     DataEncryption(const std::string& dataKey, const bool smCryptoType);
-    ~DataEncryption() override {}
+    ~DataEncryption() override = default;
 
-    uint32_t compatibilityVersion() { return m_compatibilityVersion; }
-    void setCompatibilityVersion(uint32_t _compatibilityVersion)
+    protocol::BlockVersion compatibilityVersion() { return m_compatibilityVersion; }
+    void setCompatibilityVersion(protocol::BlockVersion _compatibilityVersion)
     {
         m_compatibilityVersion = _compatibilityVersion;
     }
@@ -60,7 +61,7 @@ public:
 
 private:
     bcos::tool::NodeConfig::Ptr m_nodeConfig{nullptr};
-    uint32_t m_compatibilityVersion;
+    protocol::BlockVersion m_compatibilityVersion;
 
     std::string m_dataKey;
     bcos::crypto::SymmetricEncryption::Ptr m_symmetricEncrypt{nullptr};

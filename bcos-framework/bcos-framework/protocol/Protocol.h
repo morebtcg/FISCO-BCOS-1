@@ -127,6 +127,7 @@ enum class BlockVersion : uint32_t
     MIN_VERSION = RC4_VERSION,
     MAX_VERSION = V3_5_VERSION,
 };
+
 const std::string RC4_VERSION_STR = "3.0.0-rc4";
 const std::string V3_0_VERSION_STR = "3.0.0";
 const std::string V3_1_VERSION_STR = "3.1.0";
@@ -199,7 +200,6 @@ inline std::ostream& operator<<(std::ostream& out, bcos::protocol::BlockVersion 
     out << fmt::format(FMT_COMPILE("{}.{}.{}"), num1, num2, num3);
     return out;
 }
-
 
 inline std::ostream& operator<<(std::ostream& _out, NodeType const& _nodeType)
 {

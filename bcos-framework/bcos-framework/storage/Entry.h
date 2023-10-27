@@ -206,10 +206,10 @@ public:
 
     bool valid() const { return m_status == Status::NORMAL; }
     crypto::HashType hash(std::string_view table, std::string_view key,
-        const bcos::crypto::Hash& hashImpl, uint32_t blockVersion) const
+        const bcos::crypto::Hash& hashImpl, protocol::BlockVersion blockVersion) const
     {
         bcos::crypto::HashType entryHash(0);
-        if (blockVersion >= (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION)
+        if (blockVersion >= bcos::protocol::BlockVersion::V3_1_VERSION)
         {
             auto hasher = hashImpl.hasher();
             hasher.update(table);

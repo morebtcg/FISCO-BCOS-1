@@ -52,8 +52,8 @@ public:
     BlockContext(std::shared_ptr<storage::StateStorageInterface> storage,
         LedgerCache::Ptr ledgerCache, crypto::Hash::Ptr _hashImpl,
         bcos::protocol::BlockNumber blockNumber, h256 blockHash, uint64_t timestamp,
-        uint32_t blockVersion, const VMSchedule& _schedule, bool _isWasm, bool _isAuthCheck,
-        storage::StorageInterface::Ptr backendStorage = nullptr);
+        protocol::BlockVersion blockVersion, const VMSchedule& _schedule, bool _isWasm,
+        bool _isAuthCheck, storage::StorageInterface::Ptr backendStorage = nullptr);
 
     BlockContext(std::shared_ptr<storage::StateStorageInterface> storage,
         LedgerCache::Ptr ledgerCache, crypto::Hash::Ptr _hashImpl,
@@ -80,7 +80,7 @@ public:
     h256 parentHash() const { return m_parentHash; }
     h256 blockHash(int64_t _number) const { return m_ledgerCache->fetchBlockHash(_number); }
     uint64_t timestamp() const { return m_timeStamp; }
-    uint32_t blockVersion() const { return m_blockVersion; }
+    protocol::BlockVersion blockVersion() const { return m_blockVersion; }
     void suicide(std::string_view address);
     void killSuicides();
 
@@ -145,7 +145,7 @@ private:
     h256 m_blockHash;
     h256 m_parentHash;
     uint64_t m_timeStamp;
-    uint32_t m_blockVersion;
+    protocol::BlockVersion m_blockVersion;
 
     VMSchedule m_schedule;
     bool m_isWasm = false;

@@ -177,7 +177,7 @@ TransactionExecutor::TransactionExecutor(bcos::ledger::LedgerInterface::Ptr ledg
     start();
 }
 
-void TransactionExecutor::setBlockVersion(uint32_t blockVersion)
+void TransactionExecutor::setBlockVersion(protocol::BlockVersion blockVersion)
 {
     if (m_blockVersion == blockVersion)
     {
@@ -394,7 +394,7 @@ BlockContext::Ptr TransactionExecutor::createBlockContext(
 
 std::shared_ptr<BlockContext> TransactionExecutor::createBlockContextForCall(
     bcos::protocol::BlockNumber blockNumber, h256 blockHash, uint64_t timestamp,
-    int32_t blockVersion, storage::StateStorageInterface::Ptr storage)
+    protocol::BlockVersion blockVersion, storage::StateStorageInterface::Ptr storage)
 {
     BlockContext::Ptr context = make_shared<BlockContext>(storage, m_ledgerCache, m_hashImpl,
         blockNumber, blockHash, timestamp, blockVersion, getVMSchedule((uint32_t)blockVersion),
@@ -429,7 +429,7 @@ void TransactionExecutor::nextBlockHeader(int64_t schedulerTermId,
                                  << LOG_KV("parentHash", blockHeader->number() > 0 ?
                                                              (*parentInfoIt).blockHash.abridged() :
                                                              "null");
-        setBlockVersion(blockHeader->version());
+        setBlockVersion(static_cast<protocol::BlockVersion>(blockHeader->version()));
         {
             std::unique_lock<std::shared_mutex> lock(m_stateStoragesMutex);
             bcos::storage::StateStorageInterface::Ptr stateStorage;
@@ -499,7 +499,7 @@ void TransactionExecutor::nextBlockHeader(int64_t schedulerTermId,
 
             if (blockHeader->number() == 0)
             {
-                if (m_blockVersion == (uint32_t)protocol::BlockVersion::V3_1_VERSION)
+                if (m_blockVersion == protocol::BlockVersion::V3_1_VERSION)
                 {
                     // Only 3.1 goes here,for compat with the bug:
                     // 3.1 only init these two precompiled in genesis block

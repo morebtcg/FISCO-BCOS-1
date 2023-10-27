@@ -24,6 +24,7 @@
 #include "bcos-crypto/hash/Keccak256.h"
 #include "bcos-crypto/signature/codec/SignatureDataWithV.h"
 #include "bcos-crypto/signature/secp256k1/Secp256k1Crypto.h"
+#include "bcos-framework/protocol/Protocol.h"
 #include "wedpr-crypto/WedprBn128.h"
 #include "wedpr-crypto/WedprCrypto.h"
 #include <bcos-utilities/Log.h>
@@ -37,7 +38,7 @@ namespace bcos::executor
 PrecompiledRegistrar* PrecompiledRegistrar::s_this = nullptr;
 
 bcos::precompiled::Precompiled::Ptr bcos::executor::PrecompiledMap::at(std::string const& _key,
-    uint32_t version, bool isAuth, ledger::Features const& features) const noexcept
+    protocol::BlockVersion version, bool isAuth, ledger::Features const& features) const noexcept
 {
     if (!_key.starts_with(precompiled::SYS_ADDRESS_PREFIX) && !_key.starts_with(tool::FS_SYS_BIN))
     {
@@ -54,8 +55,8 @@ bcos::precompiled::Precompiled::Ptr bcos::executor::PrecompiledMap::at(std::stri
     }
     return nullptr;
 }
-bool bcos::executor::PrecompiledMap::contains(std::string const& key, uint32_t version, bool isAuth,
-    ledger::Features const& features) const noexcept
+bool bcos::executor::PrecompiledMap::contains(std::string const& key,
+    protocol::BlockVersion version, bool isAuth, ledger::Features const& features) const noexcept
 {
     return at(key, version, isAuth, features) != nullptr;
 }
