@@ -15,16 +15,71 @@
 #include <cstdint>
 #include <exception>
 #include <initializer_list>
+#include <range/v3/range/concepts.hpp>
 #include <type_traits>
 #include <variant>
 
 namespace bcos::storage
 {
 
-template <class Input>
-concept EntryBufferInput =
-    std::same_as<Input, std::string_view> || std::same_as<Input, std::string> ||
-    std::same_as<Input, std::vector<char>> || std::same_as<Input, std::vector<unsigned char>>;
+struct BufferBase
+{
+    BufferBase() = default;
+    BufferBase(const BufferBase&) = delete;
+    BufferBase(BufferBase&&) = default;
+    BufferBase& operator=(const BufferBase&) = default;
+    BufferBase& operator=(BufferBase&&) = default;
+
+    virtual ~BufferBase() = default;
+    virtual const char* data() const = 0;
+    virtual size_t size() const = 0;
+};
+
+namespace
+{
+template <class Container>
+    requires(sizeof(Container) <= 32) && RANGES::contiguous_range<Container> &&
+            (sizeof(RANGES::range_value_t<Container>) == 1)
+class BufferImpl : public BufferBase
+{
+private:
+    Container m_container;
+
+public:
+    BufferImpl(Container container) : m_container(std::move(container)) {}
+    const char* data() const override { return (const char*)m_container.data(); }
+    size_t size() const override { return m_container.size(); }
+};
+
+class FixedBytes32 : public BufferBase
+{
+private:
+    std::array<char, 32> m_buffer;
+
+public:
+    FixedBytes32(std::string_view buffer)
+    {
+        std::copy(buffer.begin(), buffer.end(), m_buffer.data());
+    }
+    const char* data() const override { return m_buffer.data(); }
+    size_t size() const override { return m_buffer.size(); }
+};
+
+class VarlenBytes31 : public BufferBase
+{
+    std::array<char, 31> m_buffer;
+    uint8_t m_size;
+
+public:
+    VarlenBytes31(std::string_view buffer)
+    {
+        std::copy(buffer.begin(), buffer.end(), m_buffer.data());
+        m_size = buffer.size();
+    }
+    const char* data() const override { return m_buffer.data(); }
+    size_t size() const override { return m_size; }
+};
+}  // namespace
 
 class Entry
 {
@@ -37,18 +92,15 @@ public:
         MODIFIED = 3,  // dirty() can use status
     };
 
-    constexpr static int32_t SMALL_SIZE = 32;
-    constexpr static int32_t MEDIUM_SIZE = 64;
-    constexpr static int32_t LARGE_SIZE = INT32_MAX;
+private:
+    std::array<std::byte, 40> m_value;
+    int32_t m_size = 0;               // no need to serialization
+    Status m_status = Status::EMPTY;  // should serialization
 
+public:
+    constexpr static int32_t SMALL_SIZE = 32;
     constexpr static int32_t ARCHIVE_FLAG =
         boost::archive::no_header | boost::archive::no_codecvt | boost::archive::no_tracking;
-
-    using SBOBuffer = std::array<char, SMALL_SIZE>;
-
-    using ValueType = std::variant<SBOBuffer, std::string, std::vector<unsigned char>,
-        std::vector<char>, std::shared_ptr<std::string>,
-        std::shared_ptr<std::vector<unsigned char>>, std::shared_ptr<std::vector<char>>>;
 
     Entry() = default;
     explicit Entry(auto input) { set(std::move(input)); }
@@ -121,6 +173,12 @@ public:
         }
 
         set(std::forward<T>(input));
+    }
+
+    void set(auto&& input)
+    {
+        if constexpr (RANGES::borrowed_range<decltype(input)>)
+        {}
     }
 
     void set(const char* pointer)
@@ -315,10 +373,6 @@ private:
         std::string_view view((const char*)value->data(), value->size());
         return view;
     }
-
-    ValueType m_value;                // should serialization
-    int32_t m_size = 0;               // no need to serialization
-    Status m_status = Status::EMPTY;  // should serialization
 };
 
 }  // namespace bcos::storage
