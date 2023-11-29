@@ -564,8 +564,11 @@ void Gateway::onReceiveBroadcastMessage(
     // Readonly filter
     if (m_readonlyFilter && !filter(*m_readonlyFilter, groupID, moduleID, bytesConstRef{}))
     {
-        GATEWAY_LOG(WARNING) << "BroadcastMessage moduleID: " << moduleID
-                             << " filter by readOnlyFilter";
+        const auto& p2pInfo = _session->p2pInfo();
+        GATEWAY_LOG(INFO) << "BroadcastMessage moduleID: " << moduleID
+                          << " p2pID: " << p2pInfo.p2pIDWithoutExtInfo
+                          << " host: " << p2pInfo.nodeIPEndpoint.address() << ":"
+                          << p2pInfo.nodeIPEndpoint.port() << " filter by readOnlyFilter";
         return;
     }
 
