@@ -192,7 +192,8 @@ task::Task<std::tuple<u256, h256>> calculateReceiptHashAndRoot(
  * @param hashImpl The hash implementation used to calculate the block hash.
  */
 void finishExecute(auto& storage, RANGES::range auto& receipts,
-    protocol::BlockHeader& newBlockHeader, protocol::Block& block, crypto::Hash const& hashImpl)
+    protocol::BlockHeader& newBlockHeader, protocol::Block& block,
+    RANGES::input_range auto const& transactions, bool& sysBlock, crypto::Hash const& hashImpl)
 {
     ittapi::Report finishReport(ittapi::ITT_DOMAINS::instance().BASELINE_SCHEDULER,
         ittapi::ITT_DOMAINS::instance().FINISH_EXECUTE);
@@ -206,6 +207,11 @@ void finishExecute(auto& storage, RANGES::range auto& receipts,
         [&]() {
             std::tie(gasUsed, receiptRoot) =
                 task::tbb::syncWait(calculateReceiptHashAndRoot(receipts, block, hashImpl));
+        },
+        [&]() {
+            sysBlock = RANGES::any_of(transactions, [](auto const& transaction) {
+                return bcos::precompiled::c_systemTxsAddress.contains(transaction->to());
+            });
         });
     newBlockHeader.setGasUsed(gasUsed);
     newBlockHeader.setTxsRoot(transactionRoot);
@@ -320,21 +326,21 @@ private:
             auto now = current();
             scheduler.m_multiLayerStorage.newMutable();
             auto view = scheduler.m_multiLayerStorage.fork(true);
-            auto constTransactions = co_await getTransactions(scheduler.m_txpool, *block);
+            auto transactions = co_await getTransactions(scheduler.m_txpool, *block);
 
             auto ledgerConfig = scheduler.m_ledgerConfig;
             auto receipts = co_await transaction_scheduler::executeBlock(scheduler.m_schedulerImpl,
                 view, scheduler.m_executor, *blockHeader,
-                constTransactions |
-                    RANGES::views::transform(
-                        [](protocol::Transaction::ConstPtr const& transactionPtr)
-                            -> protocol::Transaction const& { return *transactionPtr; }),
+                transactions | RANGES::views::transform(
+                                   [](protocol::Transaction::ConstPtr const& transactionPtr)
+                                       -> protocol::Transaction const& { return *transactionPtr; }),
                 *ledgerConfig);
 
             auto executedBlockHeader =
                 scheduler.m_blockHeaderFactory.populateBlockHeader(blockHeader);
+            bool sysBlock = false;
             finishExecute(scheduler.m_multiLayerStorage.mutableStorage(), receipts,
-                *executedBlockHeader, *block, scheduler.m_hashImpl);
+                *executedBlockHeader, *block, transactions, sysBlock, scheduler.m_hashImpl);
 
             if (verify && (executedBlockHeader->hash() != blockHeader->hash()))
             {
@@ -351,11 +357,10 @@ private:
             scheduler.m_lastExecutedBlockNumber = blockHeader->number();
             scheduler.m_asyncGroup.run([view = std::move(view)]() {});
 
-            bool sysBlock = false;
             std::unique_lock resultsLock(scheduler.m_resultsMutex);
             scheduler.m_results.push_front(
                 {.m_transactions =
-                        std::make_shared<protocol::ConstTransactions>(std::move(constTransactions)),
+                        std::make_shared<protocol::ConstTransactions>(std::move(transactions)),
                     .m_receipts = std::move(receipts),
                     .m_executedBlockHeader = executedBlockHeader,
                     .m_block = std::move(block),
