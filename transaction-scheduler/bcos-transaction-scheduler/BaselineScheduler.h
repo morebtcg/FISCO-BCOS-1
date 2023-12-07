@@ -368,7 +368,7 @@ private:
                 << " | stateRoot: " << executedBlockHeader->stateRoot()
                 << " | txRoot: " << executedBlockHeader->txsRoot()
                 << " | receiptRoot: " << executedBlockHeader->receiptsRoot()
-                << " | gasUsed: " << executedBlockHeader->gasUsed()
+                << " | gasUsed: " << executedBlockHeader->gasUsed() << " | sysBlock: " << sysBlock
                 << " | elapsed: " << (current() - now) << "ms";
 
             co_return std::make_tuple(nullptr, std::move(executedBlockHeader), sysBlock);
