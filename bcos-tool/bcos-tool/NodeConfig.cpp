@@ -1015,8 +1015,9 @@ void bcos::tool::NodeConfig::loadGenesisFeatures(boost::property_tree::ptree con
         {
             auto flag = it.first;
             auto enableNumber = it.second.get_value<bool>();
-            m_genesisConfig.m_features.emplace_back(ledger::FeatureSet{
-                .flag = ledger::Features::string2Flag(flag), .enable = enableNumber});
+            m_genesisConfig.m_features.emplace_back(
+                ledger::FeatureSet{.flag = ledger::Features::string2Flag(flag),
+                    .enable = static_cast<int>(enableNumber)});
         }
     }
 }

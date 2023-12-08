@@ -150,7 +150,8 @@ std::shared_ptr<PrecompiledExecResult> SystemConfigPrecompiled::call(
                                   << LOG_DESC("setValueByKey") << LOG_KV("configKey", configKey)
                                   << LOG_KV("configValue", configValue);
 
-            int64_t value = validate(_executive, configKey, configValue, blockContext.blockVersion());
+            int64_t value =
+                validate(_executive, configKey, configValue, blockContext.blockVersion());
             auto table = _executive->storage().openTable(ledger::SYS_CONFIG);
 
             auto entry = table->newEntry();
@@ -194,8 +195,8 @@ std::shared_ptr<PrecompiledExecResult> SystemConfigPrecompiled::call(
 }
 
 int64_t SystemConfigPrecompiled::validate(
-    const std::shared_ptr<executor::TransactionExecutive>& _executive,
-    std::string_view _key, std::string_view value, uint32_t blockVersion)
+    const std::shared_ptr<executor::TransactionExecutive>& _executive, std::string_view _key,
+    std::string_view value, uint32_t blockVersion)
 {
     int64_t configuredValue = 0;
     std::string key = std::string(_key);
@@ -217,7 +218,7 @@ int64_t SystemConfigPrecompiled::validate(
             BOOST_THROW_EXCEPTION(PrecompiledError("The value for " + key + " must be 1."));
         }
 
-        if(setFeature)
+        if (setFeature)
         {
             _executive->blockContext().features().validate(key);
         }
@@ -355,7 +356,7 @@ void SystemConfigPrecompiled::upgradeChain(
     {
         Features bugfixFeatures;
         bugfixFeatures.setToDefault(protocol::BlockVersion(toVersion));
-        task::syncWait(bugfixFeatures.writeToStorage(*_executive->blockContext().storage(), 0));
+        task::syncWait(writeToStorage(bugfixFeatures, *_executive->blockContext().storage(), 0));
 
         // From 3.3 / 3.4 or to 3.3 / 3.4, enable the feature_sharding
         if ((version >= BlockVersion::V3_3_VERSION && version <= BlockVersion::V3_4_VERSION) ||
@@ -364,7 +365,7 @@ void SystemConfigPrecompiled::upgradeChain(
             Features shardingFeatures;
             shardingFeatures.set(ledger::Features::Flag::feature_sharding);
             task::syncWait(
-                shardingFeatures.writeToStorage(*_executive->blockContext().backendStorage(), 0));
+                writeToStorage(shardingFeatures, *_executive->blockContext().backendStorage(), 0));
         }
     }
 }

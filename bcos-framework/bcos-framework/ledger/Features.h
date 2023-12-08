@@ -12,6 +12,7 @@
 #include <array>
 #include <bitset>
 #include <magic_enum.hpp>
+#include <range/v3/view/transform.hpp>
 
 namespace bcos::ledger
 {
@@ -44,6 +45,7 @@ public:
         feature_balance_precompiled,
         feature_balance_policy1,
         feature_paillier_add_raw,
+        feature_predeploy,
     };
 
 private:
@@ -60,7 +62,7 @@ public:
         return *value;
     }
 
-    void validate(std::string flag) const
+    void validate(std::string_view flag) const
     {
         auto value = magic_enum::enum_cast<Flag>(flag);
         if (!value)
@@ -153,39 +155,44 @@ public:
                    return magic_enum::enum_name(flag);
                });
     }
-
-    task::Task<void> readFromStorage(auto& storage, long blockNumber)
-    {
-        for (auto key : bcos::ledger::Features::featureKeys())
-        {
-            auto entry = co_await storage2::readOne(
-                storage, transaction_executor::StateKeyView(ledger::SYS_CONFIG, key));
-            if (entry)
-            {
-                auto [value, enableNumber] = entry->template getObject<ledger::SystemConfigEntry>();
-                if (blockNumber >= enableNumber)
-                {
-                    set(key);
-                }
-            }
-        }
-    }
-
-    task::Task<void> writeToStorage(auto& storage, long blockNumber) const
-    {
-        for (auto [flag, name, value] : flags())
-        {
-            if (value)
-            {
-                storage::Entry entry;
-                entry.setObject(
-                    SystemConfigEntry{boost::lexical_cast<std::string>((int)value), blockNumber});
-                co_await storage2::writeOne(storage,
-                    transaction_executor::StateKey(ledger::SYS_CONFIG, name), std::move(entry));
-            }
-        }
-    }
 };
+
+inline task::Task<void> readFromStorage(Features& features, auto&& storage, long blockNumber)
+{
+    decltype(auto) keys = bcos::ledger::Features::featureKeys();
+    auto entries = co_await storage2::readSome(std::forward<decltype(storage)>(storage),
+        keys | RANGES::views::transform([](std::string_view key) {
+            return transaction_executor::StateKeyView(ledger::SYS_CONFIG, key);
+        }));
+    for (auto&& [key, entry] : RANGES::views::zip(keys, entries))
+    {
+        if (entry)
+        {
+            auto [value, enableNumber] = entry->template getObject<ledger::SystemConfigEntry>();
+            if (blockNumber >= enableNumber)
+            {
+                features.set(key);
+            }
+        }
+    }
+}
+
+inline task::Task<void> writeToStorage(Features const& features, auto&& storage, long blockNumber)
+{
+    decltype(auto) flags =
+        features.flags() | RANGES::views::filter([](auto&& tuple) { return std::get<2>(tuple); });
+    co_await storage2::writeSome(std::forward<decltype(storage)>(storage),
+        RANGES::views::transform(flags,
+            [](auto&& tuple) {
+                return transaction_executor::StateKey(ledger::SYS_CONFIG, std::get<1>(tuple));
+            }),
+        RANGES::views::transform(flags, [&](auto&& tuple) {
+            storage::Entry entry;
+            entry.setObject(SystemConfigEntry{
+                boost::lexical_cast<std::string>((int)std::get<2>(tuple)), blockNumber});
+            return entry;
+        }));
+}
 
 inline std::ostream& operator<<(std::ostream& stream, Features::Flag flag)
 {
