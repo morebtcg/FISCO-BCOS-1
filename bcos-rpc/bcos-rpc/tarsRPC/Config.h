@@ -27,7 +27,6 @@ constexpr static std::string_view TARS_CONFIG_TEMPLATE =
     "            servant=fiscobcos.rpc.RPCObj\n"
     "            threads=[[TARS_THREAD_COUNT]]\n"
     "       </fiscobcos.rpc.RPCObjAdapter>\n"
-    "       opencoroutine=2\n"
     "    </server>\n"
     "    <client>\n"
     "       modulename=fiscobcos\n"

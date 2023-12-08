@@ -489,7 +489,7 @@ private:
 
                             return submitResult;
                         }) |
-                    RANGES::to<std::vector<protocol::TransactionSubmitResult::Ptr>>();
+                    RANGES::to<std::vector>();
 
                 auto submitResultsPtr = std::make_shared<bcos::protocol::TransactionSubmitResults>(
                     std::move(submitResults));
