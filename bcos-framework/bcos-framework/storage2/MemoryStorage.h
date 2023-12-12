@@ -92,7 +92,7 @@ private:
     Buckets m_buckets;
     [[no_unique_address]] std::conditional_t<withMRU, int64_t, Empty> m_maxCapacity;
 
-    Bucket& getBucket(auto const& key) &
+    Bucket& getBucket(auto const& key) & noexcept
     {
         if constexpr (!withConcurrent)
         {
@@ -187,7 +187,7 @@ public:
     MemoryStorage& operator=(MemoryStorage&&) noexcept = default;
     ~MemoryStorage() noexcept = default;
 
-    void setMaxCapacity(int64_t capacity)
+    void setMaxCapacity(int64_t capacity) noexcept
         requires withMRU
     {
         m_maxCapacity = capacity;
