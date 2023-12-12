@@ -513,9 +513,11 @@ void NodeConfig::loadTxPoolConfig(boost::property_tree::ptree const& _pt)
     m_txsExpirationTime = std::max(
         {txsExpirationTime * 1000, (int64_t)DEFAULT_MIN_CONSENSUS_TIME_MS, (int64_t)m_minSealTime});
 
+    m_checkBlockLimit = _pt.get<bool>("txpool.check_block_limit", true);
     NodeConfig_LOG(INFO) << LOG_DESC("loadTxPoolConfig") << LOG_KV("txpoolLimit", m_txpoolLimit)
                          << LOG_KV("notifierWorkers", m_notifyWorkerNum)
                          << LOG_KV("verifierWorkers", m_verifierWorkerNum)
+                         << LOG_KV("checkBlockLimit", m_checkBlockLimit)
                          << LOG_KV("txsExpirationTime(ms)", m_txsExpirationTime);
 }
 
@@ -532,9 +534,11 @@ void NodeConfig::loadChainConfig(boost::property_tree::ptree const& _pt, bool _e
     }
     catch (std::exception const& e)
     {
-        BOOST_THROW_EXCEPTION(InvalidConfig() << errinfo_comment(
-                                  "config.genesis chain.sm_crypto/chain.group_id/chain.chain_id is "
-                                  "null, please set it!"));
+        BOOST_THROW_EXCEPTION(
+            InvalidConfig() << errinfo_comment(
+                "chain.sm_crypto/chain.group_id/chain.chain_id is null, please set it,"
+                " if compatibility_version in genesis block >= 3.1.0,"
+                " 'chain' config should appear in config.genesis, else in config.ini."));
     }
     if (!isalNumStr(m_genesisConfig.m_chainID))
     {
@@ -652,6 +656,7 @@ void NodeConfig::loadStorageConfig(boost::property_tree::ptree const& _pt)
     m_minWriteBufferNumberToMerge = _pt.get<int32_t>("storage.min_write_buffer_number_to_merge", 1);
     m_blockCacheSize = _pt.get<size_t>("storage.block_cache_size", 128 << 20);
     m_enableDBStatistics = _pt.get<bool>("storage.enable_statistics", false);
+    m_enableRocksDBBlob = _pt.get<bool>("storage.enable_rocksdb_blob", false);
     m_pdCaPath = _pt.get<std::string>("storage.pd_ssl_ca_path", "");
     m_pdCertPath = _pt.get<std::string>("storage.pd_ssl_cert_path", "");
     m_pdKeyPath = _pt.get<std::string>("storage.pd_ssl_key_path", "");
@@ -678,6 +683,7 @@ void NodeConfig::loadStorageConfig(boost::property_tree::ptree const& _pt)
                          << LOG_KV("enableArchive", m_enableArchive)
                          << LOG_KV("archiveListenIP", m_archiveListenIP)
                          << LOG_KV("archiveListenPort", m_archiveListenPort)
+                         << LOG_KV("enable_rocksdb_blob", m_enableRocksDBBlob)
                          << LOG_KV("enableLRUCacheStorage", m_enableLRUCacheStorage);
 }
 
