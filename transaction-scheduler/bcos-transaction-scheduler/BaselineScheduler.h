@@ -30,7 +30,6 @@
 #include <fmt/format.h>
 #include <ittnotify.h>
 #include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/concurrent_vector.h>
 #include <oneapi/tbb/parallel_for_each.h>
 #include <oneapi/tbb/parallel_invoke.h>
 #include <oneapi/tbb/parallel_reduce.h>
@@ -144,13 +143,6 @@ task::Task<std::tuple<u256, h256>> calculateReceiptHashAndRoot(
 {
     u256 gasUsed;
     h256 receiptRoot;
-    tbb::parallel_for(tbb::blocked_range(0LU, RANGES::size(receipts)), [&](auto const& range) {
-        for (auto i = range.begin(); i != range.end(); ++i)
-        {
-            auto& receipt = receipts[i];
-            receipt->calculateHash(hashImpl);
-        }
-    });
 
     tbb::parallel_invoke(
         [&]() {

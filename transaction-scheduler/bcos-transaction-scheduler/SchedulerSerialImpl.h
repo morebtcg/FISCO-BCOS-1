@@ -5,6 +5,8 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-task/Wait.h"
+#include <oneapi/tbb/cache_aligned_allocator.h>
+#include <oneapi/tbb/parallel_pipeline.h>
 
 namespace bcos::transaction_scheduler
 {
@@ -19,20 +21,47 @@ private:
         auto& executor, protocol::BlockHeader const& blockHeader,
         RANGES::input_range auto const& transactions, ledger::LedgerConfig const& ledgerConfig)
     {
-        std::vector<protocol::TransactionReceipt::Ptr> receipts;
-        
-        if constexpr (RANGES::sized_range<decltype(transactions)>)
-        {
-            receipts.reserve(RANGES::size(transactions));
-        }
+        using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
+            decltype(executor), decltype(storage), decltype(blockHeader),
+            RANGES::range_value_t<decltype(transactions)>, int, decltype(ledgerConfig),
+            task::SyncWait>;
 
-        int contextID = 0;
-        for (auto const& transaction : transactions)
-        {
-            receipts.emplace_back(co_await transaction_executor::executeTransaction(executor,
-                storage, blockHeader, transaction, contextID, ledgerConfig, task::syncWait));
-            ++contextID;
-        }
+        auto count = static_cast<int>(RANGES::size(transactions));
+        std::vector<protocol::TransactionReceipt::Ptr> receipts(count);
+        std::vector<typename CoroType::Iterator> iterators(count);
+        std::vector<CoroType> coroutines;
+        coroutines.reserve(count);
+
+        int index = 0;
+        tbb::parallel_pipeline(count,
+            tbb::make_filter<void, int>(tbb::filter_mode::serial_in_order,
+                [&](tbb::flow_control& control) {
+                    if (index == count)
+                    {
+                        control.stop();
+                        return index;
+                    }
+                    coroutines.emplace_back(transaction_executor::execute3Step(executor, storage,
+                        blockHeader, transactions[index], index, ledgerConfig, task::syncWait));
+                    iterators[index] = coroutines[index].begin();
+                    receipts[index] = *iterators[index];
+
+                    return index++;
+                }) &
+                tbb::make_filter<int, int>(tbb::filter_mode::serial_in_order,
+                    [&](int index) {
+                        if (!receipts[index])
+                        {
+                            receipts[index] = *(++iterators[index]);
+                        }
+                        return index;
+                    }) &
+                tbb::make_filter<int, void>(tbb::filter_mode::serial_in_order, [&](int index) {
+                    if (!receipts[index])
+                    {
+                        receipts[index] = *(++iterators[index]);
+                    }
+                }));
 
         co_return receipts;
     }

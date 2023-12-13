@@ -135,7 +135,7 @@ private:
             auto const& logEntries = hostContext.logs();
             receipt = executor.m_receiptFactory.createReceipt(gasLimit - evmcResult.gas_left,
                 std::move(newContractAddress), logEntries, evmcResult.status_code, output,
-                blockHeader.number(), false);
+                blockHeader.number());
         }
         catch (std::exception& e)
         {
