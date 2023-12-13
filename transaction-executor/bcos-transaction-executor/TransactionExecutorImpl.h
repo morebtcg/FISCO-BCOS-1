@@ -2,6 +2,7 @@
 
 #include "bcos-framework/storage2/MemoryStorage.h"
 #include "bcos-table/src/StateStorage.h"
+#include "bcos-task/Generator.h"
 #include "bcos-transaction-executor/vm/VMFactory.h"
 #include "precompiled/PrecompiledManager.h"
 #include "transaction-executor/bcos-transaction-executor/RollbackableStorage.h"
@@ -36,19 +37,23 @@ public:
         m_precompiledManager(m_hashImpl)
     {}
 
+
 private:
     VMFactory m_vmFactory;
     protocol::TransactionReceiptFactory const& m_receiptFactory;
     crypto::Hash::Ptr m_hashImpl;
     PrecompiledManager m_precompiledManager;
 
-    friend task::Task<protocol::TransactionReceipt::Ptr> tag_invoke(
-        tag_t<executeTransaction> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
+    friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
+        tag_t<execute3Step> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
         int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
     {
+        protocol::TransactionReceipt::Ptr receipt;
         try
         {
+            // 第一步，准备执行环境，该步骤可以并行
+            // The first step, the execution environment, is prepared, and the steps can be parallel
             if (c_fileLogLevel <= LogLevel::TRACE)
             {
                 TRANSACTION_EXECUTOR_LOG(TRACE)
@@ -89,8 +94,25 @@ private:
                 rollbackableStorage, blockHeader, evmcMessage, evmcMessage.sender,
                 transaction.abi(), contextID, seq, executor.m_precompiledManager, ledgerConfig,
                 *executor.m_hashImpl, std::forward<decltype(waitOperator)>(waitOperator));
-            auto evmcResult = co_await hostContext.execute();
 
+            // 完成第一步
+            // Complete the first step
+            co_yield receipt;
+
+            // =======================================================================================
+
+            // 第二步，执行交易，该步骤只能串行
+            // The second step, the execution of the transaction, can only be serial
+            auto evmcResult = waitOperator(hostContext.execute());
+
+            // 完成第二步
+            // Complete the second step
+            co_yield receipt;
+
+            // =======================================================================================
+
+            // 第三步，生成回执，该步骤可以并行
+            // The third step is to generate a receipt, which can be parallel
             bcos::bytesConstRef output;
             std::string newContractAddress;
             if (!RANGES::equal(evmcResult.create_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
@@ -111,21 +133,36 @@ private:
             }
 
             auto const& logEntries = hostContext.logs();
-            auto receipt = executor.m_receiptFactory.createReceipt(gasLimit - evmcResult.gas_left,
+            receipt = executor.m_receiptFactory.createReceipt(gasLimit - evmcResult.gas_left,
                 std::move(newContractAddress), logEntries, evmcResult.status_code, output,
                 blockHeader.number(), false);
-
-            co_return receipt;
         }
         catch (std::exception& e)
         {
             TRANSACTION_EXECUTOR_LOG(DEBUG)
                 << "Execute exception: " << boost::diagnostic_information(e);
 
-            auto receipt = executor.m_receiptFactory.createReceipt(
+            receipt = executor.m_receiptFactory.createReceipt(
                 0, {}, {}, EVMC_INTERNAL_ERROR, {}, blockHeader.number());
             receipt->setMessage(boost::diagnostic_information(e));
-            co_return receipt;
+        }
+        co_yield receipt;
+        // 完成第三步
+        // Complete the third step
+    }
+
+    friend task::Task<protocol::TransactionReceipt::Ptr> tag_invoke(
+        tag_t<executeTransaction> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
+        protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
+        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+    {
+        for (auto receipt : execute3Step(executor, storage, blockHeader, transaction, contextID,
+                 ledgerConfig, std::forward<decltype(waitOperator)>(waitOperator)))
+        {
+            if (receipt)
+            {
+                co_return receipt;
+            }
         }
     }
 };

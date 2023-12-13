@@ -20,6 +20,7 @@ private:
         RANGES::input_range auto const& transactions, ledger::LedgerConfig const& ledgerConfig)
     {
         std::vector<protocol::TransactionReceipt::Ptr> receipts;
+        
         if constexpr (RANGES::sized_range<decltype(transactions)>)
         {
             receipts.reserve(RANGES::size(transactions));

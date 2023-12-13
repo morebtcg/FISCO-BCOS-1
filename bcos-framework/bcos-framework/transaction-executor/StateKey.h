@@ -73,11 +73,12 @@ private:
     friend class StateKey;
 
 public:
-    explicit StateKeyView(const StateKey& stateKey)
+    explicit StateKeyView(const StateKey& stateKey) noexcept
       : m_table(stateKey.data(), stateKey.m_split),
         m_key(stateKey.data() + stateKey.m_split + 1, stateKey.size() - stateKey.m_split - 1)
     {}
-    StateKeyView(std::string_view table, std::string_view key) : m_table(table), m_key(key) {}
+    StateKeyView(std::string_view table, std::string_view key) noexcept : m_table(table), m_key(key)
+    {}
 
     friend std::strong_ordering operator<=>(
         const StateKeyView& lhs, const StateKeyView& rhs) noexcept
