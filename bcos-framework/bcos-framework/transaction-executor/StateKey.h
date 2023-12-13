@@ -74,11 +74,9 @@ private:
 
 public:
     explicit StateKeyView(const StateKey& stateKey)
-    {
-        std::string_view view(stateKey.m_tableAndKey);
-        m_table = view.substr(0, stateKey.m_split);
-        m_key = view.substr(stateKey.m_split + 1);
-    }
+      : m_table(stateKey.data(), stateKey.m_split),
+        m_key(stateKey.data() + stateKey.m_split + 1, stateKey.size() - stateKey.m_split - 1)
+    {}
     StateKeyView(std::string_view table, std::string_view key) : m_table(table), m_key(key) {}
 
     friend std::strong_ordering operator<=>(
@@ -93,13 +91,8 @@ public:
     }
     friend std::strong_ordering operator<=>(const StateKeyView& lhs, const StateKey& rhs) noexcept
     {
-        auto cmp = lhs.m_table <=> std::string_view(rhs.m_tableAndKey.data(), rhs.m_split);
-        if (std::is_eq(cmp))
-        {
-            cmp = lhs.m_key <=> std::string_view(rhs.m_tableAndKey.data() + rhs.m_split + 1,
-                                    rhs.m_tableAndKey.size() - rhs.m_split - 1);
-        }
-        return cmp;
+        StateKeyView rhsView(rhs);
+        return lhs <=> rhsView;
     }
     friend bool operator==(const StateKeyView& lhs, const StateKeyView& rhs) noexcept = default;
     friend ::std::ostream& operator<<(::std::ostream& stream, const StateKeyView& stateKeyView)
