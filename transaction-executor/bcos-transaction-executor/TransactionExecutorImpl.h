@@ -164,6 +164,7 @@ private:
                 co_return receipt;
             }
         }
+        co_return protocol::TransactionReceipt::Ptr{};
     }
 };
 

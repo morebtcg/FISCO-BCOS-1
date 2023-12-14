@@ -25,12 +25,15 @@ private:
             decltype(executor), decltype(storage), decltype(blockHeader),
             RANGES::range_value_t<decltype(transactions)>, int, decltype(ledgerConfig),
             task::SyncWait>;
+        struct Context
+        {
+            std::optional<CoroType> coro;
+            typename CoroType::Iterator iterator;
+            protocol::TransactionReceipt::Ptr receipt;
+        };
 
         auto count = static_cast<int>(RANGES::size(transactions));
-        std::vector<protocol::TransactionReceipt::Ptr> receipts(count);
-        std::vector<typename CoroType::Iterator> iterators(count);
-        std::vector<CoroType> coroutines;
-        coroutines.reserve(count);
+        std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
         int index = 0;
         tbb::parallel_pipeline(count,
@@ -41,28 +44,34 @@ private:
                         control.stop();
                         return index;
                     }
-                    coroutines.emplace_back(transaction_executor::execute3Step(executor, storage,
-                        blockHeader, transactions[index], index, ledgerConfig, task::syncWait));
-                    iterators[index] = coroutines[index].begin();
-                    receipts[index] = *iterators[index];
+                    auto& [coro, iterator, receipt] = contexts[index];
+                    coro.emplace(transaction_executor::execute3Step(executor, storage, blockHeader,
+                        transactions[index], index, ledgerConfig, task::syncWait));
+                    iterator = coro->begin();
 
                     return index++;
                 }) &
                 tbb::make_filter<int, int>(tbb::filter_mode::serial_in_order,
                     [&](int index) {
-                        if (!receipts[index])
+                        auto& [coro, iterator, receipt] = contexts[index];
+                        if (!receipt)
                         {
-                            receipts[index] = *(++iterators[index]);
+                            receipt = *(++iterator);
                         }
                         return index;
                     }) &
                 tbb::make_filter<int, void>(tbb::filter_mode::serial_in_order, [&](int index) {
-                    if (!receipts[index])
+                    auto& [coro, iterator, receipt] = contexts[index];
+                    if (!receipt)
                     {
-                        receipts[index] = *(++iterators[index]);
+                        receipt = *(++iterator);
                     }
                 }));
 
+        std::vector<protocol::TransactionReceipt::Ptr> receipts;
+        RANGES::move(
+            RANGES::views::transform(contexts, [](Context& context) { return context.receipt; }),
+            RANGES::back_inserter(receipts));
         co_return receipts;
     }
 };
