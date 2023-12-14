@@ -314,8 +314,8 @@ public:
 
         m_vmInstance.emplace(
             co_await m_vmFactory.create(VMKind::evmone, createCodeHash, createCode, m_mode));
-        m_vmInstance->prepareExecutionState(
-            interface, this, m_mode, &m_message, m_message.input_data, m_message.input_size);
+        // m_vmInstance->prepareExecutionState(
+        //     interface, this, m_mode, &m_message, m_message.input_data, m_message.input_size);
     }
 
     task::Task<EVMCResult> executeCreate()
@@ -373,8 +373,8 @@ public:
         auto codeHash = co_await codeHashAt(m_message.code_address);
         m_vmInstance.emplace(co_await m_vmFactory.create(VMKind::evmone, codeHash,
             bytesConstRef((const uint8_t*)code.data(), code.size()), m_mode));
-        m_vmInstance->prepareExecutionState(
-            interface, this, m_mode, &m_message, m_message.input_data, m_message.input_size);
+        // m_vmInstance->prepareExecutionState(
+        //     interface, this, m_mode, &m_message, m_message.input_data, m_message.input_size);
 
         co_return std::optional<EVMCResult>{};
     }

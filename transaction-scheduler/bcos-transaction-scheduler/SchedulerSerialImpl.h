@@ -4,10 +4,11 @@
 #include "bcos-framework/protocol/TransactionReceipt.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
-#include "bcos-task/Wait.h"
+#include "bcos-task/TBBWait.h"
 #include <oneapi/tbb/cache_aligned_allocator.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <oneapi/tbb/task_arena.h>
+#include <atomic>
 
 namespace bcos::transaction_scheduler
 {
@@ -28,7 +29,7 @@ private:
         using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
             decltype(executor), decltype(storage), decltype(blockHeader),
             RANGES::range_value_t<decltype(transactions)>, int, decltype(ledgerConfig),
-            task::SyncWait>;
+            task::tbb::SyncWait>;
         struct Context
         {
             std::optional<CoroType> coro;
@@ -36,14 +37,14 @@ private:
             protocol::TransactionReceipt::Ptr receipt;
         };
 
-        auto count = static_cast<int>(RANGES::size(transactions));
+        auto count = static_cast<int64_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
-        auto chunks = RANGES::views::iota(0, count) | RANGES::views::chunk(100);
-        auto chunkCount = static_cast<int>(RANGES::size(chunks));
+        auto chunks = RANGES::views::iota(0L, count) | RANGES::views::chunk(100);
+        auto chunkCount = static_cast<int64_t>(RANGES::size(chunks));
 
-        int index = 0;
-
+        int64_t startIndex = 0;
+        std::atomic_int64_t endIndex = 0;
         // 三级流水线，3个线程
         // Three-stage pipeline, with 3 threads
         tbb::task_arena arena(3);
@@ -51,20 +52,24 @@ private:
             tbb::parallel_pipeline(chunkCount,
                 tbb::make_filter<void,
                     int>(tbb::filter_mode::serial_in_order, [&](tbb::flow_control& control) {
-                    if (index == chunkCount)
+                    if (startIndex == chunkCount)
                     {
                         control.stop();
-                        return index;
+                        return startIndex;
                     }
-                    return index++;
+                    return startIndex++;
                 }) & tbb::make_filter<int, int>(tbb::filter_mode::parallel, [&](int index) {
                     ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
                         ittapi::ITT_DOMAINS::instance().STEP_1);
                     for (auto i : chunks[index])
                     {
+                        // 如果此处找不到合约代码，有可能下一级流水线会部署，立即中断流水线
+                        // If the contract code cannot be found here, it is possible that the next
+                        // level of the pipeline will be deployed, and the pipeline will be
+                        // interrupted immediately
                         auto& [coro, iterator, receipt] = contexts[i];
                         coro.emplace(transaction_executor::execute3Step(executor, storage,
-                            blockHeader, transactions[i], i, ledgerConfig, task::syncWait));
+                            blockHeader, transactions[i], i, ledgerConfig, task::tbb::syncWait));
                         iterator = coro->begin();
                         receipt = *iterator;
                     }
@@ -97,8 +102,8 @@ private:
         });
 
         std::vector<protocol::TransactionReceipt::Ptr> receipts;
-        RANGES::move(
-            RANGES::views::transform(contexts, [](Context& context) { return context.receipt; }),
+        RANGES::move(RANGES::views::transform(
+                         contexts, [](Context & context) -> auto& { return context.receipt; }),
             RANGES::back_inserter(receipts));
         co_return receipts;
     }

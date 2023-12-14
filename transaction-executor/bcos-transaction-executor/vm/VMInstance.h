@@ -47,7 +47,7 @@ class VMInstance
 {
 private:
     std::shared_ptr<evmone::baseline::CodeAnalysis const> m_instance;
-    std::unique_ptr<evmone::advanced::AdvancedExecutionState> m_executionState;
+    static evmone::advanced::AdvancedExecutionState m_executionState;
 
 public:
     explicit VMInstance(std::shared_ptr<evmone::baseline::CodeAnalysis const> instance) noexcept;
@@ -61,13 +61,13 @@ public:
     EVMCResult execute(const struct evmc_host_interface* host, struct evmc_host_context* context,
         evmc_revision rev, const evmc_message* msg, const uint8_t* code, size_t codeSize);
 
-    void prepareExecutionState(const struct evmc_host_interface* host,
-        struct evmc_host_context* context, evmc_revision rev, const evmc_message* msg,
-        const uint8_t* code, size_t codeSize)
-    {
-        m_executionState = std::make_unique<evmone::advanced::AdvancedExecutionState>(
-            *msg, rev, *host, context, std::basic_string_view<uint8_t>(code, codeSize));
-    }
+    // void prepareExecutionState(const struct evmc_host_interface* host,
+    //     struct evmc_host_context* context, evmc_revision rev, const evmc_message* msg,
+    //     const uint8_t* code, size_t codeSize)
+    // {
+    //     m_executionState = std::make_unique<evmone::advanced::AdvancedExecutionState>(
+    //         *msg, rev, *host, context, std::basic_string_view<uint8_t>(code, codeSize));
+    // }
 
     void enableDebugOutput();
 };

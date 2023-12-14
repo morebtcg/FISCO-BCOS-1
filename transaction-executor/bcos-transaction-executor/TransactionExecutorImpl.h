@@ -97,7 +97,6 @@ private:
 
             // 准备执行
             EVMCResult* evmcResult{};
-
             auto optionalEVMCResult = waitOperator(hostContext.prepare());
             if (optionalEVMCResult)
             {
