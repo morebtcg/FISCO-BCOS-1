@@ -95,6 +95,15 @@ private:
                 transaction.abi(), contextID, seq, executor.m_precompiledManager, ledgerConfig,
                 *executor.m_hashImpl, std::forward<decltype(waitOperator)>(waitOperator));
 
+            // 准备执行
+            EVMCResult* evmcResult{};
+
+            auto optionalEVMCResult = waitOperator(hostContext.prepare());
+            if (optionalEVMCResult)
+            {
+                evmcResult = std::addressof(*optionalEVMCResult);
+            }
+
             // 完成第一步
             // Complete the first step
             co_yield receipt;
@@ -103,7 +112,12 @@ private:
 
             // 第二步，执行交易，该步骤只能串行
             // The second step, the execution of the transaction, can only be serial
-            auto evmcResult = waitOperator(hostContext.execute());
+            std::optional<EVMCResult> executedEVMCResult;
+            if (!evmcResult)
+            {
+                executedEVMCResult.emplace(waitOperator(hostContext.execute()));
+                evmcResult = std::addressof(*executedEVMCResult);
+            }
 
             // 完成第二步
             // Complete the second step
@@ -115,26 +129,27 @@ private:
             // The third step is to generate a receipt, which can be parallel
             bcos::bytesConstRef output;
             std::string newContractAddress;
-            if (!RANGES::equal(evmcResult.create_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
+            if (!RANGES::equal(evmcResult->create_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
             {
-                newContractAddress.reserve(sizeof(evmcResult.create_address) * 2);
-                boost::algorithm::hex_lower(evmcResult.create_address.bytes,
-                    evmcResult.create_address.bytes + sizeof(evmcResult.create_address.bytes),
+                newContractAddress.reserve(sizeof(evmcResult->create_address) * 2);
+                boost::algorithm::hex_lower(evmcResult->create_address.bytes,
+                    evmcResult->create_address.bytes + sizeof(evmcResult->create_address.bytes),
                     std::back_inserter(newContractAddress));
             }
             else
             {
-                output = {evmcResult.output_data, evmcResult.output_size};
+                output = {evmcResult->output_data, evmcResult->output_size};
             }
 
-            if (evmcResult.status_code != 0)
+            if (evmcResult->status_code != 0)
             {
-                TRANSACTION_EXECUTOR_LOG(DEBUG) << "Transaction revert: " << evmcResult.status_code;
+                TRANSACTION_EXECUTOR_LOG(DEBUG)
+                    << "Transaction revert: " << evmcResult->status_code;
             }
 
             auto const& logEntries = hostContext.logs();
-            receipt = executor.m_receiptFactory.createReceipt(gasLimit - evmcResult.gas_left,
-                std::move(newContractAddress), logEntries, evmcResult.status_code, output,
+            receipt = executor.m_receiptFactory.createReceipt(gasLimit - evmcResult->gas_left,
+                std::move(newContractAddress), logEntries, evmcResult->status_code, output,
                 blockHeader.number());
         }
         catch (std::exception& e)

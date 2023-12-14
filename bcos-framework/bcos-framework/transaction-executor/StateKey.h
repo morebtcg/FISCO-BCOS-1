@@ -61,8 +61,8 @@ public:
         stream << stateKey.m_tableAndKey;
         return stream;
     }
-    const char* data() const& { return m_tableAndKey.data(); }
-    size_t size() const { return m_tableAndKey.size(); }
+    const char* data() const& noexcept { return m_tableAndKey.data(); }
+    size_t size() const noexcept { return m_tableAndKey.size(); }
 };
 
 class StateKeyView

@@ -33,7 +33,7 @@ namespace bcos::transaction_scheduler
 class SchedulerParallelImpl
 {
     std::unique_ptr<tbb::task_group> m_asyncTaskGroup;
-    constexpr static size_t MIN_CHUNK_SIZE = 16;
+    constexpr static size_t MIN_CHUNK_SIZE = 100;
     size_t m_chunkSize = MIN_CHUNK_SIZE;
     size_t m_maxToken = 0;
 

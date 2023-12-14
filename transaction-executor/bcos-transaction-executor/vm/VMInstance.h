@@ -46,26 +46,11 @@ struct ReleaseEVMC
 class VMInstance
 {
 private:
-    using EVMC_VM = std::unique_ptr<evmc_vm, ReleaseEVMC>;
-    using EVMC_ANALYSIS_RESULT = std::shared_ptr<evmone::baseline::CodeAnalysis const>;
-    std::variant<EVMC_VM, EVMC_ANALYSIS_RESULT> m_instance;
+    std::shared_ptr<evmone::baseline::CodeAnalysis const> m_instance;
+    std::unique_ptr<evmone::advanced::AdvancedExecutionState> m_executionState;
 
 public:
-    template <class Instance>
-    explicit VMInstance(Instance instance) noexcept
-        requires std::same_as<Instance, evmc_vm*> ||
-                 std::same_as<Instance, std::shared_ptr<evmone::baseline::CodeAnalysis const>>
-    {
-        if constexpr (std::is_same_v<Instance, evmc_vm*>)
-        {
-            assert(instance->abi_version == EVMC_ABI_VERSION);
-            m_instance.emplace<EVMC_VM>(instance);
-        }
-        else
-        {
-            m_instance.emplace<EVMC_ANALYSIS_RESULT>(std::move(instance));
-        }
-    }
+    explicit VMInstance(std::shared_ptr<evmone::baseline::CodeAnalysis const> instance) noexcept;
     ~VMInstance() noexcept = default;
 
     VMInstance(VMInstance const&) = delete;
@@ -75,6 +60,14 @@ public:
 
     EVMCResult execute(const struct evmc_host_interface* host, struct evmc_host_context* context,
         evmc_revision rev, const evmc_message* msg, const uint8_t* code, size_t codeSize);
+
+    void prepareExecutionState(const struct evmc_host_interface* host,
+        struct evmc_host_context* context, evmc_revision rev, const evmc_message* msg,
+        const uint8_t* code, size_t codeSize)
+    {
+        m_executionState = std::make_unique<evmone::advanced::AdvancedExecutionState>(
+            *msg, rev, *host, context, std::basic_string_view<uint8_t>(code, codeSize));
+    }
 
     void enableDebugOutput();
 };
