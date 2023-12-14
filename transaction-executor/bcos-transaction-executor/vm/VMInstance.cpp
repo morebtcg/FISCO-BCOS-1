@@ -9,12 +9,13 @@ bcos::transaction_executor::EVMCResult bcos::transaction_executor::VMInstance::e
     const struct evmc_host_interface* host, struct evmc_host_context* context, evmc_revision rev,
     const evmc_message* msg, const uint8_t* code, size_t codeSize)
 {
-    // if (!m_executionState)
-    // {
-    //     prepareExecutionState(host, context, rev, msg, code, codeSize);
-    // }
-    static evmone::advanced::AdvancedExecutionState executionState;
-    static thread_local auto const* evm = evmc_create_evmone();
+    static auto const* evm = evmc_create_evmone();
+
+    // FIXME: 使用thread_local可能在tbb协程切换时出问题！可以用多线程对象池解决
+    // FIXME: Using thread_local may have problems switching TBB coroutines! It can be solved with a
+    // multi-threaded object pool
+    static thread_local evmone::advanced::AdvancedExecutionState executionState;
+
     executionState.reset(
         *msg, rev, *host, context, std::basic_string_view<uint8_t>(code, codeSize));
     return EVMCResult(evmone::baseline::execute(

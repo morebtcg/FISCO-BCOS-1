@@ -76,7 +76,6 @@ bcos::h256 calcauteTransactionRoot(protocol::Block const& block, crypto::Hash co
  */
 std::chrono::milliseconds::rep current();
 
-
 /**
  * Calculates the state root of the given storage using the specified hash implementation.
  *

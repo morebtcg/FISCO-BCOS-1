@@ -11,6 +11,7 @@
 #include <bcos-gateway/libnetwork/PeerBlacklist.h>
 #include <bcos-gateway/libnetwork/PeerWhitelist.h>
 #include <bcos-utilities/Common.h>  // for Guard, Mutex
+#include <oneapi/tbb/task_arena.h>
 #include <oneapi/tbb/task_group.h>
 #include <openssl/x509.h>
 #include <boost/asio/deadline_timer.hpp>  // for deadline_timer
@@ -21,6 +22,7 @@
 #include <thread>   // for thread
 #include <utility>  // for swap, move
 #include <vector>   // for vector
+
 
 
 namespace boost::asio::ssl
@@ -49,7 +51,8 @@ public:
     Host& operator=(Host&&) = delete;
     Host(std::shared_ptr<ASIOInterface> _asioInterface,
         std::shared_ptr<SessionFactory> _sessionFactory, MessageFactory::Ptr _messageFactory)
-      : m_asioInterface(std::move(_asioInterface)),
+      : m_taskArena(8, 1, tbb::task_arena::priority::low),
+        m_asioInterface(std::move(_asioInterface)),
         m_sessionFactory(std::move(_sessionFactory)),
         m_messageFactory(std::move(_messageFactory)){};
     virtual ~Host() { stop(); };
@@ -189,6 +192,7 @@ protected:
         }
     }
 
+    tbb::task_arena m_taskArena;
     tbb::task_group m_asyncGroup;
     std::shared_ptr<SessionCallbackManagerInterface> m_sessionCallbackManager;
 

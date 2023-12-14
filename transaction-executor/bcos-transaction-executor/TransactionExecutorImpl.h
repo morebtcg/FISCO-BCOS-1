@@ -95,7 +95,6 @@ private:
                 transaction.abi(), contextID, seq, executor.m_precompiledManager, ledgerConfig,
                 *executor.m_hashImpl, std::forward<decltype(waitOperator)>(waitOperator));
 
-            // 准备执行
             EVMCResult* evmcResult{};
             auto optionalEVMCResult = waitOperator(hostContext.prepare());
             if (optionalEVMCResult)
