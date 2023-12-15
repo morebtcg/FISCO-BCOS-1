@@ -10,16 +10,26 @@ bcos::transaction_executor::EVMCResult bcos::transaction_executor::VMInstance::e
     const evmc_message* msg, const uint8_t* code, size_t codeSize)
 {
     static auto const* evm = evmc_create_evmone();
+    static thread_local std::stack<std::unique_ptr<evmone::advanced::AdvancedExecutionState>>
+        executionStates;
 
-    // FIXME: 使用thread_local可能在tbb协程切换时出问题！可以用多线程对象池解决
-    // FIXME: Using thread_local may have problems switching TBB coroutines! It can be solved with a
-    // multi-threaded object pool
-    static thread_local evmone::advanced::AdvancedExecutionState executionState;
+    std::unique_ptr<evmone::advanced::AdvancedExecutionState> executionState;
+    if (!executionStates.empty())
+    {
+        executionState = std::move(executionStates.top());
+        executionStates.pop();
+    }
+    else
+    {
+        executionState = std::make_unique<evmone::advanced::AdvancedExecutionState>();
+    }
 
-    executionState.reset(
+    executionState->reset(
         *msg, rev, *host, context, std::basic_string_view<uint8_t>(code, codeSize));
-    return EVMCResult(evmone::baseline::execute(
-        *static_cast<evmone::VM const*>(evm), msg->gas, executionState, *m_instance));
+    auto result = EVMCResult(evmone::baseline::execute(
+        *static_cast<evmone::VM const*>(evm), msg->gas, *executionState, *m_instance));
+    executionStates.push(std::move(executionState));
+    return result;
 }
 
 void bcos::transaction_executor::VMInstance::enableDebugOutput() {}

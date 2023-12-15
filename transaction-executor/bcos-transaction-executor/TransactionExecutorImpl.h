@@ -150,6 +150,15 @@ private:
                 std::move(newContractAddress), logEntries, evmcResult->status_code, output,
                 blockHeader.number());
         }
+        catch (NotFoundCodeError& e)
+        {
+            TRANSACTION_EXECUTOR_LOG(DEBUG)
+                << "Not found code exception: " << boost::diagnostic_information(e);
+
+            receipt = executor.m_receiptFactory.createReceipt(
+                0, {}, {}, EVMC_REVERT, {}, blockHeader.number());
+            receipt->setMessage(boost::diagnostic_information(e));
+        }
         catch (std::exception& e)
         {
             TRANSACTION_EXECUTOR_LOG(DEBUG)
