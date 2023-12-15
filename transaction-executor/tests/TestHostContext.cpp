@@ -23,7 +23,6 @@
 #include <bcos-crypto/hash/Keccak256.h>
 #include <bcos-framework/storage2/MemoryStorage.h>
 #include <bcos-tars-protocol/protocol/BlockHeaderImpl.h>
-#include <bcos-task/Wait.h>
 #include <evmc/evmc.h>
 #include <boost/algorithm/hex.hpp>
 #include <boost/test/unit_test.hpp>
@@ -41,7 +40,6 @@ public:
     MutableStorage storage;
     Rollbackable<decltype(storage)> rollbackableStorage;
     evmc_address helloworldAddress;
-    VMFactory vmFactory;
     int64_t seq = 0;
     std::optional<PrecompiledManager> precompiledManager;
     bcos::ledger::LedgerConfig ledgerConfig;
@@ -77,8 +75,8 @@ public:
             .code_address = {}};
         evmc_address origin = {};
 
-        HostContext<decltype(rollbackableStorage)> hostContext(vmFactory, rollbackableStorage,
-            blockHeader, message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
+        HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
+            message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
         auto result = syncWait(hostContext.execute());
 
@@ -115,8 +113,8 @@ public:
             .code_address = helloworldAddress};
         evmc_address origin = {};
 
-        HostContext<decltype(rollbackableStorage)> hostContext(vmFactory, rollbackableStorage,
-            blockHeader, message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
+        HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
+            message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
         auto result = co_await hostContext.execute();
 
@@ -329,8 +327,8 @@ BOOST_AUTO_TEST_CASE(precompiled)
             .code_address = callAddress};
         evmc_address origin = {};
 
-        HostContext<decltype(rollbackableStorage)> hostContext(vmFactory, rollbackableStorage,
-            blockHeader, message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
+        HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
+            message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
         auto result = syncWait(hostContext.execute());
     }
@@ -359,8 +357,8 @@ BOOST_AUTO_TEST_CASE(precompiled)
             .code_address = callAddress};
         evmc_address origin = {};
 
-        HostContext<decltype(rollbackableStorage)> hostContext(vmFactory, rollbackableStorage,
-            blockHeader, message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
+        HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
+            message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
         result.emplace(syncWait(hostContext.execute()));
     }

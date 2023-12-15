@@ -64,3 +64,15 @@ public:
 };
 
 }  // namespace bcos::transaction_executor
+
+template <>
+struct std::equal_to<evmc_address>
+{
+    bool operator()(const evmc_address& lhs, const evmc_address& rhs) const noexcept;
+};
+
+template <>
+struct boost::hash<evmc_address>
+{
+    size_t operator()(const evmc_address& address) const noexcept;
+};

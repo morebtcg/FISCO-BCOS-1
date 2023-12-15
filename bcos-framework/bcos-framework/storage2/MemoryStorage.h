@@ -298,7 +298,7 @@ public:
             {
                 it = index.find(key);
             }
-            if (it != index.end() && it->key == key)
+            if (it != index.end() && std::equal_to<Key>{}(it->key, key))
             {
                 if constexpr (std::decay_t<decltype(storage)>::withMRU)
                 {

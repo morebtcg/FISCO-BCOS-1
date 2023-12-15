@@ -52,8 +52,6 @@ private:
         protocol::TransactionReceipt::Ptr receipt;
         try
         {
-            // 第一步，准备执行环境，该步骤可以并行
-            // The first step, the execution environment, is prepared, and the steps can be parallel
             if (c_fileLogLevel <= LogLevel::TRACE)
             {
                 TRANSACTION_EXECUTOR_LOG(TRACE)
@@ -90,10 +88,10 @@ private:
             }
 
             int64_t seq = 0;
-            HostContext<decltype(rollbackableStorage)> hostContext(executor.m_vmFactory,
-                rollbackableStorage, blockHeader, evmcMessage, evmcMessage.sender,
-                transaction.abi(), contextID, seq, executor.m_precompiledManager, ledgerConfig,
-                *executor.m_hashImpl, std::forward<decltype(waitOperator)>(waitOperator));
+            HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
+                evmcMessage, evmcMessage.sender, transaction.abi(), contextID, seq,
+                executor.m_precompiledManager, ledgerConfig, *executor.m_hashImpl,
+                std::forward<decltype(waitOperator)>(waitOperator));
 
             EVMCResult* evmcResult{};
             auto optionalEVMCResult = waitOperator(hostContext.prepare());
@@ -102,14 +100,8 @@ private:
                 evmcResult = std::addressof(*optionalEVMCResult);
             }
 
-            // 完成第一步
-            // Complete the first step
-            co_yield receipt;
+            co_yield receipt;  // 完成第一步 Complete the first step
 
-            // =======================================================================================
-
-            // 第二步，执行交易，该步骤只能串行
-            // The second step, the execution of the transaction, can only be serial
             std::optional<EVMCResult> executedEVMCResult;
             if (!evmcResult)
             {
@@ -117,14 +109,8 @@ private:
                 evmcResult = std::addressof(*executedEVMCResult);
             }
 
-            // 完成第二步
-            // Complete the second step
-            co_yield receipt;
+            co_yield receipt;  // 完成第二步 Complete the second step
 
-            // =======================================================================================
-
-            // 第三步，生成回执，该步骤可以并行
-            // The third step is to generate a receipt, which can be parallel
             bcos::bytesConstRef output;
             std::string newContractAddress;
             if (!RANGES::equal(evmcResult->create_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
@@ -168,9 +154,7 @@ private:
                 0, {}, {}, EVMC_INTERNAL_ERROR, {}, blockHeader.number());
             receipt->setMessage(boost::diagnostic_information(e));
         }
-        co_yield receipt;
-        // 完成第三步
-        // Complete the third step
+        co_yield receipt;  // 完成第三步 Complete the third step
     }
 
     friend task::Task<protocol::TransactionReceipt::Ptr> tag_invoke(

@@ -33,3 +33,13 @@ bcos::transaction_executor::EVMCResult bcos::transaction_executor::VMInstance::e
 }
 
 void bcos::transaction_executor::VMInstance::enableDebugOutput() {}
+
+bool std::equal_to<evmc_address>::operator()(
+    const evmc_address& lhs, const evmc_address& rhs) const noexcept
+{
+    return std::memcmp(lhs.bytes, rhs.bytes, sizeof(lhs.bytes)) == 0;
+}
+size_t boost::hash<evmc_address>::operator()(const evmc_address& address) const noexcept
+{
+    return boost::hash_range(address.bytes, address.bytes + sizeof(address.bytes));
+}
