@@ -395,8 +395,6 @@ public:
                 co_return;
             }
         }
-
-        m_executable = co_await getExecutable(m_rollbackableStorage, m_message.code_address);
     }
 
     task::Task<EVMCResult> executeCall()

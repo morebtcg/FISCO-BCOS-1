@@ -5,10 +5,13 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-task/TBBWait.h"
+#include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/cache_aligned_allocator.h>
 #include <oneapi/tbb/parallel_pipeline.h>
+#include <oneapi/tbb/partitioner.h>
 #include <oneapi/tbb/task_arena.h>
 #include <atomic>
+#include <thread>
 
 namespace bcos::transaction_scheduler
 {
@@ -40,65 +43,76 @@ private:
         auto count = static_cast<int64_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
-        auto chunks = RANGES::views::iota(0L, count) | RANGES::views::chunk(100);
-        auto chunkCount = static_cast<int64_t>(RANGES::size(chunks));
-
-        int64_t startIndex = 0;
-        std::atomic_int64_t endIndex = 0;
-        // 三级流水线，3个线程
-        // Three-stage pipeline, with 3 threads
-        tbb::task_arena arena(3);
+        using Range = tbb::blocked_range<int32_t>;
+        Range range(0L, static_cast<int32_t>(count));
+        // 三级流水线，2个线程
+        // Three-stage pipeline, with 2 threads
+        bool lastRange = false;
+        tbb::task_arena arena(2);
         arena.execute([&]() {
-            tbb::parallel_pipeline(chunkCount,
-                tbb::make_filter<void,
-                    int>(tbb::filter_mode::serial_in_order, [&](tbb::flow_control& control) {
-                    if (startIndex == chunkCount)
-                    {
-                        control.stop();
-                        return startIndex;
-                    }
-                    return startIndex++;
-                }) & tbb::make_filter<int, int>(tbb::filter_mode::parallel, [&](int index) {
-                    ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                        ittapi::ITT_DOMAINS::instance().STEP_1);
-                    for (auto i : chunks[index])
-                    {
-                        // 如果此处找不到合约代码，有可能下一级流水线会部署，立即中断流水线
-                        // If the contract code cannot be found here, it is possible that the next
-                        // level of the pipeline will be deployed, and the pipeline will be
-                        // interrupted immediately
-                        auto& [coro, iterator, receipt] = contexts[i];
-                        coro.emplace(transaction_executor::execute3Step(executor, storage,
-                            blockHeader, transactions[i], i, ledgerConfig, task::tbb::syncWait));
-                        iterator = coro->begin();
-                        receipt = *iterator;
-                    }
-                    return index;
-                }) & tbb::make_filter<int, int>(tbb::filter_mode::serial_in_order, [&](int index) {
-                    ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                        ittapi::ITT_DOMAINS::instance().STEP_2);
-                    for (auto i : chunks[index])
-                    {
-                        auto& [coro, iterator, receipt] = contexts[i];
-                        if (!receipt)
+            tbb::parallel_pipeline(std::thread::hardware_concurrency(),
+                tbb::make_filter<void, Range>(tbb::filter_mode::serial_in_order,
+                    [&](tbb::flow_control& control) {
+                        if (lastRange)
                         {
-                            receipt = *(++iterator);
+                            control.stop();
+                            return range;
                         }
-                    }
-                    return index;
-                }) & tbb::make_filter<int, void>(tbb::filter_mode::parallel, [&](int index) {
-                    ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                        ittapi::ITT_DOMAINS::instance().STEP_3);
-                    for (auto i : chunks[index])
-                    {
-                        auto& [coro, iterator, receipt] = contexts[i];
-                        if (!receipt)
+
+                        if (range.is_divisible())
                         {
-                            receipt = *(++iterator);
+                            auto newRange = Range(range, tbb::split{});
+                            using std::swap;
+                            swap(range, newRange);
+                            return newRange;
                         }
-                        coro.reset();
-                    }
-                }));
+
+                        lastRange = true;
+                        return range;
+                    }) &
+                    tbb::make_filter<Range, Range>(tbb::filter_mode::parallel,
+                        [&](Range splitRange) {
+                            ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().STEP_1);
+                            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
+                            {
+                                auto& [coro, iterator, receipt] = contexts[i];
+                                coro.emplace(transaction_executor::execute3Step(executor, storage,
+                                    blockHeader, transactions[i], i, ledgerConfig,
+                                    task::tbb::syncWait));
+                                iterator = coro->begin();
+                                receipt = *iterator;
+                            }
+                            return splitRange;
+                        }) &
+                    tbb::make_filter<Range, Range>(tbb::filter_mode::serial_in_order,
+                        [&](Range splitRange) {
+                            ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().STEP_2);
+                            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
+                            {
+                                auto& [coro, iterator, receipt] = contexts[i];
+                                if (!receipt)
+                                {
+                                    receipt = *(++iterator);
+                                }
+                            }
+                            return splitRange;
+                        }) &
+                    tbb::make_filter<Range, void>(
+                        tbb::filter_mode::parallel, [&](Range splitRange) {
+                            ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().STEP_3);
+                            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
+                            {
+                                auto& [coro, iterator, receipt] = contexts[i];
+                                if (!receipt)
+                                {
+                                    receipt = *(++iterator);
+                                }
+                                coro.reset();
+                            }
+                        }));
         });
 
         std::vector<protocol::TransactionReceipt::Ptr> receipts;
