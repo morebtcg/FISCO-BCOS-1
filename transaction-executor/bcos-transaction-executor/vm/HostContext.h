@@ -281,16 +281,15 @@ public:
         // suicide(m_myContractTable); // TODO: add suicide
     }
 
-    task::Task<std::optional<EVMCResult>> prepare()
+    task::Task<void> prepare()
     {
         if (m_message.kind == EVMC_CREATE || m_message.kind == EVMC_CREATE2)
         {
             prepareCreate();
-            co_return std::optional<EVMCResult>{};
         }
         else
         {
-            co_return co_await prepareCall();
+            co_await prepareCall();
         }
     }
 
@@ -320,7 +319,6 @@ public:
     task::Task<std::shared_ptr<Executable>> getExecutable(
         Storage& storage, const evmc_address& address)
     {
-        // 暂时最多缓存1000个合约
         static thread_local storage2::memory_storage::MemoryStorage<evmc_address,
             std::shared_ptr<Executable>, storage2::memory_storage::MRU, std::hash<evmc_address>>
             cachedExecutables;
@@ -380,7 +378,7 @@ public:
         co_return result;
     }
 
-    task::Task<std::optional<EVMCResult>> prepareCall()
+    task::Task<void> prepareCall()
     {
         constexpr static unsigned long MAX_PRECOMPILED_ADDRESS = 100000;
         u160 address;
@@ -394,12 +392,11 @@ public:
             if (precompiled != nullptr)
             {
                 m_preparedPrecompiled = precompiled;
-                co_return std::optional<EVMCResult>{};
+                co_return;
             }
         }
 
         m_executable = co_await getExecutable(m_rollbackableStorage, m_message.code_address);
-        co_return std::optional<EVMCResult>{};
     }
 
     task::Task<EVMCResult> executeCall()
@@ -446,6 +443,7 @@ public:
             m_origin, {}, m_contextID, m_seq, m_precompiledManager, m_ledgerConfig, m_hashImpl,
             interface);
 
+        co_await hostcontext.prepare();
         auto result = co_await hostcontext.execute();
         auto& logs = hostcontext.logs();
         if (result.status_code == EVMC_SUCCESS && !logs.empty())

@@ -78,6 +78,7 @@ public:
         HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
             message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
+        syncWait(hostContext.prepare());
         auto result = syncWait(hostContext.execute());
 
         BOOST_REQUIRE_EQUAL(result.status_code, 0);
@@ -116,6 +117,7 @@ public:
         HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
             message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
+        co_await hostContext.prepare();
         auto result = co_await hostContext.execute();
 
         co_return result;
@@ -330,6 +332,7 @@ BOOST_AUTO_TEST_CASE(precompiled)
         HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
             message, origin, "", 0, seq, *precompiledManager, ledgerConfig, *hashImpl,
             bcos::task::syncWait);
+        syncWait(hostContext.prepare());
         auto result = syncWait(hostContext.execute());
     }
 
