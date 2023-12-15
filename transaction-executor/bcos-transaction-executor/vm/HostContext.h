@@ -409,6 +409,10 @@ public:
                 buildLegacyExternalCaller(), m_precompiledManager);
         }
 
+        if (!m_executable)
+        {
+            m_executable = co_await getExecutable(m_rollbackableStorage, m_message.code_address);
+        }
         auto result = m_executable->m_vmInstance.execute(interface, this, mode, &m_message,
             (const uint8_t*)m_executable->m_code.data(), m_executable->m_code.size());
         if (result.status_code != 0)
