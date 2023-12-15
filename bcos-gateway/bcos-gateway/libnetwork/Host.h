@@ -50,8 +50,7 @@ public:
     Host& operator=(Host&&) = delete;
     Host(std::shared_ptr<ASIOInterface> _asioInterface,
         std::shared_ptr<SessionFactory> _sessionFactory, MessageFactory::Ptr _messageFactory)
-      : m_taskArena(16),
-        m_asioInterface(std::move(_asioInterface)),
+      : m_asioInterface(std::move(_asioInterface)),
         m_sessionFactory(std::move(_sessionFactory)),
         m_messageFactory(std::move(_messageFactory)){};
     virtual ~Host() { stop(); };
