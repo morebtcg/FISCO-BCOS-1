@@ -100,7 +100,7 @@ private:
                             return splitRange;
                         }) &
                     tbb::make_filter<Range, void>(
-                        tbb::filter_mode::parallel, [&](Range splitRange) {
+                        tbb::filter_mode::serial_in_order, [&](Range splitRange) {
                             ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
                                 ittapi::ITT_DOMAINS::instance().STEP_3);
                             for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
