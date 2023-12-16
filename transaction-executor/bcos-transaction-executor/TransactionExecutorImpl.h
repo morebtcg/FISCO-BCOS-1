@@ -81,7 +81,7 @@ private:
                 .create2_salt = {},
                 .code_address = toAddress};
 
-            if (ledgerConfig.authCheckStatus() != 0 && blockHeader.number() == 0 &&
+            if (blockHeader.number() == 0 &&
                 transaction.to() == precompiled::AUTH_COMMITTEE_ADDRESS)
             {
                 evmcMessage.kind = EVMC_CREATE;
