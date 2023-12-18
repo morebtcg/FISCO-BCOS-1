@@ -1,17 +1,16 @@
 #pragma once
 
+#include "RollbackableStorage.h"
+#include "bcos-framework/protocol/BlockHeader.h"
+#include "bcos-framework/protocol/TransactionReceiptFactory.h"
 #include "bcos-framework/storage2/MemoryStorage.h"
-#include "bcos-table/src/StateStorage.h"
+#include "bcos-framework/storage2/Storage.h"
+#include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-task/Generator.h"
 #include "bcos-transaction-executor/vm/VMFactory.h"
 #include "precompiled/PrecompiledManager.h"
-#include "transaction-executor/bcos-transaction-executor/RollbackableStorage.h"
-#include "transaction-executor/bcos-transaction-executor/vm/VMInstance.h"
 #include "vm/HostContext.h"
-#include <bcos-framework/protocol/BlockHeader.h>
-#include <bcos-framework/protocol/TransactionReceiptFactory.h>
-#include <bcos-framework/storage2/Storage.h>
-#include <bcos-framework/transaction-executor/TransactionExecutor.h>
+#include "vm/VMInstance.h"
 #include <evmc/evmc.h>
 #include <boost/algorithm/hex.hpp>
 #include <boost/exception/diagnostic_information.hpp>

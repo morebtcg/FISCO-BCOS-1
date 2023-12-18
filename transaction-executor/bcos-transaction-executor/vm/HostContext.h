@@ -67,20 +67,8 @@ namespace bcos::transaction_executor
 struct NotFoundCodeError : public bcos::Error {};
 // clang-format on
 
-namespace
-{
-inline evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size)
-{
-    return toEvmC(executor::GlobalHashImpl::g_hashImpl->hash(bytesConstRef(data, size)));
-}
-
-}  // namespace
-
-/// Return the EVM gas-price schedule for this execution context.
-static executor::VMSchedule const& vmSchedule()
-{
-    return executor::FiscoBcosScheduleV320;
-}
+static evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size);
+static executor::VMSchedule const& vmSchedule();
 static const auto mode = toRevision(vmSchedule());
 
 template <class Storage>
