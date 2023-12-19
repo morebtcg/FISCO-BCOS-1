@@ -76,3 +76,9 @@ struct boost::hash<evmc_address>
 {
     size_t operator()(const evmc_address& address) const noexcept;
 };
+
+template <>
+struct std::hash<evmc_address>
+{
+    size_t operator()(const evmc_address& address) const noexcept;
+};

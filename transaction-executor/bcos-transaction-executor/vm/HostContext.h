@@ -67,8 +67,8 @@ namespace bcos::transaction_executor
 struct NotFoundCodeError : public bcos::Error {};
 // clang-format on
 
-static evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size);
-static executor::VMSchedule const& vmSchedule();
+evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size);
+executor::VMSchedule const& vmSchedule();
 static const auto mode = toRevision(vmSchedule());
 
 template <class Storage>
@@ -79,14 +79,14 @@ private:
     struct Executable
     {
         Executable(storage::Entry code)
-          : m_code(std::move(code)),
-            m_vmInstance(VMFactory::create(
-                VMKind::evmone, bytesConstRef((const uint8_t*)m_code.data(), m_code.size()), mode))
+          : m_code(std::make_optional(std::move(code))),
+            m_vmInstance(VMFactory::create(VMKind::evmone,
+                bytesConstRef((const uint8_t*)m_code->data(), m_code->size()), mode))
         {}
         Executable(bytesConstRef code) : m_vmInstance(VMFactory::create(VMKind::evmone, code, mode))
         {}
 
-        storage::Entry m_code;
+        std::optional<storage::Entry> m_code;
         VMInstance m_vmInstance;
     };
 
@@ -214,8 +214,12 @@ public:
 
     task::Task<std::optional<storage::Entry>> code(const evmc_address& address)
     {
-        Account tempAccount(m_rollbackableStorage, address);
-        co_return co_await ledger::account::code(tempAccount);
+        auto executable = co_await getExecutable(m_rollbackableStorage, address);
+        if (executable && executable->m_code)
+        {
+            co_return executable->m_code;
+        }
+        co_return std::optional<storage::Entry>{};
     }
 
     task::Task<size_t> codeSizeAt(const evmc_address& address)
@@ -304,11 +308,51 @@ public:
         }
     }
 
+    task::Task<EVMCResult> externalCall(const evmc_message& message)
+    {
+        if (c_fileLogLevel <= LogLevel::TRACE)
+        {
+            HOST_CONTEXT_LOG(TRACE)
+                << "External call, sender:" << address2HexString(message.sender);
+        }
+        ++m_seq;
+
+        const auto* messagePtr = std::addressof(message);
+        std::optional<evmc_message> messageWithSender;
+        if (message.kind == EVMC_CREATE &&
+            RANGES::equal(message.sender.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
+        {
+            messageWithSender.emplace(message);
+            messageWithSender->sender = m_newContractAddress;
+            messagePtr = std::addressof(*messageWithSender);
+        }
+
+        HostContext hostcontext(innerConstructor, m_rollbackableStorage, m_blockHeader, *messagePtr,
+            m_origin, {}, m_contextID, m_seq, m_precompiledManager, m_ledgerConfig, m_hashImpl,
+            interface);
+
+        co_await hostcontext.prepare();
+        auto result = co_await hostcontext.execute();
+        auto& logs = hostcontext.logs();
+        if (result.status_code == EVMC_SUCCESS && !logs.empty())
+        {
+            m_logs.reserve(m_logs.size() + RANGES::size(logs));
+            RANGES::move(logs, std::back_inserter(m_logs));
+        }
+
+        co_return result;
+    }
+
+    std::vector<protocol::LogEntry>& logs() & { return m_logs; }
+
+private:
     task::Task<std::shared_ptr<Executable>> getExecutable(
         Storage& storage, const evmc_address& address)
     {
-        static thread_local storage2::memory_storage::MemoryStorage<evmc_address,
-            std::shared_ptr<Executable>, storage2::memory_storage::MRU, std::hash<evmc_address>>
+        static storage2::memory_storage::MemoryStorage<evmc_address, std::shared_ptr<Executable>,
+            storage2::memory_storage::Attribute(
+                storage2::memory_storage::MRU | storage2::memory_storage::CONCURRENT),
+            std::hash<evmc_address>>
             cachedExecutables;
 
         auto executable = co_await storage2::readOne(cachedExecutables, address);
@@ -317,7 +361,8 @@ public:
             co_return std::move(*executable);
         }
 
-        auto codeEntry = co_await code(address);
+        Account account(m_rollbackableStorage, address);
+        auto codeEntry = co_await ledger::account::code(account);
         if (!codeEntry)
         {
             co_return std::shared_ptr<Executable>{};
@@ -400,7 +445,7 @@ public:
             m_executable = co_await getExecutable(m_rollbackableStorage, m_message.code_address);
         }
         auto result = m_executable->m_vmInstance.execute(interface, this, mode, &m_message,
-            (const uint8_t*)m_executable->m_code.data(), m_executable->m_code.size());
+            (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
         if (result.status_code != 0)
         {
             HOST_CONTEXT_LOG(DEBUG) << "Execute transaction failed, status: " << result.status_code;
@@ -409,43 +454,6 @@ public:
 
         co_return result;
     }
-
-    task::Task<EVMCResult> externalCall(const evmc_message& message)
-    {
-        if (c_fileLogLevel <= LogLevel::TRACE)
-        {
-            HOST_CONTEXT_LOG(TRACE)
-                << "External call, sender:" << address2HexString(message.sender);
-        }
-        ++m_seq;
-
-        const auto* messagePtr = std::addressof(message);
-        std::optional<evmc_message> messageWithSender;
-        if (message.kind == EVMC_CREATE &&
-            RANGES::equal(message.sender.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
-        {
-            messageWithSender.emplace(message);
-            messageWithSender->sender = m_newContractAddress;
-            messagePtr = std::addressof(*messageWithSender);
-        }
-
-        HostContext hostcontext(innerConstructor, m_rollbackableStorage, m_blockHeader, *messagePtr,
-            m_origin, {}, m_contextID, m_seq, m_precompiledManager, m_ledgerConfig, m_hashImpl,
-            interface);
-
-        co_await hostcontext.prepare();
-        auto result = co_await hostcontext.execute();
-        auto& logs = hostcontext.logs();
-        if (result.status_code == EVMC_SUCCESS && !logs.empty())
-        {
-            m_logs.reserve(m_logs.size() + RANGES::size(logs));
-            RANGES::move(logs, std::back_inserter(m_logs));
-        }
-
-        co_return result;
-    }
-
-    std::vector<protocol::LogEntry>& logs() & { return m_logs; }
 };
 
 }  // namespace bcos::transaction_executor

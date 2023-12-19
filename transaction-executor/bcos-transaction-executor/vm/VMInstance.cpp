@@ -43,3 +43,7 @@ size_t boost::hash<evmc_address>::operator()(const evmc_address& address) const 
 {
     return boost::hash_range(address.bytes, address.bytes + sizeof(address.bytes));
 }
+size_t std::hash<evmc_address>::operator()(const evmc_address& address) const noexcept
+{
+    return boost::hash_range(address.bytes, address.bytes + sizeof(address.bytes));
+}
