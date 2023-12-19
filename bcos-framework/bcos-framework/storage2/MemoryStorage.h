@@ -187,7 +187,7 @@ public:
     MemoryStorage& operator=(MemoryStorage&&) noexcept = default;
     ~MemoryStorage() noexcept = default;
 
-    void setMaxCapacity(int64_t capacity) noexcept
+    void setMaxCapacity(int64_t capacity)
         requires withMRU
     {
         m_maxCapacity = capacity;
