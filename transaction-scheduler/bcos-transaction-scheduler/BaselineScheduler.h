@@ -137,7 +137,7 @@ task::Task<h256> calculateStateRoot(auto& storage, crypto::Hash const& hashImpl)
     co_return xorHash.m_hash;
 }
 
-task::Task<std::tuple<u256, h256>> calculateReceiptHashAndRoot(
+task::Task<std::tuple<u256, h256>> calculateReceiptRoot(
     auto& receipts, auto& block, crypto::Hash const& hashImpl)
 {
     u256 gasUsed;
@@ -182,7 +182,7 @@ task::Task<std::tuple<u256, h256>> calculateReceiptHashAndRoot(
  * @param newBlock The updated block.
  * @param hashImpl The hash implementation used to calculate the block hash.
  */
-void finishExecute(auto& storage, RANGES::range auto& receipts,
+void finishExecute(auto& storage, RANGES::range auto const& receipts,
     protocol::BlockHeader& newBlockHeader, protocol::Block& block,
     RANGES::input_range auto const& transactions, bool& sysBlock, crypto::Hash const& hashImpl)
 {
@@ -197,7 +197,7 @@ void finishExecute(auto& storage, RANGES::range auto& receipts,
         [&]() { stateRoot = task::tbb::syncWait(calculateStateRoot(storage, hashImpl)); },
         [&]() {
             std::tie(gasUsed, receiptRoot) =
-                task::tbb::syncWait(calculateReceiptHashAndRoot(receipts, block, hashImpl));
+                task::tbb::syncWait(calculateReceiptRoot(receipts, block, hashImpl));
         },
         [&]() {
             sysBlock = RANGES::any_of(transactions, [](auto const& transaction) {
@@ -346,7 +346,6 @@ private:
 
             scheduler.m_multiLayerStorage.pushMutableToImmutableFront();
             scheduler.m_lastExecutedBlockNumber = blockHeader->number();
-            scheduler.m_asyncGroup.run([view = std::move(view)]() {});
 
             std::unique_lock resultsLock(scheduler.m_resultsMutex);
             scheduler.m_results.push_front(
