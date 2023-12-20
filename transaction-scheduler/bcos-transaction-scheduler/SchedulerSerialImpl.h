@@ -42,6 +42,8 @@ private:
             protocol::TransactionReceipt::Ptr receipt;
         };
 
+        constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
+
         auto count = static_cast<int32_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
@@ -56,7 +58,7 @@ private:
             }
         };
 
-        Range range(0L, count);
+        Range range(0L, count, TRANSACTION_GRAIN_SIZE);
         // 三级流水线，2个线程
         // Three-stage pipeline, with 2 threads
         bool lastRange = false;

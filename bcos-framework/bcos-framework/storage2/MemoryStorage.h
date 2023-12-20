@@ -392,6 +392,12 @@ public:
             auto& toIndex = bucket.container.template get<0>();
             auto& fromIndex = fromBucket.container.template get<0>();
 
+            if (toIndex.empty())
+            {
+                toIndex.swap(fromIndex);
+                continue;
+            }
+
             while (!fromIndex.empty())
             {
                 auto [it, merged] = toIndex.merge(fromIndex, fromIndex.begin());
