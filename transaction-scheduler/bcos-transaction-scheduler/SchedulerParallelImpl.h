@@ -138,8 +138,7 @@ private:
         int64_t chunkIndex = 0;
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
 
-        auto chunkSize = std::max(
-            MIN_CHUNK_SIZE, RANGES::size(transactions) / (std::thread::hardware_concurrency() * 2));
+        auto chunkSize = std::max(MIN_CHUNK_SIZE, RANGES::size(transactions) / 8);
         auto chunks = currentTransactionAndReceipts | RANGES::views::chunk(chunkSize);
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
             std::decay_t<decltype(executor)>, RANGES::range_value_t<decltype(chunks)>>;
