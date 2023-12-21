@@ -15,6 +15,7 @@
 #include <bcos-task/TBBWait.h>
 #include <bcos-task/Wait.h>
 #include <bcos-utilities/ITTAPI.h>
+#include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <oneapi/tbb/partitioner.h>
 #include <boost/exception/detail/exception_ptr.hpp>
@@ -33,11 +34,8 @@ namespace bcos::transaction_scheduler
 class SchedulerParallelImpl
 {
     std::unique_ptr<tbb::task_group> m_asyncTaskGroup;
-    constexpr static size_t MIN_CHUNK_SIZE = 100;
-    size_t m_chunkSize = MIN_CHUNK_SIZE;
-    size_t m_maxToken = 0;
 
-    template <class Storage, class Executor, class Range>
+    template <class Storage, class Executor, class ExecutionRange>
     class ChunkStatus
     {
     private:
@@ -49,8 +47,7 @@ class SchedulerParallelImpl
         }
 
         int64_t m_chunkIndex = 0;
-        std::atomic_int64_t const& m_lastChunkIndex;
-        Range m_transactionAndReceiptsRange;
+        ExecutionRange m_transactionAndReceiptsRange;
         Executor& m_executor;
         MultiLayerStorage<typename Storage::MutableStorage, void, Storage> m_localStorage;
         decltype(m_localStorage.fork(true)) m_localStorageView;
@@ -58,10 +55,9 @@ class SchedulerParallelImpl
             m_localReadWriteSetStorage;
 
     public:
-        ChunkStatus(int64_t chunkIndex, std::atomic_int64_t const& lastChunkIndex,
-            Range transactionAndReceiptsRange, Executor& executor, auto& storage)
+        ChunkStatus(int64_t chunkIndex, ExecutionRange transactionAndReceiptsRange,
+            Executor& executor, auto& storage)
           : m_chunkIndex(chunkIndex),
-            m_lastChunkIndex(lastChunkIndex),
             m_transactionAndReceiptsRange(transactionAndReceiptsRange),
             m_executor(executor),
             m_localStorage(storage),
@@ -82,11 +78,6 @@ class SchedulerParallelImpl
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk " << m_chunkIndex << " executing...";
             for (auto&& [contextID, transaction, receipt] : m_transactionAndReceiptsRange)
             {
-                if (m_chunkIndex >= m_lastChunkIndex)
-                {
-                    PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk " << m_chunkIndex << " execute aborted";
-                    co_return;
-                }
                 *receipt = co_await transaction_executor::executeTransaction(m_executor,
                     m_localReadWriteSetStorage, blockHeader, *transaction, contextID, ledgerConfig,
                     task::tbb::syncWait);
@@ -104,9 +95,6 @@ public:
 
     SchedulerParallelImpl() : m_asyncTaskGroup(std::make_unique<tbb::task_group>()) {}
     ~SchedulerParallelImpl() noexcept { m_asyncTaskGroup->wait(); }
-
-    void setChunkSize(size_t chunkSize) { m_chunkSize = chunkSize; }
-    void setMaxToken(size_t maxToken) { m_maxToken = maxToken; }
 
 private:
     static task::Task<void> mergeLastStorage(
@@ -133,36 +121,49 @@ private:
                     index, std::addressof(transactions[index]), std::addressof(receipts[index]));
             });
 
+        constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
         auto count = RANGES::size(transactions);
-        std::atomic_int64_t lastChunkIndex{std::numeric_limits<int64_t>::max()};
         int64_t chunkIndex = 0;
+        std::atomic_int64_t lastChunkIndex = std::numeric_limits<int64_t>::max();
+
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
-
-        auto chunkSize = std::max(MIN_CHUNK_SIZE, RANGES::size(transactions) / 8);
-        auto chunks = currentTransactionAndReceipts | RANGES::views::chunk(chunkSize);
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
-            std::decay_t<decltype(executor)>, RANGES::range_value_t<decltype(chunks)>>;
-
+            std::decay_t<decltype(executor)>,
+            decltype(RANGES::subrange(currentTransactionAndReceipts))>;
+        using ChunkStorage = typename std::decay_t<decltype(storage)>::MutableStorage;
         PARALLEL_SCHEDULER_LOG(DEBUG) << "Start new chunk executing... " << offset << " | "
                                       << RANGES::size(currentTransactionAndReceipts);
 
-        using ChunkStorage = typename std::decay_t<decltype(storage)>::MutableStorage;
+        auto makeChunk = [&](tbb::blocked_range<int32_t> range) {
+            PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
+            RANGES::subrange executionRange(currentTransactionAndReceipts.begin() + range.begin(),
+                currentTransactionAndReceipts.begin() + range.end());
+            return std::make_unique<Chunk>(chunkIndex++, executionRange, executor, storage);
+        };
 
+        std::atomic_bool finishFlag = false;
+        tbb::blocked_range<int32_t> range(0,
+            static_cast<int32_t>(RANGES::size(currentTransactionAndReceipts)),
+            TRANSACTION_GRAIN_SIZE);
         ChunkStorage lastStorage;
-        tbb::parallel_pipeline(
-            scheduler.m_maxToken == 0 ? std::thread::hardware_concurrency() : scheduler.m_maxToken,
+        tbb::parallel_pipeline(std::thread::hardware_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
-                    if (chunkIndex >= RANGES::size(chunks))
+                    if (finishFlag)
                     {
                         control.stop();
                         return {};
                     }
-                    PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
-                    auto chunk = std::make_unique<Chunk>(
-                        chunkIndex, lastChunkIndex, chunks[chunkIndex], executor, storage);
-                    ++chunkIndex;
-                    return chunk;
+                    if (range.is_divisible())
+                    {
+                        auto newRange = tbb::blocked_range<int32_t>(range, tbb::split{});
+                        using std::swap;
+                        swap(range, newRange);
+                        return makeChunk(newRange);
+                    }
+
+                    finishFlag = true;
+                    return makeChunk(range);
                 }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, std::unique_ptr<Chunk>>(
                     tbb::filter_mode::parallel,
@@ -255,16 +256,8 @@ private:
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().PARALLEL_EXECUTE);
         std::vector<protocol::TransactionReceipt::Ptr> receipts(RANGES::size(transactions));
-
-        size_t offset = 0;
-        size_t retryCount = 0;
-
-        executeSinglePass(scheduler, storage, executor, blockHeader, transactions, ledgerConfig,
-            offset, receipts);
-
-        PARALLEL_SCHEDULER_LOG(INFO)
-            << "Parallel scheduler execute finished, retry counts: " << retryCount;
-
+        executeSinglePass(
+            scheduler, storage, executor, blockHeader, transactions, ledgerConfig, 0, receipts);
         co_return receipts;
     }
 };
