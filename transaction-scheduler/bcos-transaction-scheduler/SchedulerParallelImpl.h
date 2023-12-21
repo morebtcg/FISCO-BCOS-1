@@ -47,6 +47,7 @@ class SchedulerParallelImpl
         }
 
         int64_t m_chunkIndex = 0;
+        std::atomic_int64_t const& m_lastChunkIndex;
         ExecutionRange m_transactionAndReceiptsRange;
         Executor& m_executor;
         MultiLayerStorage<typename Storage::MutableStorage, void, Storage> m_localStorage;
@@ -55,9 +56,10 @@ class SchedulerParallelImpl
             m_localReadWriteSetStorage;
 
     public:
-        ChunkStatus(int64_t chunkIndex, ExecutionRange transactionAndReceiptsRange,
-            Executor& executor, auto& storage)
+        ChunkStatus(int64_t chunkIndex, std::atomic_int64_t const& lastChunkIndex,
+            ExecutionRange transactionAndReceiptsRange, Executor& executor, auto& storage)
           : m_chunkIndex(chunkIndex),
+            m_lastChunkIndex(lastChunkIndex),
             m_transactionAndReceiptsRange(transactionAndReceiptsRange),
             m_executor(executor),
             m_localStorage(storage),
@@ -78,9 +80,12 @@ class SchedulerParallelImpl
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk " << m_chunkIndex << " executing...";
             for (auto&& [contextID, transaction, receipt] : m_transactionAndReceiptsRange)
             {
-                *receipt = co_await transaction_executor::executeTransaction(m_executor,
-                    m_localReadWriteSetStorage, blockHeader, *transaction, contextID, ledgerConfig,
-                    task::tbb::syncWait);
+                if (m_chunkIndex < m_lastChunkIndex)
+                {
+                    *receipt = co_await transaction_executor::executeTransaction(m_executor,
+                        m_localReadWriteSetStorage, blockHeader, *transaction, contextID,
+                        ledgerConfig, task::tbb::syncWait);
+                }
             }
 
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk " << m_chunkIndex << " execute finished";
@@ -138,7 +143,8 @@ private:
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
             RANGES::subrange executionRange(currentTransactionAndReceipts.begin() + range.begin(),
                 currentTransactionAndReceipts.begin() + range.end());
-            return std::make_unique<Chunk>(chunkIndex++, executionRange, executor, storage);
+            return std::make_unique<Chunk>(
+                chunkIndex++, lastChunkIndex, executionRange, executor, storage);
         };
 
         std::atomic_bool finishFlag = false;
@@ -146,7 +152,8 @@ private:
             static_cast<int32_t>(RANGES::size(currentTransactionAndReceipts)),
             TRANSACTION_GRAIN_SIZE);
         ChunkStorage lastStorage;
-        tbb::parallel_pipeline(std::thread::hardware_concurrency(),
+        tbb::proportional_split split(1, tbb::this_task_arena::max_concurrency());
+        tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
                     if (finishFlag)
@@ -156,7 +163,7 @@ private:
                     }
                     if (range.is_divisible())
                     {
-                        auto newRange = tbb::blocked_range<int32_t>(range, tbb::split{});
+                        auto newRange = tbb::blocked_range<int32_t>(range, split);
                         using std::swap;
                         swap(range, newRange);
                         return makeChunk(newRange);
