@@ -43,7 +43,6 @@ private:
         };
 
         constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
-
         auto count = static_cast<int32_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
