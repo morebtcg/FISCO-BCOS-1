@@ -153,6 +153,10 @@ private:
             TRANSACTION_GRAIN_SIZE);
         ChunkStorage lastStorage;
         tbb::proportional_split split(1, tbb::this_task_arena::max_concurrency());
+
+        // 五级流水线：分片、并行执行、检测RAW冲突、合并读写集、合并storage
+        // Five-stage pipeline: split, parallel execution, detect RAW conflict, merge read/write
+        // set, merge storage
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
@@ -184,12 +188,13 @@ private:
 
                         return chunk;
                     }) &
-                tbb::make_filter<std::unique_ptr<Chunk>, void>(
-                    tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
+                tbb::make_filter<std::unique_ptr<Chunk>, std::unique_ptr<Chunk>>(
+                    tbb::filter_mode::serial_in_order,
+                    [&](std::unique_ptr<Chunk> chunk) {
                         auto index = chunk->chunkIndex();
                         if (index >= lastChunkIndex)
                         {
-                            return;
+                            return chunk;
                         }
 
                         if (index > 0)
@@ -220,27 +225,30 @@ private:
                                 scheduler.m_asyncTaskGroup->run(
                                     [chunk = std::move(chunk), readWriteSet =
                                                                    std::move(writeSet)]() {});
-                                return;
                             }
+
+                            PARALLEL_SCHEDULER_LOG(DEBUG)
+                                << "Merging rwset... " << index << " | " << chunk->count();
+                            ittapi::Report report(
+                                ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().MERGE_RWSET);
+                            writeSet.mergeWriteSet(chunk->readWriteSetStorage());
+                        }
+                        return chunk;
+                    }) &
+                tbb::make_filter<std::unique_ptr<Chunk>, void>(
+                    tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
+                        auto index = chunk->chunkIndex();
+                        if (index >= lastChunkIndex || !chunk)
+                        {
+                            return;
                         }
 
                         offset += (size_t)chunk->count();
-                        PARALLEL_SCHEDULER_LOG(DEBUG)
-                            << "Merging... " << index << " | " << chunk->count();
-                        tbb::parallel_invoke(
-                            [&]() {
-                                ittapi::Report report(
-                                    ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                                    ittapi::ITT_DOMAINS::instance().MERGE_RWSET);
-                                writeSet.mergeWriteSet(chunk->readWriteSetStorage());
-                            },
-                            [&]() {
-                                ittapi::Report report(
-                                    ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                                    ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
-                                task::tbb::syncWait(storage2::merge(lastStorage,
-                                    std::move(chunk->localStorage().mutableStorage())));
-                            });
+                        ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                            ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
+                        task::tbb::syncWait(storage2::merge(
+                            lastStorage, std::move(chunk->localStorage().mutableStorage())));
 
                         // 成功执行到最后一个chunk，合并数据并结束
                         // Successfully executes to the last chunk, merges the data, and ends
