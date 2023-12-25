@@ -205,23 +205,15 @@ private:
 
                         PARALLEL_SCHEDULER_LOG(DEBUG)
                             << "Merging rwset... " << index << " | " << chunk->count();
-                        ittapi::Report report2(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                        ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
                             ittapi::ITT_DOMAINS::instance().MERGE_RWSET);
                         writeSet.mergeWriteSet(chunk->readWriteSetStorage());
                         return chunk;
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
                     tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
-                        if (!chunk)
+                        if (!chunk || hasRAW.test())
                         {
-                            if (hasRAW.test())
-                            {
-                                task::tbb::syncWait(
-                                    mergeLastStorage(scheduler, storage, std::move(lastStorage)));
-                                executeSinglePass(scheduler, storage, executor, blockHeader,
-                                    transactions, ledgerConfig, offset, receipts);
-                            }
-
                             return;
                         }
 
@@ -230,16 +222,14 @@ private:
                             ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
                         task::tbb::syncWait(storage2::merge(
                             lastStorage, std::move(chunk->localStorage().mutableStorage())));
-                        report.release();
-
-                        // 成功执行到最后一个chunk，合并数据并结束
-                        // Successfully executes to the last chunk, merges the data, and ends
-                        if (offset == count)
-                        {
-                            task::tbb::syncWait(
-                                mergeLastStorage(scheduler, storage, std::move(lastStorage)));
-                        }
                     }));
+
+        task::tbb::syncWait(mergeLastStorage(scheduler, storage, std::move(lastStorage)));
+        if (offset < count)
+        {
+            executeSinglePass(scheduler, storage, executor, blockHeader, transactions, ledgerConfig,
+                offset, receipts);
+        }
     }
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
