@@ -398,27 +398,18 @@ public:
                 continue;
             }
 
+            auto hintIt = toIndex.end();
             while (!fromIndex.empty())
             {
-                auto [it, merged] = toIndex.merge(fromIndex, fromIndex.begin());
-                if (!merged)
+                auto node = fromIndex.extract(fromIndex.begin());
+                hintIt = toIndex.insert(hintIt, std::move(node));
+                if (!node.empty())
                 {
-                    toIndex.insert(toIndex.erase(it), fromIndex.extract(fromIndex.begin()));
+                    hintIt = toIndex.insert(toIndex.erase(hintIt), std::move(node));
                 }
             }
         }
         return {};
-    }
-
-    void swap(MemoryStorage& from)
-    {
-        for (auto bucketPair : RANGES::views::zip(m_buckets, from.m_buckets))
-        {
-            auto& [bucket, fromBucket] = bucketPair;
-            Lock toLock(bucket.mutex, true);
-            Lock fromLock(fromBucket.mutex, true);
-            bucket.container.swap(fromBucket.container);
-        }
     }
 
     bool empty() const

@@ -100,6 +100,8 @@ public:
     ~SchedulerParallelImpl() noexcept = default;
 
 private:
+    constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
+
     static task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)
     {
@@ -124,7 +126,6 @@ private:
                     index, std::addressof(transactions[index]), std::addressof(receipts[index]));
             });
 
-        constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
         auto count = RANGES::size(transactions);
         int64_t chunkIndex = 0;
 
@@ -138,7 +139,6 @@ private:
 
         boost::atomic_flag chunkFinished;
         boost::atomic_flag hasRAW;
-
         auto makeChunk = [&](tbb::blocked_range<int32_t> range) {
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
             RANGES::subrange executionRange(currentTransactionAndReceipts.begin() + range.begin(),
@@ -152,7 +152,7 @@ private:
         ChunkStorage lastStorage;
         tbb::proportional_split split(1, tbb::this_task_arena::max_concurrency());
 
-        // 四级流水线：分片、并行执行、检测RAW冲突&读写集、合并storage
+        // 四级流水线：分片、并行执行、检测RAW冲突&合并读写集、合并storage
         // Four-stage pipeline: split, parallel execution, detect RAW conflict and merge read/write
         // set, merge storage
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
@@ -230,6 +230,7 @@ private:
                             ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
                         task::tbb::syncWait(storage2::merge(
                             lastStorage, std::move(chunk->localStorage().mutableStorage())));
+                        report.release();
 
                         // 成功执行到最后一个chunk，合并数据并结束
                         // Successfully executes to the last chunk, merges the data, and ends
