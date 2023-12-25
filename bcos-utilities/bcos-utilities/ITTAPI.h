@@ -36,7 +36,7 @@ struct Report
     Report& operator=(const Report&) = delete;
     Report& operator=(Report&&) = default;
     ~Report() noexcept { release(); }
-    void release()
+    void release() noexcept
     {
         if (!m_released)
         {

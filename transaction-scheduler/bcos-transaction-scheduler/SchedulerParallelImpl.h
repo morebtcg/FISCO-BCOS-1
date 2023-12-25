@@ -33,8 +33,6 @@ namespace bcos::transaction_scheduler
 
 class SchedulerParallelImpl
 {
-    std::unique_ptr<tbb::task_group> m_asyncTaskGroup;
-
     template <class Storage, class Executor, class ExecutionRange>
     class ChunkStatus
     {
@@ -47,7 +45,7 @@ class SchedulerParallelImpl
         }
 
         int64_t m_chunkIndex = 0;
-        std::atomic_int64_t const& m_lastChunkIndex;
+        boost::atomic_flag const& m_hasRAW;
         ExecutionRange m_transactionAndReceiptsRange;
         Executor& m_executor;
         MultiLayerStorage<typename Storage::MutableStorage, void, Storage> m_localStorage;
@@ -56,10 +54,10 @@ class SchedulerParallelImpl
             m_localReadWriteSetStorage;
 
     public:
-        ChunkStatus(int64_t chunkIndex, std::atomic_int64_t const& lastChunkIndex,
+        ChunkStatus(int64_t chunkIndex, boost::atomic_flag const& lastChunkIndex,
             ExecutionRange transactionAndReceiptsRange, Executor& executor, auto& storage)
           : m_chunkIndex(chunkIndex),
-            m_lastChunkIndex(lastChunkIndex),
+            m_hasRAW(lastChunkIndex),
             m_transactionAndReceiptsRange(transactionAndReceiptsRange),
             m_executor(executor),
             m_localStorage(storage),
@@ -80,7 +78,7 @@ class SchedulerParallelImpl
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk " << m_chunkIndex << " executing...";
             for (auto&& [contextID, transaction, receipt] : m_transactionAndReceiptsRange)
             {
-                if (m_chunkIndex < m_lastChunkIndex)
+                if (!m_hasRAW.test())
                 {
                     *receipt = co_await transaction_executor::executeTransaction(m_executor,
                         m_localReadWriteSetStorage, blockHeader, *transaction, contextID,
@@ -98,8 +96,8 @@ public:
     SchedulerParallelImpl& operator=(const SchedulerParallelImpl&) = delete;
     SchedulerParallelImpl& operator=(SchedulerParallelImpl&&) noexcept = default;
 
-    SchedulerParallelImpl() : m_asyncTaskGroup(std::make_unique<tbb::task_group>()) {}
-    ~SchedulerParallelImpl() noexcept { m_asyncTaskGroup->wait(); }
+    SchedulerParallelImpl() = default;
+    ~SchedulerParallelImpl() noexcept = default;
 
 private:
     static task::Task<void> mergeLastStorage(
@@ -129,7 +127,6 @@ private:
         constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
         auto count = RANGES::size(transactions);
         int64_t chunkIndex = 0;
-        std::atomic_int64_t lastChunkIndex = std::numeric_limits<int64_t>::max();
 
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
@@ -139,28 +136,29 @@ private:
         PARALLEL_SCHEDULER_LOG(DEBUG) << "Start new chunk executing... " << offset << " | "
                                       << RANGES::size(currentTransactionAndReceipts);
 
+        boost::atomic_flag chunkFinished;
+        boost::atomic_flag hasRAW;
+
         auto makeChunk = [&](tbb::blocked_range<int32_t> range) {
             PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
             RANGES::subrange executionRange(currentTransactionAndReceipts.begin() + range.begin(),
                 currentTransactionAndReceipts.begin() + range.end());
-            return std::make_unique<Chunk>(
-                chunkIndex++, lastChunkIndex, executionRange, executor, storage);
+            return std::make_unique<Chunk>(chunkIndex++, hasRAW, executionRange, executor, storage);
         };
 
-        std::atomic_bool finishFlag = false;
         tbb::blocked_range<int32_t> range(0,
             static_cast<int32_t>(RANGES::size(currentTransactionAndReceipts)),
             TRANSACTION_GRAIN_SIZE);
         ChunkStorage lastStorage;
         tbb::proportional_split split(1, tbb::this_task_arena::max_concurrency());
 
-        // 五级流水线：分片、并行执行、检测RAW冲突、合并读写集、合并storage
-        // Five-stage pipeline: split, parallel execution, detect RAW conflict, merge read/write
+        // 四级流水线：分片、并行执行、检测RAW冲突&读写集、合并storage
+        // Four-stage pipeline: split, parallel execution, detect RAW conflict and merge read/write
         // set, merge storage
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
-                    if (finishFlag)
+                    if (chunkFinished.test())
                     {
                         control.stop();
                         return {};
@@ -173,18 +171,16 @@ private:
                         return makeChunk(newRange);
                     }
 
-                    finishFlag = true;
+                    chunkFinished.test_and_set();
                     return makeChunk(range);
                 }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, std::unique_ptr<Chunk>>(
                     tbb::filter_mode::parallel,
                     [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
-                        auto index = chunk->chunkIndex();
-                        if (index >= lastChunkIndex)
+                        if (chunk)
                         {
-                            return chunk;
+                            task::tbb::syncWait(chunk->execute(blockHeader, ledgerConfig));
                         }
-                        task::tbb::syncWait(chunk->execute(blockHeader, ledgerConfig));
 
                         return chunk;
                     }) &
@@ -192,55 +188,40 @@ private:
                     tbb::filter_mode::serial_in_order,
                     [&](std::unique_ptr<Chunk> chunk) {
                         auto index = chunk->chunkIndex();
-                        if (index >= lastChunkIndex)
+                        if (index > 0 && !hasRAW.test())
                         {
-                            return chunk;
-                        }
-
-                        if (index > 0)
-                        {
-                            bool hasRAW = false;
-                            {
-                                ittapi::Report report(
-                                    ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                                    ittapi::ITT_DOMAINS::instance().DETECT_RAW);
-                                hasRAW = writeSet.hasRAWIntersection(chunk->readWriteSetStorage());
-                            }
-                            if (hasRAW)
-                            {
-                                // 检测到读写集冲突，立即合并已完成的storage并开始新一轮执行，不等待当前pipeline执行结束
-                                // When a read/write set conflict is detected, the system
-                                // immediately merges the completed storage and starts a new round
-                                // of execution without waiting for the current pipeline execution
-                                // to end
-                                PARALLEL_SCHEDULER_LOG(DEBUG)
-                                    << "Detected RAW Intersection:" << index;
-                                lastChunkIndex = index;
-
-                                task::tbb::syncWait(
-                                    mergeLastStorage(scheduler, storage, std::move(lastStorage)));
-                                executeSinglePass(scheduler, storage, executor, blockHeader,
-                                    transactions, ledgerConfig, offset, receipts);
-
-                                scheduler.m_asyncTaskGroup->run(
-                                    [chunk = std::move(chunk), readWriteSet =
-                                                                   std::move(writeSet)]() {});
-                            }
-
-                            PARALLEL_SCHEDULER_LOG(DEBUG)
-                                << "Merging rwset... " << index << " | " << chunk->count();
                             ittapi::Report report(
                                 ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                                ittapi::ITT_DOMAINS::instance().MERGE_RWSET);
-                            writeSet.mergeWriteSet(chunk->readWriteSetStorage());
+                                ittapi::ITT_DOMAINS::instance().DETECT_RAW);
+                            if (writeSet.hasRAWIntersection(chunk->readWriteSetStorage()))
+                            {
+                                hasRAW.test_and_set();
+                                PARALLEL_SCHEDULER_LOG(DEBUG)
+                                    << "Detected RAW Intersection:" << index;
+                                return std::unique_ptr<Chunk>{};
+                            }
+                            report.release();
                         }
+
+                        PARALLEL_SCHEDULER_LOG(DEBUG)
+                            << "Merging rwset... " << index << " | " << chunk->count();
+                        ittapi::Report report2(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                            ittapi::ITT_DOMAINS::instance().MERGE_RWSET);
+                        writeSet.mergeWriteSet(chunk->readWriteSetStorage());
                         return chunk;
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
                     tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
-                        auto index = chunk->chunkIndex();
-                        if (index >= lastChunkIndex || !chunk)
+                        if (!chunk)
                         {
+                            if (hasRAW.test())
+                            {
+                                task::tbb::syncWait(
+                                    mergeLastStorage(scheduler, storage, std::move(lastStorage)));
+                                executeSinglePass(scheduler, storage, executor, blockHeader,
+                                    transactions, ledgerConfig, offset, receipts);
+                            }
+
                             return;
                         }
 
@@ -256,9 +237,6 @@ private:
                         {
                             task::tbb::syncWait(
                                 mergeLastStorage(scheduler, storage, std::move(lastStorage)));
-                            scheduler.m_asyncTaskGroup->run(
-                                [chunk = std::move(chunk), readWriteSet = std::move(writeSet)]() {
-                                });
                         }
                     }));
     }
