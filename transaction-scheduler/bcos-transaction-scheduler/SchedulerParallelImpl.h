@@ -212,7 +212,7 @@ private:
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
                     tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
-                        if (!chunk || hasRAW.test())
+                        if (!chunk)
                         {
                             return;
                         }

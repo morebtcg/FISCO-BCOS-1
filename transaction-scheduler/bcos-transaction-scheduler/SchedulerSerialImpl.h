@@ -22,6 +22,7 @@ class SchedulerSerialImpl
 {
 private:
     using Range = tbb::blocked_range<int32_t>;
+    constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
         tag_t<executeBlock> /*unused*/, SchedulerSerialImpl& /*unused*/, auto& storage,
@@ -42,7 +43,6 @@ private:
             protocol::TransactionReceipt::Ptr receipt;
         };
 
-        constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
         auto count = static_cast<int32_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
