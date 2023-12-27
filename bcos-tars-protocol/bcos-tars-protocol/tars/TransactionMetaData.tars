@@ -1,9 +1,15 @@
 module bcostars {
+    struct ConflictField {
+        1 optional vector<byte> field;
+        2 optional bool isWrite;
+    };
+
     struct TransactionMetaData
     {
         1 optional vector<byte> hash;
         2 optional string to;
         3 optional string source;
         4 optional unsigned int attribute;
+        5 optional vector<ConflictField> conflictFields;
     };
 };

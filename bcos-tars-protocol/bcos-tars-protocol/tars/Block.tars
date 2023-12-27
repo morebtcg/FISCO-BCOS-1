@@ -34,6 +34,11 @@ module bcostars {
         3 optional vector<Signature> signatureList;
     };
 
+    struct ExecutionNode {
+        1 optional vector<int> depends;
+        2 optional int count;
+    };
+
     struct Block {
         1 optional int version;
         2 optional int type;
@@ -46,5 +51,7 @@ module bcostars {
         
         9 optional vector<vector<byte>> transactionsMerkle;
         10 optional vector<vector<byte>> receiptsMerkle;
+
+        11 optional vector<ExecutionNode> executionPlan;
     };
 };

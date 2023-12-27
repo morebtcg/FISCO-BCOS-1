@@ -25,6 +25,7 @@
 #include "TransactionMetaData.h"
 #include "TransactionReceipt.h"
 #include "TransactionReceiptFactory.h"
+#include <range/v3/view/any_view.hpp>
 
 namespace bcos::protocol
 {
@@ -36,6 +37,12 @@ enum BlockType : int32_t
 {
     CompleteBlock = 1,
     WithTransactionsHash = 2,
+};
+
+struct ExecutionNode
+{
+    std::vector<int> depends;
+    int count;
 };
 
 class Block
@@ -115,6 +122,11 @@ public:
             }) |
             RANGES::to<NonceList>());
     }
+
+    virtual RANGES::any_view<bcos::protocol::ExecutionNode,
+        RANGES::category::input | RANGES::category::sized>
+    executionPlan() const = 0;
+    virtual void setExecutionPlan(RANGES::any_view<protocol::ExecutionNode> plan) = 0;
 };
 using Blocks = std::vector<Block::Ptr>;
 using BlocksPtr = std::shared_ptr<Blocks>;

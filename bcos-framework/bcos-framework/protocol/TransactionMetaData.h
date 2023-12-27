@@ -21,16 +21,20 @@
 #pragma once
 #include "Transaction.h"
 #include "TransactionSubmitResult.h"
-#include <bcos-crypto/interfaces/crypto/Hash.h>
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
+#include "bcos-crypto/interfaces/crypto/Hash.h"
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-utilities/Ranges.h"
 
-namespace bcos
-{
-namespace protocol
+namespace bcos::protocol
 {
 class TransactionMetaData
 {
 public:
+    TransactionMetaData() = default;
+    TransactionMetaData(const TransactionMetaData&) = default;
+    TransactionMetaData(TransactionMetaData&&) = delete;
+    TransactionMetaData& operator=(const TransactionMetaData&) = default;
+    TransactionMetaData& operator=(TransactionMetaData&&) = delete;
     using Ptr = std::shared_ptr<TransactionMetaData>;
     using ConstPtr = std::shared_ptr<const TransactionMetaData>;
 
@@ -47,9 +51,12 @@ public:
 
     virtual std::string_view source() const = 0;
     virtual void setSource(std::string source) = 0;
+
+    virtual RANGES::any_view<std::tuple<bytesConstRef, bool>> conflictFields() const = 0;
+    virtual void setConflictFields(
+        RANGES::any_view<std::tuple<bytesConstRef, bool>> conflictFields) = 0;
 };
 
 using TransactionMetaDataList = std::vector<TransactionMetaData::Ptr>;
 using TransactionMetaDataListPtr = std::shared_ptr<TransactionMetaDataList>;
-}  // namespace protocol
-}  // namespace bcos
+}  // namespace bcos::protocol
