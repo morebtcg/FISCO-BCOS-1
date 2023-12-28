@@ -39,8 +39,6 @@
 #include <bcos-framework/protocol/BlockHeader.h>
 #include <gsl/span>
 #include <memory>
-#include <range/v3/view/transform.hpp>
-#include <ranges>
 #include <type_traits>
 
 namespace bcostars::protocol
@@ -102,17 +100,8 @@ public:
 
     RANGES::any_view<bcos::protocol::ExecutionNode,
         RANGES::category::input | RANGES::category::sized>
-    executionPlan() const override
-    {
-        auto view = m_inner->executionPlan | RANGES::views::transform([](const auto& node) {
-            bcos::protocol::ExecutionNode executionNode;
-            executionNode.depends = node.depends;
-            executionNode.count = node.count;
-            return executionNode;
-        });
-        return {};
-    }
-    void setExecutionPlan(RANGES::any_view<bcos::protocol::ExecutionNode> plan) override {}
+    executionPlan() const override;
+    void setExecutionPlan(RANGES::any_view<bcos::protocol::ExecutionNode> plan) override;
 
 private:
     std::shared_ptr<bcostars::Block> m_inner;

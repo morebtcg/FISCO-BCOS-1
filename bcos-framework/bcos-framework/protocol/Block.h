@@ -25,7 +25,6 @@
 #include "TransactionMetaData.h"
 #include "TransactionReceipt.h"
 #include "TransactionReceiptFactory.h"
-#include <range/v3/view/any_view.hpp>
 
 namespace bcos::protocol
 {
@@ -125,8 +124,14 @@ public:
 
     virtual RANGES::any_view<bcos::protocol::ExecutionNode,
         RANGES::category::input | RANGES::category::sized>
-    executionPlan() const = 0;
-    virtual void setExecutionPlan(RANGES::any_view<protocol::ExecutionNode> plan) = 0;
+    executionPlan() const
+    {
+        BOOST_THROW_EXCEPTION(std::runtime_error("Unimplemented!"));
+    }
+    virtual void setExecutionPlan(RANGES::any_view<protocol::ExecutionNode> plan)
+    {
+        BOOST_THROW_EXCEPTION(std::runtime_error("Unimplemented!"));
+    }
 };
 using Blocks = std::vector<Block::Ptr>;
 using BlocksPtr = std::shared_ptr<Blocks>;
