@@ -119,6 +119,7 @@ private:
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().SINGLE_PASS);
 
+        auto count = RANGES::size(transactions);
         auto currentTransactionAndReceipts =
             RANGES::views::iota(offset, (size_t)RANGES::size(receipts)) |
             RANGES::views::transform([&](auto index) {
@@ -126,9 +127,7 @@ private:
                     index, std::addressof(transactions[index]), std::addressof(receipts[index]));
             });
 
-        auto count = RANGES::size(transactions);
         int64_t chunkIndex = 0;
-
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
             std::decay_t<decltype(executor)>,
@@ -188,7 +187,12 @@ private:
                     tbb::filter_mode::serial_in_order,
                     [&](std::unique_ptr<Chunk> chunk) {
                         auto index = chunk->chunkIndex();
-                        if (index > 0 && !hasRAW.test())
+                        if (hasRAW.test())
+                        {
+                            return std::unique_ptr<Chunk>{};
+                        }
+
+                        if (index > 0)
                         {
                             ittapi::Report report(
                                 ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
@@ -200,7 +204,6 @@ private:
                                     << "Detected RAW Intersection:" << index;
                                 return std::unique_ptr<Chunk>{};
                             }
-                            report.release();
                         }
 
                         PARALLEL_SCHEDULER_LOG(DEBUG)
