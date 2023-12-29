@@ -18,8 +18,6 @@ struct NoTableSpliterError : public bcos::Exception
 };
 
 using StateValue = storage::Entry;
-using EncodedKey = std::string;
-
 class StateKeyView;
 
 class StateKey
