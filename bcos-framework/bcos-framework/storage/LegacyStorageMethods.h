@@ -5,7 +5,6 @@
 #include "bcos-framework/storage2/Storage.h"
 #include "bcos-framework/transaction-executor/StateKey.h"
 #include "bcos-task/Task.h"
-#include <range/v3/view/transform.hpp>
 
 namespace bcos::storage
 {

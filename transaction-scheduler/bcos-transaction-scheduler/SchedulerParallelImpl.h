@@ -11,13 +11,12 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-tars-protocol/protocol/TransactionReceiptImpl.h"
+#include "bcos-task/TBBWait.h"
+#include "bcos-task/Wait.h"
 #include "bcos-utilities/Exceptions.h"
-#include <bcos-task/TBBWait.h>
-#include <bcos-task/Wait.h>
-#include <bcos-utilities/ITTAPI.h>
+#include "bcos-utilities/ITTAPI.h"
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_pipeline.h>
-#include <oneapi/tbb/partitioner.h>
 #include <boost/exception/detail/exception_ptr.hpp>
 #include <boost/throw_exception.hpp>
 #include <atomic>
@@ -100,7 +99,7 @@ public:
     ~SchedulerParallelImpl() noexcept = default;
 
 private:
-    constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
+    constexpr static auto TRANSACTION_GRAIN_SIZE = 1;
 
     static task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)

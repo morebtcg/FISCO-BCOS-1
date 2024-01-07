@@ -12,7 +12,6 @@
 #include <array>
 #include <bitset>
 #include <magic_enum.hpp>
-#include <range/v3/view/transform.hpp>
 
 namespace bcos::ledger
 {

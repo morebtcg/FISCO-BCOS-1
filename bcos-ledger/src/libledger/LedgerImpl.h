@@ -64,7 +64,7 @@ public:
     void checkParentBlock(BlockType parentBlock, BlockType block)
     {
         std::array<std::byte, Hasher::HASH_SIZE> parentHash;
-        bcos::concepts::hash::calculate(m_hasher.clone(), parentBlock, parentHash);
+        bcos::concepts::hash::calculate(parentBlock, m_hasher.clone(), parentHash);
 
         if (RANGES::empty(block.blockHeader.data.parentInfo) ||
             (block.blockHeader.data.parentInfo[0].blockNumber !=
@@ -449,10 +449,10 @@ private:
     }
 
     template <class Type>
-    requires std::same_as<Type, concepts::ledger::TRANSACTIONS> ||
-        std::same_as<Type, concepts::ledger::RECEIPTS>
-            task::Task<void> getBlockData(
-                std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
+        requires std::same_as<Type, concepts::ledger::TRANSACTIONS> ||
+                 std::same_as<Type, concepts::ledger::RECEIPTS>
+    task::Task<void> getBlockData(
+        std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
         LEDGER_LOG(DEBUG) << "getBlockData transactions or receipts: " << blockNumberKey;
 
@@ -584,7 +584,7 @@ private:
                 [&block, this](const tbb::blocked_range<size_t>& range) {
                     for (auto i = range.begin(); i < range.end(); ++i)
                     {
-                        bcos::concepts::hash::calculate(m_hasher.clone(), block.transactions[i],
+                        bcos::concepts::hash::calculate(block.transactions[i], m_hasher.clone(),
                             block.transactionsMetaData[i].hash);
                     }
                 });

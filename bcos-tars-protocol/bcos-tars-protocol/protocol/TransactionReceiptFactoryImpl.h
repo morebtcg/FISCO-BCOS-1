@@ -52,7 +52,7 @@ public:
         if (inner.dataHash.empty())
         {
             // Update the hash field
-            bcos::concepts::hash::calculate(m_hashImpl->hasher(), inner, inner.dataHash);
+            bcos::concepts::hash::calculate(inner, m_hashImpl->hasher(), inner.dataHash);
 
             BCOS_LOG(TRACE) << LOG_BADGE("createReceipt")
                             << LOG_DESC("recalculate receipt dataHash");
@@ -83,7 +83,7 @@ public:
         transactionReceipt->setLogEntries(logEntries);
         inner.data.blockNumber = blockNumber;
 
-        bcos::concepts::hash::calculate(m_hashImpl->hasher(), inner, inner.dataHash);
+        bcos::concepts::hash::calculate(inner, m_hashImpl->hasher(), inner.dataHash);
         return transactionReceipt;
     }
 
@@ -105,7 +105,7 @@ public:
         inner.data.effectiveGasPrice = std::move(effectiveGasPrice);
 
         // Update the hash field
-        bcos::concepts::hash::calculate(m_hashImpl->hasher(), inner, inner.dataHash);
+        bcos::concepts::hash::calculate(inner, m_hashImpl->hasher(), inner.dataHash);
         return transactionReceipt;
     }
 

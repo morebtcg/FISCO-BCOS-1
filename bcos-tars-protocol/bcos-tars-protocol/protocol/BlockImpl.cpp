@@ -192,7 +192,7 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateTransactionRoot(
             m_inner->transactions |
             RANGES::views::transform([&](const bcostars::Transaction& transaction) {
                 bcos::bytes hash;
-                bcos::concepts::hash::calculate(hashImpl.hasher(), transaction, hash);
+                bcos::concepts::hash::calculate(transaction, hashImpl.hasher(), hash);
                 return hash;
             });
         merkle.generateMerkle(hashesRange, m_inner->transactionsMerkle);
@@ -222,7 +222,7 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateReceiptRoot(
     auto hashesRange = m_inner->receipts |
                        RANGES::views::transform([&](const bcostars::TransactionReceipt& receipt) {
                            bcos::bytes hash;
-                           bcos::concepts::hash::calculate(hashImpl.hasher(), receipt, hash);
+                           bcos::concepts::hash::calculate(receipt, hashImpl.hasher(), hash);
                            return hash;
                        });
     bcos::crypto::merkle::Merkle merkle(hashImpl.hasher());
