@@ -86,7 +86,9 @@ struct ITT_DOMAINS
     __itt_string_handle* PARALLEL_EXECUTE = __itt_string_handle_create("parallelExecute");
     __itt_string_handle* SINGLE_PASS = __itt_string_handle_create("singlePass");
     __itt_string_handle* DETECT_RAW = __itt_string_handle_create("detectRAW");
-    __itt_string_handle* EXECUTE_CHUNK = __itt_string_handle_create("executeChunk");
+    __itt_string_handle* EXECUTE_CHUNK1 = __itt_string_handle_create("executeChunk1");
+    __itt_string_handle* EXECUTE_CHUNK2 = __itt_string_handle_create("executeChunk2");
+    __itt_string_handle* EXECUTE_CHUNK3 = __itt_string_handle_create("executeChunk3");
     __itt_string_handle* MERGE_RWSET = __itt_string_handle_create("mergeRWSet");
     __itt_string_handle* MERGE_CHUNK = __itt_string_handle_create("mergeChunk");
     __itt_string_handle* MERGE_LAST_CHUNK = __itt_string_handle_create("mergeLastChunk");

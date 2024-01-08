@@ -4,6 +4,7 @@
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-tars-protocol/protocol/BlockHeaderImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionReceiptFactoryImpl.h"
+#include "bcos-task/Generator.h"
 #include "bcos-transaction-scheduler/MultiLayerStorage.h"
 #include <bcos-crypto/hash/Keccak256.h>
 #include <bcos-framework/transaction-executor/TransactionExecutor.h>
@@ -21,6 +22,16 @@ using namespace std::string_view_literals;
 
 struct MockExecutor
 {
+    friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
+        transaction_executor::tag_t<execute3Step> /*unused*/, MockExecutor& executor, auto& storage,
+        protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
+        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+    {
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+    }
+
     friend task::Task<protocol::TransactionReceipt::Ptr> tag_invoke(
         bcos::transaction_executor::tag_t<
             bcos::transaction_executor::executeTransaction> /*unused*/,
@@ -89,6 +100,41 @@ BOOST_AUTO_TEST_CASE(simple)
 constexpr static size_t MOCK_USER_COUNT = 1000;
 struct MockConflictExecutor
 {
+    friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
+        transaction_executor::tag_t<execute3Step> /*unused*/, MockConflictExecutor& executor,
+        auto& storage, protocol::BlockHeader const& blockHeader,
+        protocol::Transaction const& transaction, int contextID,
+        ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+    {
+        auto input = transaction.input();
+        auto inputNum =
+            boost::lexical_cast<int>(std::string_view((const char*)input.data(), input.size()));
+
+        auto fromAddress = std::to_string(inputNum % MOCK_USER_COUNT);
+        auto toAddress = std::to_string((inputNum + (MOCK_USER_COUNT / 2)) % MOCK_USER_COUNT);
+
+        // Read fromKey and -1
+        StateKey fromKey{"t_test"sv, fromAddress};
+        auto fromEntry = waitOperator(storage2::readOne(storage, fromKey));
+        fromEntry->set(
+            boost::lexical_cast<std::string>(boost::lexical_cast<int>(fromEntry->get()) - 1));
+
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+
+        waitOperator(storage2::writeOne(storage, fromKey, *fromEntry));
+
+        // Read toKey and +1
+        StateKey toKey{"t_test"sv, toAddress};
+        auto toEntry = waitOperator(storage2::readOne(storage, toKey));
+        toEntry->set(
+            boost::lexical_cast<std::string>(boost::lexical_cast<int>(toEntry->get()) + 1));
+        waitOperator(storage2::writeOne(storage, toKey, *toEntry));
+
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+
+        co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
+    }
+
     friend task::Task<protocol::TransactionReceipt::Ptr> tag_invoke(
         bcos::transaction_executor::tag_t<
             bcos::transaction_executor::executeTransaction> /*unused*/,

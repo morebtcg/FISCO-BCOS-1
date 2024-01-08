@@ -32,6 +32,7 @@ public:
                 {
                     auto& sequenceItem = sequenceItems[i];
                     sequenceItem.transactionMetaData = transactions[i];
+                    sequenceItem.
                 }
             });
 

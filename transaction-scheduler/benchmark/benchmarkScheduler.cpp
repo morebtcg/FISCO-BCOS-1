@@ -54,7 +54,7 @@ struct Fixture
         m_multiLayerStorage(m_backendStorage),
         m_executor(*m_receiptFactory, m_cryptoSuite->hashImpl())
     {
-        // boost::log::core::get()->set_logging_enabled(false);
+        boost::log::core::get()->set_logging_enabled(false);
 
         bcos::executor::GlobalHashImpl::g_hashImpl = std::make_shared<bcos::crypto::Keccak256>();
         boost::algorithm::unhex(helloworldBytecode, std::back_inserter(m_helloworldBytecodeBinary));
