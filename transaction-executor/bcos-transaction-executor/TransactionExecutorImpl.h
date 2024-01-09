@@ -7,6 +7,7 @@
 #include "bcos-framework/storage2/Storage.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-task/Generator.h"
+#include "bcos-task/Trait.h"
 #include "bcos-transaction-executor/vm/VMFactory.h"
 #include "precompiled/PrecompiledManager.h"
 #include "vm/HostContext.h"
@@ -46,7 +47,8 @@ private:
     friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
         tag_t<execute3Step> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
-        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator,
+        bool& retryFlag)
     {
         protocol::TransactionReceipt::Ptr receipt;
         try
@@ -95,8 +97,12 @@ private:
             waitOperator(hostContext.prepare());
             co_yield receipt;  // 完成第一步 Complete the first step
 
-            auto evmcResult = waitOperator(hostContext.execute());
-            co_yield receipt;  // 完成第二步 Complete the second step
+            task::AwaitableReturnType<decltype(hostContext.execute())> evmcResult;
+            do
+            {
+                evmcResult = waitOperator(hostContext.execute());
+                co_yield receipt;  // 完成第二步 Complete the second step
+            } while (retryFlag);
 
             bcos::bytesConstRef output;
             std::string newContractAddress;
@@ -148,8 +154,9 @@ private:
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
         int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
     {
+        bool retryFlag = false;
         for (auto receipt : execute3Step(executor, storage, blockHeader, transaction, contextID,
-                 ledgerConfig, std::forward<decltype(waitOperator)>(waitOperator)))
+                 ledgerConfig, std::forward<decltype(waitOperator)>(waitOperator), retryFlag))
         {
             if (receipt)
             {

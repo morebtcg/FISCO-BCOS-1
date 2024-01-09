@@ -35,7 +35,7 @@ class SchedulerParallelImpl
 {
     constexpr static auto TRANSACTION_GRAIN_SIZE = 32L;
 
-    template <class Storage, class Executor, class ExecutionRange>
+    template <class Storage, class Executor, class TransactionAndReceiptRange, class ContextRange>
     class ChunkStatus
     {
     private:
@@ -48,27 +48,23 @@ class SchedulerParallelImpl
 
         int64_t m_chunkIndex = 0;
         boost::atomic_flag const& m_hasRAW;
-        ExecutionRange m_transactionAndReceiptsRange;
+        TransactionAndReceiptRange m_transactionAndReceiptsRange;
+        ContextRange m_contexts;
         Executor& m_executor;
         MultiLayerStorage<typename Storage::MutableStorage, void, Storage> m_localStorage;
         decltype(m_localStorage.fork(true)) m_localStorageView;
         ReadWriteSetStorage<decltype(m_localStorageView), transaction_executor::StateKey>
             m_localReadWriteSetStorage;
 
+    public:
         using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
             std::add_lvalue_reference_t<Executor>,
             std::add_lvalue_reference_t<decltype(m_localStorageView)>, protocol::BlockHeader const&,
             protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait>;
-        struct Context
-        {
-            std::optional<CoroType> coro;
-            typename CoroType::Iterator iterator;
-        };
-        std::vector<Context> m_contexts;
 
-    public:
         ChunkStatus(int64_t chunkIndex, boost::atomic_flag const& hasRAW,
-            ExecutionRange transactionAndReceiptsRange, Executor& executor, auto& storage)
+            TransactionAndReceiptRange transactionAndReceiptsRange, Executor& executor,
+            auto& storage)
           : m_chunkIndex(chunkIndex),
             m_hasRAW(hasRAW),
             m_transactionAndReceiptsRange(transactionAndReceiptsRange),
@@ -85,32 +81,29 @@ class SchedulerParallelImpl
         auto& readWriteSetStorage() & { return m_localReadWriteSetStorage; }
         void clearContext() { m_contexts.clear(); }
 
-        void parallelExecuteStep1(
+        void executeStep1(
             protocol::BlockHeader const& blockHeader, ledger::LedgerConfig const& ledgerConfig)
         {
             ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
                 ittapi::ITT_DOMAINS::instance().EXECUTE_CHUNK1);
-            tbb::parallel_for(tbb::blocked_range(0L, (long)m_transactionAndReceiptsRange.size(),
-                                  TRANSACTION_GRAIN_SIZE),
-                [&](auto const& range) {
-                    for (auto i = range.begin(); i != range.end(); ++i)
-                    {
-                        if (m_hasRAW.test())
-                        {
-                            break;
-                        }
-                        auto&& [coro, iterator] = m_contexts[i];
-                        auto&& [contextID, transaction, receipt] = m_transactionAndReceiptsRange[i];
-                        coro.emplace(transaction_executor::execute3Step(m_executor,
-                            m_localReadWriteSetStorage, blockHeader, *transaction, contextID,
-                            ledgerConfig, task::tbb::syncWait));
-                        iterator = coro->begin();
-                        *receipt = *iterator;
-                    }
-                });
+            for (auto&& [transactionAndReceipt, context] :
+                RANGES::views::zip(m_transactionAndReceiptsRange, m_contexts))
+            {
+                if (m_hasRAW.test())
+                {
+                    break;
+                }
+                auto&& [coro, iterator] = context;
+                auto&& [contextID, transaction, receipt] = transactionAndReceipt;
+                coro.emplace(
+                    transaction_executor::execute3Step(m_executor, m_localReadWriteSetStorage,
+                        blockHeader, *transaction, contextID, ledgerConfig, task::tbb::syncWait));
+                iterator = coro->begin();
+                *receipt = *iterator;
+            }
         }
 
-        void serialExecuteStep2()
+        void executeStep2()
         {
             ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
                 ittapi::ITT_DOMAINS::instance().EXECUTE_CHUNK2);
@@ -130,27 +123,24 @@ class SchedulerParallelImpl
             }
         }
 
-        void parallelExecuteStep3()
+        void executeStep3()
         {
             ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
                 ittapi::ITT_DOMAINS::instance().EXECUTE_CHUNK3);
-            tbb::parallel_for(tbb::blocked_range(0L, (long)m_transactionAndReceiptsRange.size(),
-                                  TRANSACTION_GRAIN_SIZE),
-                [&](auto const& range) {
-                    for (auto i = range.begin(); i != range.end(); ++i)
-                    {
-                        if (m_hasRAW.test())
-                        {
-                            break;
-                        }
-                        auto&& [contextID, transaction, receipt] = m_transactionAndReceiptsRange[i];
-                        auto&& [coro, iterator] = m_contexts[i];
-                        if (!(*receipt))
-                        {
-                            *receipt = *(++iterator);
-                        }
-                    }
-                });
+            for (auto&& [transactionAndReceipt, context] :
+                RANGES::views::zip(m_transactionAndReceiptsRange, m_contexts))
+            {
+                if (m_hasRAW.test())
+                {
+                    break;
+                }
+                auto&& [contextID, transaction, receipt] = transactionAndReceipt;
+                auto&& [coro, iterator] = context;
+                if (!(*receipt))
+                {
+                    *receipt = *(++iterator);
+                }
+            }
         }
     };
 
@@ -191,6 +181,7 @@ private:
 
         int64_t chunkIndex = 0;
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
+
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
             std::decay_t<decltype(executor)>,
             decltype(RANGES::subrange<RANGES::iterator_t<decltype(currentTransactionAndReceipts)>>(
@@ -199,52 +190,39 @@ private:
         PARALLEL_SCHEDULER_LOG(DEBUG) << "Start new chunk executing... " << offset << " | "
                                       << RANGES::size(currentTransactionAndReceipts);
 
-        boost::atomic_flag chunkFinished;
         boost::atomic_flag hasRAW;
-        auto makeChunk = [&](tbb::blocked_range<int32_t> range) {
-            PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
-            RANGES::subrange<RANGES::iterator_t<decltype(currentTransactionAndReceipts)>>
-                executionRange(currentTransactionAndReceipts.begin() + range.begin(),
-                    currentTransactionAndReceipts.begin() + range.end());
-            auto chunk =
-                std::make_unique<Chunk>(chunkIndex++, hasRAW, executionRange, executor, storage);
-            chunk->parallelExecuteStep1(blockHeader, ledgerConfig);
-
-            return chunk;
-        };
-
-        tbb::blocked_range<int32_t> range(0,
-            static_cast<int32_t>(RANGES::size(currentTransactionAndReceipts)),
-            TRANSACTION_GRAIN_SIZE);
         ChunkStorage lastStorage;
-        tbb::proportional_split split(1, tbb::this_task_arena::max_concurrency());
+        auto transactionsChunks =
+            currentTransactionAndReceipts | RANGES::views::chunk(TRANSACTION_GRAIN_SIZE);
+        auto contextChunks = contexts | RANGES::views::chunk(TRANSACTION_GRAIN_SIZE);
+
+        struct Context
+        {
+            std::optional<CoroType> coro;
+            typename CoroType::Iterator iterator;
+        };
+        std::vector<Context> m_contexts;
 
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
-                    if (chunkFinished.test())
+                    if (chunkIndex >= chunks.size())
                     {
                         control.stop();
                         return {};
                     }
-                    if (range.is_divisible())
-                    {
-                        auto newRange = tbb::blocked_range<int32_t>(range, split);
-                        using std::swap;
-                        swap(range, newRange);
-                        return makeChunk(newRange);
-                    }
-
-                    chunkFinished.test_and_set();
-                    return makeChunk(range);
+                    PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
+                    return std::make_unique<Chunk>(
+                        chunkIndex, hasRAW, chunks[chunkIndex], executor, storage);
                 }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, std::unique_ptr<Chunk>>(
                     tbb::filter_mode::parallel,
                     [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
                         if (chunk)
                         {
-                            chunk->serialExecuteStep2();
+                            chunk->executeStep1(blockHeader, ledgerConfig);
+                            chunk->executeStep2();
                         }
 
                         return chunk;
@@ -255,7 +233,7 @@ private:
                         auto index = chunk->chunkIndex();
                         if (hasRAW.test())
                         {
-                            return std::unique_ptr<Chunk>{};
+                            return chunk;
                         }
 
                         if (index > 0)
@@ -268,7 +246,7 @@ private:
                                 hasRAW.test_and_set();
                                 PARALLEL_SCHEDULER_LOG(DEBUG)
                                     << "Detected RAW Intersection:" << index;
-                                return std::unique_ptr<Chunk>{};
+                                return chunk;
                             }
                         }
 
@@ -281,13 +259,18 @@ private:
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, std::unique_ptr<Chunk>>(
                     tbb::filter_mode::parallel,
-                    [](std::unique_ptr<Chunk> chunk) {
-                        if (chunk)
+                    [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
+                        if (hasRAW.test())
                         {
-                            chunk->parallelExecuteStep3();
-                            chunk->clearContext();
+                            ittapi::Report report(
+                                ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().RELEASE_CONFLICT);
+                            chunk.reset();
+                            return {};
                         }
 
+                        chunk->executeStep3();
+                        chunk->clearContext();
                         return chunk;
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
@@ -320,8 +303,14 @@ private:
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().PARALLEL_EXECUTE);
         std::vector<protocol::TransactionReceipt::Ptr> receipts(RANGES::size(transactions));
-        executeSinglePass(
-            scheduler, storage, executor, blockHeader, transactions, ledgerConfig, 0, receipts);
+
+        using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
+            decltype(executor), std::decay_t<decltype(storage)>, protocol::BlockHeader const&,
+            protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait>;
+        std::vector<CoroType> contexts(RANGES::size(transactions));
+
+        executeSinglePass(scheduler, storage, executor, blockHeader, transactions, ledgerConfig, 0,
+            receipts, contexts);
         co_return receipts;
     }
 };
