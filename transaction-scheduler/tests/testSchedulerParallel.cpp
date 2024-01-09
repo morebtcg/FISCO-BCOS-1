@@ -25,7 +25,8 @@ struct MockExecutor
     friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
         transaction_executor::tag_t<execute3Step> /*unused*/, MockExecutor& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
-        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator,
+        bool& retryFlag)
     {
         co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
         co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
@@ -104,7 +105,7 @@ struct MockConflictExecutor
         transaction_executor::tag_t<execute3Step> /*unused*/, MockConflictExecutor& executor,
         auto& storage, protocol::BlockHeader const& blockHeader,
         protocol::Transaction const& transaction, int contextID,
-        ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
+        ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator, bool& retryFlag)
     {
         auto input = transaction.input();
         auto inputNum =
