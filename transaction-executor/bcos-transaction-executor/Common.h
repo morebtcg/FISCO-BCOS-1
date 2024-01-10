@@ -27,6 +27,7 @@ namespace bcos::transaction_executor
 class EVMCResult : public evmc_result
 {
 public:
+    EVMCResult() = default;
     explicit EVMCResult(evmc_result const& result) : evmc_result(result) {}
     EVMCResult(const EVMCResult&) = delete;
     EVMCResult(EVMCResult&& from) noexcept : evmc_result(from)

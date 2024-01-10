@@ -18,6 +18,7 @@
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <tbb/cache_aligned_allocator.h>
+#include <tbb/task_arena.h>
 #include <boost/exception/detail/exception_ptr.hpp>
 #include <boost/throw_exception.hpp>
 #include <atomic>
@@ -98,7 +99,8 @@ class SchedulerParallelImpl
                 {
                     context.coro.emplace(transaction_executor::execute3Step(m_executor,
                         *context.readWriteSetStorage, blockHeader, context.transaction,
-                        context.contextID, ledgerConfig, task::tbb::syncWait, context.retryFlag));
+                        context.contextID, ledgerConfig, task::tbb::syncWait, context.retryFlag,
+                        std::addressof(context.readWriteSetStorage)));
                     context.iterator = context.coro->begin();
                     context.receipt = *context.iterator;
                 }
@@ -115,7 +117,7 @@ class SchedulerParallelImpl
                 {
                     break;
                 }
-                if (!context.receipt)
+                if (!context.receipt && context.iterator != context.coro->end())
                 {
                     context.receipt = *(++context.iterator);
                 }
@@ -133,7 +135,7 @@ class SchedulerParallelImpl
                 {
                     break;
                 }
-                if (!context.receipt)
+                if (!context.receipt && context.iterator != context.coro->end())
                 {
                     context.receipt = *(++context.iterator);
                 }
@@ -180,7 +182,11 @@ private:
 
         boost::atomic_flag hasRAW;
         ChunkStorage lastStorage;
-        auto contextChunks = contexts | RANGES::views::chunk(TRANSACTION_GRAIN_SIZE);
+        auto contextChunks =
+            RANGES::views::drop(contexts, offset) |
+            RANGES::views::chunk(std::max<size_t>(
+                (size_t)((count - offset) / tbb::this_task_arena::max_concurrency()),
+                (size_t)TRANSACTION_GRAIN_SIZE));
 
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
         // Five-level pipeline: shard preparation, parallel execution, detection of RAW conflicts &
@@ -304,7 +310,9 @@ private:
             decltype(executor),
             std::add_lvalue_reference_t<typename StorageTrait<Storage>::LocalReadWriteSetStorage>,
             protocol::BlockHeader const&, protocol::Transaction const&, int,
-            ledger::LedgerConfig const&, task::tbb::SyncWait, bool&>;
+            ledger::LedgerConfig const&, task::tbb::SyncWait, const bool&,
+            std::add_pointer_t<
+                std::add_pointer_t<typename StorageTrait<Storage>::LocalReadWriteSetStorage>>>;
         std::vector<ExecutionContext<CoroType, Storage>,
             tbb::cache_aligned_allocator<ExecutionContext<CoroType, Storage>>>
             contexts;

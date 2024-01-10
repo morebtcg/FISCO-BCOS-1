@@ -34,17 +34,19 @@ private:
             oldValue;
     };
     std::vector<Record> m_records;
-    Storage& m_storage;
+    Storage* m_storage;
 
 public:
     using Savepoint = int64_t;
     using Key = typename Storage::Key;
     using Value = typename Storage::Value;
 
-    Rollbackable(Storage& storage) : m_storage(storage) {}
+    Rollbackable(Storage& storage) : m_storage(std::addressof(storage)) {}
 
-    Storage& storage() { return m_storage; }
+    Storage& storage() { return *m_storage; }
     Savepoint current() const { return static_cast<int64_t>(m_records.size()); }
+
+    void resetStorage(Storage& storage) { m_storage = std::addressof(storage); }
 
     task::Task<void> rollback(Savepoint savepoint)
     {
@@ -55,11 +57,11 @@ public:
             if (record.oldValue)
             {
                 co_await storage2::writeOne(
-                    m_storage, std::move(record.key), std::move(*record.oldValue));
+                    *m_storage, std::move(record.key), std::move(*record.oldValue));
             }
             else
             {
-                co_await storage2::removeOne(m_storage, record.key);
+                co_await storage2::removeOne(*m_storage, record.key);
             }
             m_records.pop_back();
         }
@@ -72,7 +74,7 @@ public:
             std::invoke_result_t<storage2::ReadSome, Storage&, decltype(keys)>>>
     {
         co_return co_await storage2::readSome(
-            storage.m_storage, std::forward<decltype(keys)>(keys));
+            *storage.m_storage, std::forward<decltype(keys)>(keys));
     }
 
     friend auto tag_invoke(
@@ -80,7 +82,7 @@ public:
         -> task::Task<task::AwaitableReturnType<
             std::invoke_result_t<storage2::ReadOne, Storage&, decltype(key)>>>
     {
-        co_return co_await storage2::readOne(storage.m_storage, std::forward<decltype(key)>(key));
+        co_return co_await storage2::readOne(*storage.m_storage, std::forward<decltype(key)>(key));
     }
 
     friend auto tag_invoke(storage2::tag_t<storage2::writeSome> /*unused*/, Rollbackable& storage,
@@ -89,14 +91,15 @@ public:
             std::invoke_result_t<storage2::WriteSome, Storage&, decltype(keys), decltype(values)>>>
         requires HasReadSomeDirect<Storage>
     {
-        auto oldValues = co_await storage2::readSome(storage.m_storage, keys, storage2::READ_FRONT);
+        auto oldValues =
+            co_await storage2::readSome(*storage.m_storage, keys, storage2::READ_FRONT);
         for (auto&& [key, oldValue] : RANGES::views::zip(keys, oldValues))
         {
             storage.m_records.emplace_back(Record{.key = typename Storage::Key{key},
                 .oldValue = std::forward<decltype(oldValue)>(oldValue)});
         }
 
-        co_return co_await storage2::writeSome(storage.m_storage,
+        co_return co_await storage2::writeSome(*storage.m_storage,
             std::forward<decltype(keys)>(keys), std::forward<decltype(values)>(values));
     }
 
@@ -108,9 +111,9 @@ public:
     {
         auto& record = storage.m_records.emplace_back();
         record.key = key;
-        record.oldValue = co_await storage2::readOne(storage.m_storage, key, storage2::READ_FRONT);
+        record.oldValue = co_await storage2::readOne(*storage.m_storage, key, storage2::READ_FRONT);
         co_await storage2::writeOne(
-            storage.m_storage, record.key, std::forward<decltype(value)>(value));
+            *storage.m_storage, record.key, std::forward<decltype(value)>(value));
     }
 
     friend auto tag_invoke(storage2::tag_t<storage2::removeSome> /*unused*/, Rollbackable& storage,
@@ -119,7 +122,8 @@ public:
             std::invoke_result_t<storage2::RemoveSome, Storage&, decltype(keys)>>>
     {
         // Store values to history
-        auto oldValues = co_await storage2::readSome(storage.m_storage, keys, storage2::READ_FRONT);
+        auto oldValues =
+            co_await storage2::readSome(*storage.m_storage, keys, storage2::READ_FRONT);
         for (auto&& [key, value] : RANGES::views::zip(keys, oldValues))
         {
             if (value)
@@ -129,7 +133,7 @@ public:
             }
         }
 
-        co_return co_await storage2::removeSome(storage.m_storage, keys);
+        co_return co_await storage2::removeSome(*storage.m_storage, keys);
     }
 };
 

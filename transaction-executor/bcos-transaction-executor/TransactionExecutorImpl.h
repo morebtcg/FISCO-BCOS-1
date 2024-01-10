@@ -36,7 +36,7 @@ public:
         m_hashImpl(std::move(hashImpl)),
         m_precompiledManager(m_hashImpl)
     {}
-
+    constexpr static bool defaultRetryFlag = false;
 
 private:
     VMFactory m_vmFactory;
@@ -48,7 +48,7 @@ private:
         tag_t<execute3Step> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
         int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator,
-        bool& retryFlag)
+        const bool& retryFlag = defaultRetryFlag, auto** changeableStorage = nullptr)
     {
         protocol::TransactionReceipt::Ptr receipt;
         try
@@ -100,6 +100,10 @@ private:
             task::AwaitableReturnType<decltype(hostContext.execute())> evmcResult;
             do
             {
+                if (changeableStorage)
+                {
+                    rollbackableStorage.resetStorage(**changeableStorage);
+                }
                 evmcResult = waitOperator(hostContext.execute());
                 co_yield receipt;  // 完成第二步 Complete the second step
             } while (retryFlag);

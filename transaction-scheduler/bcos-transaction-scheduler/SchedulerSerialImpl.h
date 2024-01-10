@@ -12,6 +12,7 @@
 #include <oneapi/tbb/task_arena.h>
 #include <atomic>
 #include <thread>
+#include <type_traits>
 
 namespace bcos::transaction_scheduler
 {
@@ -33,9 +34,9 @@ private:
             ittapi::ITT_DOMAINS::instance().SERIAL_EXECUTE);
 
         using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
-            decltype(executor), decltype(storage), decltype(blockHeader),
-            RANGES::range_value_t<decltype(transactions)>, int, decltype(ledgerConfig),
-            task::tbb::SyncWait>;
+            decltype(executor), decltype(storage), protocol::BlockHeader const&,
+            protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait,
+            const bool&, std::add_pointer_t<std::add_pointer_t<decltype(storage)>>>;
         struct Context
         {
             std::optional<CoroType> coro;
@@ -46,12 +47,16 @@ private:
         auto count = static_cast<int32_t>(RANGES::size(transactions));
         std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
 
+        constexpr static bool retryFlag = false;
+        constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
+            changeableStorage = nullptr;
         auto executeStep1 = [&](Range splitRange) {
             for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
             {
                 auto& [coro, iterator, receipt] = contexts[i];
                 coro.emplace(transaction_executor::execute3Step(executor, storage, blockHeader,
-                    transactions[i], i, ledgerConfig, task::tbb::syncWait));
+                    transactions[i], i, ledgerConfig, task::tbb::syncWait, retryFlag,
+                    changeableStorage));
                 iterator = coro->begin();
                 receipt = *iterator;
             }
