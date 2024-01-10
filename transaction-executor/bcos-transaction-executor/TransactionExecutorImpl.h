@@ -158,9 +158,12 @@ private:
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
         int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
     {
-        bool retryFlag = false;
-        for (auto receipt : execute3Step(executor, storage, blockHeader, transaction, contextID,
-                 ledgerConfig, std::forward<decltype(waitOperator)>(waitOperator), retryFlag))
+        constexpr static bool retryFlag = false;
+        constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
+            changeableStorage = nullptr;
+        for (auto receipt :
+            execute3Step(executor, storage, blockHeader, transaction, contextID, ledgerConfig,
+                std::forward<decltype(waitOperator)>(waitOperator), retryFlag, changeableStorage))
         {
             if (receipt)
             {
