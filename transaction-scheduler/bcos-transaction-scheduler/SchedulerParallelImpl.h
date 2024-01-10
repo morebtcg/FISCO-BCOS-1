@@ -102,7 +102,6 @@ class SchedulerParallelImpl
                         context.contextID, ledgerConfig, task::tbb::syncWait, context.retryFlag,
                         std::addressof(context.readWriteSetStorage)));
                     context.iterator = context.coro->begin();
-                    context.receipt = *context.iterator;
                 }
             }
         }
@@ -117,9 +116,9 @@ class SchedulerParallelImpl
                 {
                     break;
                 }
-                if (!context.receipt && context.iterator != context.coro->end())
+                if (context.iterator != context.coro->end())
                 {
-                    context.receipt = *(++context.iterator);
+                    ++context.iterator;
                 }
             }
         }
@@ -135,9 +134,11 @@ class SchedulerParallelImpl
                 {
                     break;
                 }
-                if (!context.receipt && context.iterator != context.coro->end())
+                if (context.iterator != context.coro->end())
                 {
-                    context.receipt = *(++context.iterator);
+                    ++context.iterator;
+                    auto receipt = *(context.iterator);
+                    context.receipt = receipt;
                 }
             }
         }
