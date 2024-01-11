@@ -138,7 +138,7 @@ task::Task<h256> calculateStateRoot(auto& storage, crypto::Hash const& hashImpl)
 }
 
 task::Task<std::tuple<u256, h256>> calculateReceiptRoot(
-    auto& receipts, auto& block, crypto::Hash const& hashImpl)
+    auto const& receipts, auto& block, crypto::Hash const& hashImpl)
 {
     u256 gasUsed;
     h256 receiptRoot;

@@ -295,7 +295,6 @@ private:
                         }));
         });
 
-
         task::tbb::syncWait(mergeLastStorage(scheduler, storage, std::move(lastStorage)));
         if (offset < count)
         {
