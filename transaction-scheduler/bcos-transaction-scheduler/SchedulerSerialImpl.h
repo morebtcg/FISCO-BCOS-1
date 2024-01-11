@@ -5,11 +5,11 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-task/TBBWait.h"
-#include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/cache_aligned_allocator.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <oneapi/tbb/partitioner.h>
 #include <oneapi/tbb/task_arena.h>
+#include <tbb/task_arena.h>
 #include <atomic>
 #include <thread>
 #include <type_traits>
@@ -22,7 +22,6 @@ namespace bcos::transaction_scheduler
 class SchedulerSerialImpl
 {
 private:
-    using Range = tbb::blocked_range<int32_t>;
     constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
@@ -50,53 +49,46 @@ private:
         constexpr static bool retryFlag = false;
         constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
             changeableStorage = nullptr;
-        auto executeStep1 = [&](Range splitRange) {
-            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
-            {
-                auto& [coro, iterator, receipt] = contexts[i];
-                coro.emplace(transaction_executor::execute3Step(executor, storage, blockHeader,
-                    transactions[i], i, ledgerConfig, task::tbb::syncWait, retryFlag,
-                    changeableStorage));
-                iterator = coro->begin();
-                receipt = *iterator;
-            }
-        };
+        auto chunks = RANGES::views::iota(RANGES::range_size_t<decltype(transactions)>(0),
+                          RANGES::size(transactions)) |
+                      RANGES::views::chunk(std::max<size_t>(
+                          (size_t)(count / tbb::this_task_arena::max_concurrency()),
+                          (size_t)TRANSACTION_GRAIN_SIZE));
+        using ChunkRange = RANGES::range_value_t<decltype(chunks)>;
+        RANGES::range_size_t<decltype(transactions)> chunkIndex = 0;
 
-        Range range(0L, count, TRANSACTION_GRAIN_SIZE);
         // 三级流水线，2个线程
         // Three-stage pipeline, with 2 threads
-        bool lastRange = false;
         static tbb::task_arena arena(2);
         arena.execute([&]() {
-            tbb::parallel_pipeline(std::thread::hardware_concurrency(),
-                tbb::make_filter<void, Range>(tbb::filter_mode::serial_in_order,
-                    [&](tbb::flow_control& control) {
-                        if (lastRange)
+            tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
+                tbb::make_filter<void, ChunkRange>(tbb::filter_mode::serial_in_order,
+                    [&](tbb::flow_control& control) -> ChunkRange {
+                        if (chunkIndex >= RANGES::size(chunks))
                         {
                             control.stop();
-                            return range;
+                            return {};
                         }
                         ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
                             ittapi::ITT_DOMAINS::instance().STEP_1);
 
-                        if (range.is_divisible())
+                        auto range = chunks[chunkIndex++];
+                        for (auto i : range)
                         {
-                            auto newRange = Range(range, tbb::split{});
-                            using std::swap;
-                            swap(range, newRange);
-                            executeStep1(newRange);
-                            return newRange;
+                            auto& [coro, iterator, receipt] = contexts[i];
+                            coro.emplace(transaction_executor::execute3Step(executor, storage,
+                                blockHeader, transactions[i], i, ledgerConfig, task::tbb::syncWait,
+                                retryFlag, changeableStorage));
+                            iterator = coro->begin();
+                            receipt = *iterator;
                         }
-
-                        lastRange = true;
-                        executeStep1(range);
                         return range;
                     }) &
-                    tbb::make_filter<Range, Range>(tbb::filter_mode::serial_in_order,
-                        [&](Range splitRange) {
+                    tbb::make_filter<ChunkRange, ChunkRange>(tbb::filter_mode::serial_in_order,
+                        [&](ChunkRange range) {
                             ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
                                 ittapi::ITT_DOMAINS::instance().STEP_2);
-                            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
+                            for (auto i : range)
                             {
                                 auto& [coro, iterator, receipt] = contexts[i];
                                 if (!receipt)
@@ -104,13 +96,13 @@ private:
                                     receipt = *(++iterator);
                                 }
                             }
-                            return splitRange;
+                            return range;
                         }) &
-                    tbb::make_filter<Range, void>(
-                        tbb::filter_mode::serial_in_order, [&](Range splitRange) {
+                    tbb::make_filter<ChunkRange, void>(
+                        tbb::filter_mode::serial_in_order, [&](ChunkRange range) {
                             ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
                                 ittapi::ITT_DOMAINS::instance().STEP_3);
-                            for (auto i = splitRange.begin(); i != splitRange.end(); ++i)
+                            for (auto i : range)
                             {
                                 auto& [coro, iterator, receipt] = contexts[i];
                                 if (!receipt)

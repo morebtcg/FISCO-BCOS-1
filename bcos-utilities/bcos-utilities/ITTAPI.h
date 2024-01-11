@@ -81,6 +81,8 @@ struct ITT_DOMAINS
     __itt_string_handle* STEP_1 = __itt_string_handle_create("step1");
     __itt_string_handle* STEP_2 = __itt_string_handle_create("step2");
     __itt_string_handle* STEP_3 = __itt_string_handle_create("step3");
+    __itt_string_handle* STEP_4 = __itt_string_handle_create("step4");
+    __itt_string_handle* STEP_5 = __itt_string_handle_create("step5");
 
     const __itt_domain* const PARALLEL_SCHEDULER = __itt_domain_create("parallelScheduler");
     __itt_string_handle* PARALLEL_EXECUTE = __itt_string_handle_create("parallelExecute");

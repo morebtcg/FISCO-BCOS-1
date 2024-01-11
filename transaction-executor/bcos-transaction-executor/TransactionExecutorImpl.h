@@ -39,7 +39,6 @@ public:
     constexpr static bool defaultRetryFlag = false;
 
 private:
-    VMFactory m_vmFactory;
     protocol::TransactionReceiptFactory const& m_receiptFactory;
     crypto::Hash::Ptr m_hashImpl;
     PrecompiledManager m_precompiledManager;
