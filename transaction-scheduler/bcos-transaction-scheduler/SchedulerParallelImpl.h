@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <type_traits>
 
@@ -150,11 +151,13 @@ public:
     SchedulerParallelImpl& operator=(const SchedulerParallelImpl&) = delete;
     SchedulerParallelImpl& operator=(SchedulerParallelImpl&&) noexcept = default;
 
-    SchedulerParallelImpl() = default;
-    ~SchedulerParallelImpl() noexcept = default;
+    SchedulerParallelImpl() : m_releaseGroup(std::make_unique<tbb::task_group>()) {}
+    ~SchedulerParallelImpl() noexcept { m_releaseGroup->wait(); }
 
 private:
-    static task::Task<void> mergeLastStorage(
+    std::unique_ptr<tbb::task_group> m_releaseGroup;
+
+    friend task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)
     {
         ittapi::Report mergeReport(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
@@ -163,7 +166,7 @@ private:
         co_await storage2::merge(storage, std::forward<decltype(lastStorage)>(lastStorage));
     }
 
-    static void executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
+    friend void executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
         protocol::BlockHeader const& blockHeader, ledger::LedgerConfig const& ledgerConfig,
         size_t offset, RANGES::random_access_range auto& contexts)
     {
@@ -248,6 +251,7 @@ private:
                                     hasRAW.test_and_set();
                                     PARALLEL_SCHEDULER_LOG(DEBUG)
                                         << "Detected RAW Intersection:" << index;
+                                    scheduler.m_releaseGroup->run([chunk = std::move(chunk)]() {});
                                     return {};
                                 }
                             }
@@ -268,9 +272,6 @@ private:
                                 ittapi::ITT_DOMAINS::instance().STEP_4);
                             if (chunk)
                             {
-                                // ittapi::Report report(
-                                //     ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                                //     ittapi::ITT_DOMAINS::instance().RELEASE_CONFLICT);
                                 chunk->executeStep3();
                             }
 
@@ -289,6 +290,7 @@ private:
                                     ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
                                 task::tbb::syncWait(storage2::merge(lastStorage,
                                     std::move(chunk->localStorage().mutableStorage())));
+                                scheduler.m_releaseGroup->run([chunk = std::move(chunk)]() {});
                             }
                         }));
         });
