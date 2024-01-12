@@ -224,9 +224,12 @@ public:
 
     task::Task<size_t> codeSizeAt(const evmc_address& address)
     {
-        // TODO: Check is precompiled
-        auto codeEntry = co_await code(address);
-        if (codeEntry)
+        if (m_precompiledManager.getPrecompiled(address) != nullptr)
+        {
+            co_return 1;
+        }
+
+        if (auto codeEntry = co_await code(address))
         {
             co_return codeEntry->get().size();
         }
@@ -413,20 +416,10 @@ private:
 
     task::Task<void> prepareCall()
     {
-        constexpr static unsigned long MAX_PRECOMPILED_ADDRESS = 100000;
-        u160 address;
-        boost::multiprecision::import_bits(address, m_message.code_address.bytes,
-            m_message.code_address.bytes + sizeof(m_message.code_address.bytes));
-        if (address > 0 && address < MAX_PRECOMPILED_ADDRESS)
+        if (auto const* precompiled = m_precompiledManager.getPrecompiled(m_message.code_address))
         {
-            auto addressUL = address.convert_to<unsigned long>();
-            auto const* precompiled = m_precompiledManager.getPrecompiled(addressUL);
-
-            if (precompiled != nullptr)
-            {
-                m_preparedPrecompiled = precompiled;
-                co_return;
-            }
+            m_preparedPrecompiled = precompiled;
+            co_return;
         }
     }
 
