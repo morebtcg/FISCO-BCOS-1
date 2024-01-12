@@ -111,7 +111,6 @@ struct MockConflictExecutor
         ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator, const bool& retryFlag,
         auto** changeableStorage)
     {
-        BCOS_LOG(INFO) << "Step1";
         auto input = transaction.input();
         auto inputNum =
             boost::lexical_cast<int>(std::string_view((const char*)input.data(), input.size()));
@@ -122,7 +121,6 @@ struct MockConflictExecutor
 
         do
         {
-            BCOS_LOG(INFO) << "Step2";
             // Read fromKey and -1
             StateKey fromKey{"t_test"sv, fromAddress};
             auto fromEntry = waitOperator(storage2::readOne(**changeableStorage, fromKey));
@@ -139,7 +137,6 @@ struct MockConflictExecutor
             co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>();
         } while (retryFlag);
 
-        BCOS_LOG(INFO) << "Step3";
         co_yield std::shared_ptr<bcos::protocol::TransactionReceipt>(
             (bcos::protocol::TransactionReceipt*)0x10086, [](auto* p) {});
     }
@@ -190,6 +187,10 @@ BOOST_AUTO_TEST_CASE(conflict)
         }
         for (auto const& receipt : receipts)
         {
+            if (!receipt)
+            {
+                BOOST_FAIL("receipt is null!");
+            }
             BOOST_CHECK_EQUAL(receipt.get(), (bcos::protocol::TransactionReceipt*)0x10086);
         }
 
