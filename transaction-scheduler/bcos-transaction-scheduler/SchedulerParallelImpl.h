@@ -44,7 +44,7 @@ class SchedulerParallelImpl
         using LocalReadWriteSetStorage =
             ReadWriteSetStorage<LocalStorageView, transaction_executor::StateKey>;
     };
-    constexpr static auto TRANSACTION_GRAIN_SIZE = 32L;
+    constexpr static auto TRANSACTION_GRAIN_SIZE = 16L;
 
     template <class Storage, class Executor, class ContextRange>
     class ChunkStatus
@@ -347,9 +347,8 @@ private:
         static tbb::task_arena arena(8);
         arena.execute([&]() {
             // auto chunkSize = count / tbb::this_task_arena::max_concurrency();
-            auto chunkSize = 1;
-            auto retryCount = executeSinglePass(
-                scheduler, storage, executor, blockHeader, ledgerConfig, 0, contexts, chunkSize);
+            auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
+                ledgerConfig, 0, contexts, TRANSACTION_GRAIN_SIZE);
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
         });
