@@ -15,7 +15,6 @@
 #include "bcos-task/Wait.h"
 #include "bcos-utilities/Exceptions.h"
 #include "bcos-utilities/ITTAPI.h"
-#include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <tbb/cache_aligned_allocator.h>
 #include <tbb/task_arena.h>
@@ -26,7 +25,6 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <range/v3/view/enumerate.hpp>
 #include <stdexcept>
 #include <type_traits>
 
@@ -169,7 +167,7 @@ private:
         co_await storage2::merge(storage, std::forward<decltype(lastStorage)>(lastStorage));
     }
 
-    friend void executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
+    friend size_t executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
         protocol::BlockHeader const& blockHeader, ledger::LedgerConfig const& ledgerConfig,
         size_t offset, RANGES::random_access_range auto& contexts, size_t chunkSize)
     {
@@ -292,9 +290,11 @@ private:
         task::tbb::syncWait(mergeLastStorage(scheduler, storage, std::move(lastStorage)));
         if (offset < count)
         {
-            executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig, offset,
-                contexts, chunkSize);
+            return 1 + executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig,
+                           offset, contexts, chunkSize);
         }
+
+        return 0;
     }
 
     template <class CoroType, class Storage>
@@ -346,9 +346,12 @@ private:
 
         static tbb::task_arena arena(8);
         arena.execute([&]() {
-            auto chunkSize = count / tbb::this_task_arena::max_concurrency();
-            executeSinglePass(
+            // auto chunkSize = count / tbb::this_task_arena::max_concurrency();
+            auto chunkSize = 1;
+            auto retryCount = executeSinglePass(
                 scheduler, storage, executor, blockHeader, ledgerConfig, 0, contexts, chunkSize);
+
+            PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
         });
 
         co_return receipts;
