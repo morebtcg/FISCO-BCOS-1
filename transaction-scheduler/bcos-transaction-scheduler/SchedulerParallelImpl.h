@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GC.h"
 #include "MultiLayerStorage.h"
 #include "ReadWriteSetStorage.h"
 #include "bcos-framework/ledger/LedgerConfig.h"
@@ -10,7 +11,6 @@
 #include "bcos-framework/storage2/Storage.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
-#include "bcos-tars-protocol/protocol/TransactionReceiptImpl.h"
 #include "bcos-task/TBBWait.h"
 #include "bcos-task/Wait.h"
 #include "bcos-utilities/Exceptions.h"
@@ -152,18 +152,11 @@ public:
     SchedulerParallelImpl& operator=(const SchedulerParallelImpl&) = delete;
     SchedulerParallelImpl& operator=(SchedulerParallelImpl&&) noexcept = default;
 
-    SchedulerParallelImpl() : m_releaseGroup(std::make_unique<tbb::task_group>()) {}
-    ~SchedulerParallelImpl() noexcept { m_releaseGroup->wait(); }
+    SchedulerParallelImpl() = default;
+    ~SchedulerParallelImpl() noexcept = default;
 
 private:
-    std::unique_ptr<tbb::task_group> m_releaseGroup;
-
-    friend void asyncGC(auto& scheduler, auto&&... resources)
-    {
-        scheduler.m_releaseGroup->run(
-            [resources = std::make_tuple(
-                 std::forward<decltype(resources)>(resources)...)]() noexcept {});
-    }
+    GC m_gc;
 
     friend task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)
@@ -194,8 +187,7 @@ private:
         boost::atomic_flag hasRAW;
         ChunkStorage lastStorage;
         auto contextChunks =
-            RANGES::views::drop(contexts, offset) |
-            RANGES::views::chunk(std::max<size_t>(chunkSize, (size_t)TRANSACTION_GRAIN_SIZE));
+            RANGES::views::drop(contexts, offset) | RANGES::views::chunk(chunkSize);
 
         RANGES::range_size_t<decltype(contextChunks)> chunkIndex = 0;
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
@@ -238,6 +230,7 @@ private:
                             ittapi::ITT_DOMAINS::instance().STEP_3);
                         if (hasRAW.test())
                         {
+                            scheduler.m_gc.collect(std::move(chunk));
                             return {};
                         }
 
@@ -252,7 +245,7 @@ private:
                                 hasRAW.test_and_set();
                                 PARALLEL_SCHEDULER_LOG(DEBUG)
                                     << "Detected RAW Intersection:" << index;
-                                asyncGC(scheduler, std::move(chunk));
+                                scheduler.m_gc.collect(std::move(chunk));
                                 return {};
                             }
                         }
@@ -288,12 +281,12 @@ private:
                                 ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
                             task::tbb::syncWait(storage2::merge(
                                 lastStorage, std::move(chunk->localStorage().mutableStorage())));
-                            asyncGC(scheduler, std::move(chunk));
+                            scheduler.m_gc.collect(std::move(chunk));
                         }
                     }));
 
         task::tbb::syncWait(mergeLastStorage(scheduler, storage, std::move(lastStorage)));
-        asyncGC(scheduler, std::move(lastStorage), std::move(writeSet));
+        scheduler.m_gc.collect(std::move(writeSet));
         if (offset < count)
         {
             return 1 + executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig,
@@ -358,7 +351,7 @@ private:
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
         });
-        asyncGC(scheduler, std::move(contexts));
+        scheduler.m_gc.collect(std::move(contexts));
 
         co_return receipts;
     }

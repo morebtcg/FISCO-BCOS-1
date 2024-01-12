@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GC.h"
 #include "bcos-framework/ledger/LedgerConfig.h"
 #include "bcos-framework/protocol/TransactionReceipt.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
@@ -22,10 +23,11 @@ namespace bcos::transaction_scheduler
 class SchedulerSerialImpl
 {
 private:
-    constexpr static auto TRANSACTION_GRAIN_SIZE = 32;
+    constexpr static auto TRANSACTION_GRAIN_SIZE = 16;
+    GC m_gc;
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
-        tag_t<executeBlock> /*unused*/, SchedulerSerialImpl& /*unused*/, auto& storage,
+        tag_t<executeBlock> /*unused*/, SchedulerSerialImpl& scheduler, auto& storage,
         auto& executor, protocol::BlockHeader const& blockHeader,
         RANGES::input_range auto const& transactions, ledger::LedgerConfig const& ledgerConfig)
     {
@@ -36,7 +38,7 @@ private:
             decltype(executor), decltype(storage), protocol::BlockHeader const&,
             protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait,
             const bool&, std::add_pointer_t<std::add_pointer_t<decltype(storage)>>>;
-        struct Context
+        struct ExecutionContext
         {
             std::optional<CoroType> coro;
             typename CoroType::Iterator iterator;
@@ -44,7 +46,8 @@ private:
         };
 
         auto count = static_cast<int32_t>(RANGES::size(transactions));
-        std::vector<Context, tbb::cache_aligned_allocator<Context>> contexts(count);
+        std::vector<ExecutionContext, tbb::cache_aligned_allocator<ExecutionContext>> contexts(
+            count);
 
         constexpr static bool retryFlag = false;
         constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
@@ -116,9 +119,11 @@ private:
 
         std::vector<protocol::TransactionReceipt::Ptr> receipts;
         receipts.reserve(count);
-        RANGES::move(RANGES::views::transform(
-                         contexts, [](Context & context) -> auto& { return context.receipt; }),
+        RANGES::move(
+            RANGES::views::transform(
+                contexts, [](ExecutionContext & context) -> auto& { return context.receipt; }),
             RANGES::back_inserter(receipts));
+        scheduler.m_gc.collect(std::move(contexts));
         co_return receipts;
     }
 };
