@@ -158,6 +158,13 @@ public:
 private:
     std::unique_ptr<tbb::task_group> m_releaseGroup;
 
+    friend void asyncGC(auto& scheduler, auto&&... resources)
+    {
+        scheduler.m_releaseGroup->run(
+            [resources = std::make_tuple(
+                 std::forward<decltype(resources)>(resources)...)]() noexcept {});
+    }
+
     friend task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)
     {
@@ -186,8 +193,6 @@ private:
 
         boost::atomic_flag hasRAW;
         ChunkStorage lastStorage;
-
-
         auto contextChunks =
             RANGES::views::drop(contexts, offset) |
             RANGES::views::chunk(std::max<size_t>(chunkSize, (size_t)TRANSACTION_GRAIN_SIZE));
@@ -247,7 +252,7 @@ private:
                                 hasRAW.test_and_set();
                                 PARALLEL_SCHEDULER_LOG(DEBUG)
                                     << "Detected RAW Intersection:" << index;
-                                scheduler.m_releaseGroup->run([chunk = std::move(chunk)]() {});
+                                asyncGC(scheduler, std::move(chunk));
                                 return {};
                             }
                         }
@@ -283,11 +288,12 @@ private:
                                 ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
                             task::tbb::syncWait(storage2::merge(
                                 lastStorage, std::move(chunk->localStorage().mutableStorage())));
-                            scheduler.m_releaseGroup->run([chunk = std::move(chunk)]() {});
+                            asyncGC(scheduler, std::move(chunk));
                         }
                     }));
 
         task::tbb::syncWait(mergeLastStorage(scheduler, storage, std::move(lastStorage)));
+        asyncGC(scheduler, std::move(lastStorage), std::move(writeSet));
         if (offset < count)
         {
             return 1 + executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig,
