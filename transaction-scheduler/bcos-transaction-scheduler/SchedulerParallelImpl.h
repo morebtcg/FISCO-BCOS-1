@@ -358,6 +358,7 @@ private:
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
         });
+        asyncGC(scheduler, std::move(contexts));
 
         co_return receipts;
     }
