@@ -92,7 +92,6 @@ private:
 
     Storage& m_rollbackableStorage;
     protocol::BlockHeader const& m_blockHeader;
-    const evmc_message& m_message;
     const evmc_address& m_origin;
     std::string_view m_abi;
     int m_contextID;
@@ -100,11 +99,10 @@ private:
     PrecompiledManager const& m_precompiledManager;
     ledger::LedgerConfig const& m_ledgerConfig;
     crypto::Hash const& m_hashImpl;
-
+    std::variant<const evmc_message*, evmc_message> m_message;
     Account m_myAccount;
-    evmc_address m_newContractAddress;  // Set by getMyContractTable, no need initialize value!
-    std::vector<protocol::LogEntry> m_logs;
 
+    std::vector<protocol::LogEntry> m_logs;
     std::shared_ptr<Executable> m_executable;
     const bcos::transaction_executor::Precompiled* m_preparedPrecompiled{};
 
@@ -114,55 +112,70 @@ private:
             [this](const evmc_message& message) { return task::syncWait(externalCall(message)); };
     }
 
-    auto getMyAccount(const protocol::BlockHeader& blockHeader, const evmc_message& message)
+    std::variant<const evmc_message*, evmc_message> getMessage(const evmc_message& inputMessage)
     {
-        switch (message.kind)
+        std::variant<const evmc_message*, evmc_message> message;
+        switch (inputMessage.kind)
         {
         case EVMC_CREATE:
         {
+            message.emplace<evmc_message>(inputMessage);
+            auto& ref = std::get<evmc_message>(message);
+
             if (concepts::bytebuffer::equalTo(
-                    message.code_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
+                    inputMessage.code_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
             {
-                auto address =
-                    fmt::format(FMT_COMPILE("{}_{}_{}"), blockHeader.number(), m_contextID, m_seq);
+                auto address = fmt::format(
+                    FMT_COMPILE("{}_{}_{}"), m_blockHeader.number(), m_contextID, m_seq);
                 auto hash = m_hashImpl.hash(address);
                 std::uninitialized_copy_n(
-                    hash.data(), sizeof(m_newContractAddress.bytes), m_newContractAddress.bytes);
+                    hash.data(), sizeof(ref.code_address.bytes), ref.code_address.bytes);
+                ref.recipient = ref.code_address;
             }
-            else
-            {
-                m_newContractAddress = message.code_address;
-            }
-
-            return Account(m_rollbackableStorage, m_newContractAddress);
+            break;
         }
         case EVMC_CREATE2:
         {
+            message.emplace<evmc_message>(inputMessage);
+            auto& ref = std::get<evmc_message>(m_message);
+
             auto field1 = m_hashImpl.hash(bytes{0xff});
-            auto field2 = bytesConstRef(message.sender.bytes, sizeof(message.sender.bytes));
-            auto field3 = toBigEndian(fromEvmC(message.create2_salt));
-            auto field4 = m_hashImpl.hash(bytesConstRef(message.input_data, message.input_size));
+            auto field2 = bytesConstRef(ref.sender.bytes, sizeof(ref.sender.bytes));
+            auto field3 = toBigEndian(fromEvmC(inputMessage.create2_salt));
+            auto field4 = m_hashImpl.hash(bytesConstRef(ref.input_data, ref.input_size));
             auto hashView = RANGES::views::concat(field1, field2, field3, field4);
 
-            std::uninitialized_copy_n(hashView.begin() + 12, sizeof(m_newContractAddress.bytes),
-                m_newContractAddress.bytes);
-
-            return Account(m_rollbackableStorage, m_newContractAddress);
+            std::uninitialized_copy_n(
+                hashView.begin() + 12, sizeof(ref.code_address.bytes), ref.code_address.bytes);
+            ref.recipient = ref.code_address;
+            break;
         }
         default:
         {
-            // CALL OR DELEGATECALL
-            m_newContractAddress = {};
-            return Account(m_rollbackableStorage, message.recipient);
+            message.emplace<const evmc_message*>(std::addressof(inputMessage));
+            break;
         }
         }
+        return message;
     }
+
+    evmc_message const& message() const&
+    {
+        return std::visit(
+            bcos::overloaded{
+                [this](const evmc_message* message) -> evmc_message const& { return *message; },
+                [this](const evmc_message& message) -> evmc_message const& { return message; }},
+            m_message);
+    }
+
+    auto getMyAccount() { return Account(m_rollbackableStorage, message().recipient); }
+
     constexpr static struct InnerConstructor
     {
     } innerConstructor{};
 
     HostContext(InnerConstructor /*unused*/, Storage& storage,
-        protocol::BlockHeader const& blockHeader, const evmc_message& message,
+        const protocol::BlockHeader& blockHeader, const evmc_message& message,
         const evmc_address& origin, std::string_view abi, int contextID, int64_t& seq,
         PrecompiledManager const& precompiledManager, ledger::LedgerConfig const& ledgerConfig,
         crypto::Hash const& hashImpl, const evmc_host_interface* hostInterface)
@@ -174,7 +187,6 @@ private:
             .metrics = std::addressof(executor::ethMetrics)},
         m_rollbackableStorage(storage),
         m_blockHeader(blockHeader),
-        m_message(message),
         m_origin(origin),
         m_abi(abi),
         m_contextID(contextID),
@@ -182,7 +194,8 @@ private:
         m_precompiledManager(precompiledManager),
         m_ledgerConfig(ledgerConfig),
         m_hashImpl(hashImpl),
-        m_myAccount(getMyAccount(blockHeader, message))
+        m_message(getMessage(message)),
+        m_myAccount(getMyAccount())
     {}
 
 public:
@@ -278,7 +291,7 @@ public:
 
     task::Task<void> prepare()
     {
-        if (m_message.kind == EVMC_CREATE || m_message.kind == EVMC_CREATE2)
+        if (message().kind == EVMC_CREATE || message().kind == EVMC_CREATE2)
         {
             prepareCreate();
         }
@@ -293,7 +306,7 @@ public:
         if (m_ledgerConfig.authCheckStatus() != 0U)
         {
             HOST_CONTEXT_LOG(DEBUG) << "Checking auth..." << m_ledgerConfig.authCheckStatus();
-            auto [result, param] = checkAuth(m_rollbackableStorage, m_blockHeader, m_message,
+            auto [result, param] = checkAuth(m_rollbackableStorage, m_blockHeader, message(),
                 m_origin, buildLegacyExternalCaller(), m_precompiledManager);
             if (!result)
             {
@@ -301,7 +314,7 @@ public:
             }
         }
 
-        if (m_message.kind == EVMC_CREATE || m_message.kind == EVMC_CREATE2)
+        if (message().kind == EVMC_CREATE || message().kind == EVMC_CREATE2)
         {
             co_return co_await executeCreate();
         }
@@ -326,7 +339,7 @@ public:
             RANGES::equal(message.sender.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
         {
             messageWithSender.emplace(message);
-            messageWithSender->sender = m_newContractAddress;
+            messageWithSender->sender = message.code_address;
             messagePtr = std::addressof(*messageWithSender);
         }
 
@@ -378,7 +391,7 @@ private:
 
     void prepareCreate()
     {
-        bytesConstRef createCode(m_message.input_data, m_message.input_size);
+        bytesConstRef createCode(message().input_data, message().input_size);
         m_executable = std::make_shared<Executable>(createCode);
     }
 
@@ -387,13 +400,13 @@ private:
         auto savepoint = m_rollbackableStorage.current();
         if (m_ledgerConfig.authCheckStatus() != 0U)
         {
-            createAuthTable(m_rollbackableStorage, m_blockHeader, m_message, m_origin,
+            createAuthTable(m_rollbackableStorage, m_blockHeader, message(), m_origin,
                 co_await ledger::account::path(m_myAccount), buildLegacyExternalCaller(),
                 m_precompiledManager);
         }
 
-        auto result = m_executable->m_vmInstance.execute(
-            interface, this, mode, &m_message, m_message.input_data, m_message.input_size);
+        auto result = m_executable->m_vmInstance.execute(interface, this, mode,
+            std::addressof(message()), message().input_data, message().input_size);
         if (result.status_code == 0)
         {
             auto code = bytesConstRef(result.output_data, result.output_size);
@@ -404,7 +417,7 @@ private:
                 m_myAccount, code.toBytes(), std::string(m_abi), codeHash);
 
             result.gas_left -= result.output_size * vmSchedule().createDataGas;
-            result.create_address = m_newContractAddress;
+            result.create_address = message().code_address;
         }
         else
         {
@@ -416,7 +429,7 @@ private:
 
     task::Task<void> prepareCall()
     {
-        if (auto const* precompiled = m_precompiledManager.getPrecompiled(m_message.code_address))
+        if (auto const* precompiled = m_precompiledManager.getPrecompiled(message().code_address))
         {
             m_preparedPrecompiled = precompiled;
             co_return;
@@ -429,16 +442,17 @@ private:
         if (m_preparedPrecompiled != nullptr)
         {
             co_return transaction_executor::callPrecompiled(*m_preparedPrecompiled,
-                m_rollbackableStorage, m_blockHeader, m_message, m_origin,
+                m_rollbackableStorage, m_blockHeader, message(), m_origin,
                 buildLegacyExternalCaller(), m_precompiledManager);
         }
 
         if (!m_executable)
         {
-            m_executable = co_await getExecutable(m_rollbackableStorage, m_message.code_address);
+            m_executable = co_await getExecutable(m_rollbackableStorage, message().code_address);
         }
-        auto result = m_executable->m_vmInstance.execute(interface, this, mode, &m_message,
-            (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
+        auto result =
+            m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(message()),
+                (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
         if (result.status_code != 0)
         {
             HOST_CONTEXT_LOG(DEBUG) << "Execute transaction failed, status: " << result.status_code;
