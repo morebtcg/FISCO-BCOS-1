@@ -101,6 +101,7 @@ private:
             {
                 if (changeableStorage)
                 {
+                    hostContext.logs().clear();
                     rollbackableStorage.resetStorage(**changeableStorage);
                 }
                 evmcResult = waitOperator(hostContext.execute());
