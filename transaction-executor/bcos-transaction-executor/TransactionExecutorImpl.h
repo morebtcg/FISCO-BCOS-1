@@ -46,8 +46,7 @@ private:
     friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
         tag_t<execute3Step> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
-        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator,
-        const bool& retryFlag = defaultRetryFlag, auto** changeableStorage = nullptr)
+        int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
     {
         protocol::TransactionReceipt::Ptr receipt;
         try
@@ -97,16 +96,8 @@ private:
             co_yield receipt;  // 完成第一步 Complete the first step
 
             task::AwaitableReturnType<decltype(hostContext.execute())> evmcResult;
-            do
-            {
-                if (changeableStorage)
-                {
-                    hostContext.logs().clear();
-                    rollbackableStorage.resetStorage(**changeableStorage);
-                }
-                evmcResult = waitOperator(hostContext.execute());
-                co_yield receipt;  // 完成第二步 Complete the second step
-            } while (retryFlag);
+            evmcResult = waitOperator(hostContext.execute());
+            co_yield receipt;  // 完成第二步 Complete the second step
 
             bcos::bytesConstRef output;
             std::string newContractAddress;
@@ -158,12 +149,8 @@ private:
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
         int contextID, ledger::LedgerConfig const& ledgerConfig, auto&& waitOperator)
     {
-        constexpr static bool retryFlag = false;
-        constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
-            changeableStorage = nullptr;
-        for (auto receipt :
-            execute3Step(executor, storage, blockHeader, transaction, contextID, ledgerConfig,
-                std::forward<decltype(waitOperator)>(waitOperator), retryFlag, changeableStorage))
+        for (auto receipt : execute3Step(executor, storage, blockHeader, transaction, contextID,
+                 ledgerConfig, std::forward<decltype(waitOperator)>(waitOperator)))
         {
             if (receipt)
             {

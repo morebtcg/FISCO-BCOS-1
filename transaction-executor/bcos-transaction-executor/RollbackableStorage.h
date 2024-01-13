@@ -46,8 +46,6 @@ public:
     Storage& storage() { return *m_storage; }
     Savepoint current() const { return static_cast<int64_t>(m_records.size()); }
 
-    void resetStorage(Storage& storage) { m_storage = std::addressof(storage); }
-
     task::Task<void> rollback(Savepoint savepoint)
     {
         for (auto index = static_cast<int64_t>(m_records.size()); index > savepoint; --index)

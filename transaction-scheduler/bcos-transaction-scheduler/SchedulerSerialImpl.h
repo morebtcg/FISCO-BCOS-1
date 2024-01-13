@@ -36,8 +36,7 @@ private:
 
         using CoroType = std::invoke_result_t<transaction_executor::Execute3Step,
             decltype(executor), decltype(storage), protocol::BlockHeader const&,
-            protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait,
-            const bool&, std::add_pointer_t<std::add_pointer_t<decltype(storage)>>>;
+            protocol::Transaction const&, int, ledger::LedgerConfig const&, task::tbb::SyncWait>;
         struct ExecutionContext
         {
             std::optional<CoroType> coro;
@@ -79,9 +78,9 @@ private:
                         for (auto i : range)
                         {
                             auto& [coro, iterator, receipt] = contexts[i];
-                            coro.emplace(transaction_executor::execute3Step(executor, storage,
-                                blockHeader, transactions[i], i, ledgerConfig, task::tbb::syncWait,
-                                retryFlag, changeableStorage));
+                            coro.emplace(
+                                transaction_executor::execute3Step(executor, storage, blockHeader,
+                                    transactions[i], i, ledgerConfig, task::tbb::syncWait));
                             iterator = coro->begin();
                             receipt = *iterator;
                         }

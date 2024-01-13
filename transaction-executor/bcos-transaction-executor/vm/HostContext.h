@@ -130,8 +130,8 @@ private:
                 auto hash = m_hashImpl.hash(address);
                 std::uninitialized_copy_n(
                     hash.data(), sizeof(ref.code_address.bytes), ref.code_address.bytes);
-                ref.recipient = ref.code_address;
             }
+            ref.recipient = ref.code_address;
             break;
         }
         case EVMC_CREATE2:
@@ -209,7 +209,6 @@ public:
     {}
 
     ~HostContext() noexcept = default;
-
     HostContext(HostContext const&) = delete;
     HostContext& operator=(HostContext const&) = delete;
     HostContext(HostContext&&) = delete;

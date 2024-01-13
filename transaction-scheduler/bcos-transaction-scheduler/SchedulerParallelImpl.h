@@ -97,16 +97,11 @@ class SchedulerParallelImpl
                     break;
                 }
 
-                context.readWriteSetStorage = std::addressof(m_localReadWriteSetStorage);
-                if (!context.coro)
-                {
-                    context.coro.emplace(transaction_executor::execute3Step(m_executor,
-                        *context.readWriteSetStorage, blockHeader, context.transaction,
-                        context.contextID, ledgerConfig, task::tbb::syncWait, context.retryFlag,
-                        std::addressof(context.readWriteSetStorage)));
-                    context.iterator = context.coro->begin();
-                    context.receipt = *context.iterator;
-                }
+                context.coro.emplace(transaction_executor::execute3Step(m_executor,
+                    m_localReadWriteSetStorage, blockHeader, context.transaction, context.contextID,
+                    ledgerConfig, task::tbb::syncWait));
+                context.iterator = context.coro->begin();
+                context.receipt = *context.iterator;
             }
         }
 
@@ -123,7 +118,7 @@ class SchedulerParallelImpl
                         << " transactions";
                     break;
                 }
-                if (context.iterator != context.coro->end())
+                if (!context.receipt && context.iterator != context.coro->end())
                 {
                     context.receipt = *(++context.iterator);
                 }
@@ -136,7 +131,6 @@ class SchedulerParallelImpl
                 ittapi::ITT_DOMAINS::instance().EXECUTE_CHUNK3);
             for (auto& context : m_contextRange)
             {
-                context.retryFlag = false;
                 if (!context.receipt && context.iterator != context.coro->end())
                 {
                     context.receipt = *(++context.iterator);
@@ -278,6 +272,9 @@ private:
                             ittapi::Report report2(
                                 ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
                                 ittapi::ITT_DOMAINS::instance().MERGE_CHUNK);
+                            PARALLEL_SCHEDULER_LOG(DEBUG)
+                                << "Merging storage... " << chunk->chunkIndex() << " | "
+                                << chunk->count();
                             task::tbb::syncWait(storage2::merge(
                                 lastStorage, std::move(chunk->localStorage().mutableStorage())));
                             scheduler.m_gc.collect(std::move(chunk));
@@ -301,10 +298,8 @@ private:
         int contextID;
         const protocol::Transaction& transaction;
         protocol::TransactionReceipt::Ptr& receipt;
-        typename StorageTrait<Storage>::LocalReadWriteSetStorage* readWriteSetStorage;
         std::optional<CoroType> coro;
         typename CoroType::Iterator iterator;
-        bool retryFlag;
     };
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
@@ -324,9 +319,7 @@ private:
             decltype(executor),
             std::add_lvalue_reference_t<typename StorageTrait<Storage>::LocalReadWriteSetStorage>,
             protocol::BlockHeader const&, protocol::Transaction const&, int,
-            ledger::LedgerConfig const&, task::tbb::SyncWait, const bool&,
-            std::add_pointer_t<
-                std::add_pointer_t<typename StorageTrait<Storage>::LocalReadWriteSetStorage>>>;
+            ledger::LedgerConfig const&, task::tbb::SyncWait>;
         std::vector<ExecutionContext<CoroType, Storage>,
             tbb::cache_aligned_allocator<ExecutionContext<CoroType, Storage>>>
             contexts;
@@ -336,10 +329,8 @@ private:
             contexts.emplace_back(ExecutionContext<CoroType, Storage>{.contextID = index,
                 .transaction = transactions[index],
                 .receipt = receipts[index],
-                .readWriteSetStorage = {},
                 .coro = {},
-                .iterator = {},
-                .retryFlag = true});
+                .iterator = {}});
         }
 
         static tbb::task_arena arena(8);
