@@ -130,7 +130,7 @@ private:
                 auto hash = m_hashImpl.hash(address);
                 std::copy_n(hash.data(), sizeof(ref.code_address.bytes), ref.code_address.bytes);
             }
-            std::copy_n(ref.code_address.bytes, sizeof(ref.recipient.bytes), ref.recipient.bytes);
+            ref.recipient = ref.code_address;
             break;
         }
         case EVMC_CREATE2:
@@ -146,7 +146,7 @@ private:
 
             std::copy_n(
                 hashView.begin() + 12, sizeof(ref.code_address.bytes), ref.code_address.bytes);
-            std::copy_n(ref.code_address.bytes, sizeof(ref.recipient.bytes), ref.recipient.bytes);
+            ref.recipient = ref.code_address;
             break;
         }
         default:
@@ -420,8 +420,7 @@ private:
                 m_myAccount, code.toBytes(), std::string(m_abi), codeHash);
 
             result.gas_left -= result.output_size * vmSchedule().createDataGas;
-            std::copy_n(message().code_address.bytes, sizeof(result.create_address.bytes),
-                result.create_address.bytes);
+            result.create_address = message().code_address;
         }
         else
         {
@@ -443,20 +442,25 @@ private:
     task::Task<EVMCResult> executeCall()
     {
         auto savepoint = m_rollbackableStorage.current();
-        if (m_preparedPrecompiled != nullptr)
+        EVMCResult result;
+        if (m_preparedPrecompiled != nullptr) [[unlikely]]
         {
-            co_return transaction_executor::callPrecompiled(*m_preparedPrecompiled,
+            result = transaction_executor::callPrecompiled(*m_preparedPrecompiled,
                 m_rollbackableStorage, m_blockHeader, message(), m_origin,
                 buildLegacyExternalCaller(), m_precompiledManager);
         }
-
-        if (!m_executable)
+        else
         {
-            m_executable = co_await getExecutable(m_rollbackableStorage, message().code_address);
+            if (!m_executable)
+            {
+                m_executable =
+                    co_await getExecutable(m_rollbackableStorage, message().code_address);
+            }
+            auto& ref = message();
+            result = m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
+                (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
         }
-        auto& ref = message();
-        auto result = m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
-            (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
+
         if (result.status_code != 0)
         {
             HOST_CONTEXT_LOG(DEBUG) << "Execute transaction failed, status: " << result.status_code;
