@@ -43,6 +43,31 @@ private:
     crypto::Hash::Ptr m_hashImpl;
     PrecompiledManager m_precompiledManager;
 
+    static evmc_message newEVMCMessage(protocol::Transaction const& transaction, int64_t gasLimit)
+    {
+        auto toAddress = unhexAddress(transaction.to());
+        evmc_message message = {.kind = transaction.to().empty() ? EVMC_CREATE : EVMC_CALL,
+            .flags = 0,
+            .depth = 0,
+            .gas = gasLimit,
+            .recipient = toAddress,
+            .destination_ptr = nullptr,
+            .destination_len = 0,
+            .sender = (!transaction.sender().empty() &&
+                          transaction.sender().size() == sizeof(evmc_address)) ?
+                          *(evmc_address*)transaction.sender().data() :
+                          evmc_address{},
+            .sender_ptr = nullptr,
+            .sender_len = 0,
+            .input_data = transaction.input().data(),
+            .input_size = transaction.input().size(),
+            .value = {},
+            .create2_salt = {},
+            .code_address = toAddress};
+
+        return message;
+    }
+
     friend task::Generator<protocol::TransactionReceipt::Ptr> tag_invoke(
         tag_t<execute3Step> /*unused*/, TransactionExecutorImpl& executor, auto& storage,
         protocol::BlockHeader const& blockHeader, protocol::Transaction const& transaction,
@@ -59,26 +84,7 @@ private:
 
             Rollbackable<std::decay_t<decltype(storage)>> rollbackableStorage(storage);
             auto gasLimit = static_cast<int64_t>(std::get<0>(ledgerConfig.gasLimit()));
-
-            auto toAddress = unhexAddress(transaction.to());
-            evmc_message evmcMessage = {.kind = transaction.to().empty() ? EVMC_CREATE : EVMC_CALL,
-                .flags = 0,
-                .depth = 0,
-                .gas = gasLimit,
-                .recipient = toAddress,
-                .destination_ptr = nullptr,
-                .destination_len = 0,
-                .sender = (!transaction.sender().empty() &&
-                              transaction.sender().size() == sizeof(evmc_address)) ?
-                              *(evmc_address*)transaction.sender().data() :
-                              evmc_address{},
-                .sender_ptr = nullptr,
-                .sender_len = 0,
-                .input_data = transaction.input().data(),
-                .input_size = transaction.input().size(),
-                .value = {},
-                .create2_salt = {},
-                .code_address = toAddress};
+            auto evmcMessage = newEVMCMessage(transaction, gasLimit);
 
             if (blockHeader.number() == 0 &&
                 transaction.to() == precompiled::AUTH_COMMITTEE_ADDRESS)

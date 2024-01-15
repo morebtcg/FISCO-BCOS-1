@@ -23,6 +23,7 @@
 
 #include "../Common.h"
 #include "HostContext.h"
+#include "bcos-concepts/ByteBuffer.h"
 #include "bcos-executor/src/Common.h"
 #include <evmc/evmc.h>
 #include <evmc/instructions.h>
@@ -57,10 +58,11 @@ struct EVMHostInterface
         [[maybe_unused]] const evmc_address* addr, const evmc_bytes32* key,
         const evmc_bytes32* value) noexcept
     {
+        assert(!concepts::bytebuffer::equalTo(addr->bytes, executor::EMPTY_EVM_ADDRESS.bytes));
         auto& hostContext = static_cast<HostContextType&>(*context);
 
         auto status = EVMC_STORAGE_MODIFIED;
-        if (value == nullptr)  // TODO: Should use 32 bytes 0
+        if (concepts::bytebuffer::equalTo(value->bytes, executor::EMPTY_EVM_BYTES32.bytes))
         {
             status = EVMC_STORAGE_DELETED;
         }

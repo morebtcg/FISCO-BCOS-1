@@ -128,10 +128,9 @@ private:
                 auto address = fmt::format(
                     FMT_COMPILE("{}_{}_{}"), m_blockHeader.number(), m_contextID, m_seq);
                 auto hash = m_hashImpl.hash(address);
-                std::uninitialized_copy_n(
-                    hash.data(), sizeof(ref.code_address.bytes), ref.code_address.bytes);
+                std::copy_n(hash.data(), sizeof(ref.code_address.bytes), ref.code_address.bytes);
             }
-            ref.recipient = ref.code_address;
+            std::copy_n(ref.code_address.bytes, sizeof(ref.recipient.bytes), ref.recipient.bytes);
             break;
         }
         case EVMC_CREATE2:
@@ -145,9 +144,9 @@ private:
             auto field4 = m_hashImpl.hash(bytesConstRef(ref.input_data, ref.input_size));
             auto hashView = RANGES::views::concat(field1, field2, field3, field4);
 
-            std::uninitialized_copy_n(
+            std::copy_n(
                 hashView.begin() + 12, sizeof(ref.code_address.bytes), ref.code_address.bytes);
-            ref.recipient = ref.code_address;
+            std::copy_n(ref.code_address.bytes, sizeof(ref.recipient.bytes), ref.recipient.bytes);
             break;
         }
         default:
@@ -290,6 +289,10 @@ public:
 
     task::Task<void> prepare()
     {
+        assert(!concepts::bytebuffer::equalTo(
+            message().code_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes));
+        assert(!concepts::bytebuffer::equalTo(
+            message().recipient.bytes, executor::EMPTY_EVM_ADDRESS.bytes));
         if (message().kind == EVMC_CREATE || message().kind == EVMC_CREATE2)
         {
             prepareCreate();
@@ -404,8 +407,9 @@ private:
                 m_precompiledManager);
         }
 
-        auto result = m_executable->m_vmInstance.execute(interface, this, mode,
-            std::addressof(message()), message().input_data, message().input_size);
+        auto& ref = message();
+        auto result = m_executable->m_vmInstance.execute(
+            interface, this, mode, std::addressof(ref), message().input_data, message().input_size);
         if (result.status_code == 0)
         {
             auto code = bytesConstRef(result.output_data, result.output_size);
@@ -416,7 +420,8 @@ private:
                 m_myAccount, code.toBytes(), std::string(m_abi), codeHash);
 
             result.gas_left -= result.output_size * vmSchedule().createDataGas;
-            result.create_address = message().code_address;
+            std::copy_n(message().code_address.bytes, sizeof(result.create_address.bytes),
+                result.create_address.bytes);
         }
         else
         {
@@ -449,9 +454,9 @@ private:
         {
             m_executable = co_await getExecutable(m_rollbackableStorage, message().code_address);
         }
-        auto result =
-            m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(message()),
-                (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
+        auto& ref = message();
+        auto result = m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
+            (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
         if (result.status_code != 0)
         {
             HOST_CONTEXT_LOG(DEBUG) << "Execute transaction failed, status: " << result.status_code;
