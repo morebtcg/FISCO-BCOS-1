@@ -1,5 +1,5 @@
 #pragma once
-#include "../Common.h"
+#include "../EVMCResult.h"
 #include "bcos-codec/wrapper/CodecWrapper.h"
 #include "bcos-executor/src/executive/TransactionExecutive.h"
 #include <evmc/evmc.h>

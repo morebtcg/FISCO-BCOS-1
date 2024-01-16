@@ -1,4 +1,5 @@
 #pragma once
+#include "../EVMCResult.h"
 #include "ExecutiveWrapper.h"
 #include "bcos-executor/src/Common.h"
 #include "bcos-executor/src/executive/BlockContext.h"
@@ -6,7 +7,6 @@
 #include "bcos-executor/src/vm/Precompiled.h"
 #include "bcos-table/src/LegacyStorageWrapper.h"
 #include "bcos-table/src/StateStorage.h"
-#include "bcos-transaction-executor/Common.h"
 #include "bcos-utilities/Overloaded.h"
 #include <evmc/evmc.h>
 #include <boost/throw_exception.hpp>

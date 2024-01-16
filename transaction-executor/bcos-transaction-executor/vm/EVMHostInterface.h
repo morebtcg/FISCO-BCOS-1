@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "../Common.h"
+#include "../EVMCResult.h"
 #include "HostContext.h"
 #include "bcos-concepts/ByteBuffer.h"
 #include "bcos-executor/src/Common.h"
