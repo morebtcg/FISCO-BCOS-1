@@ -13,6 +13,23 @@ contract ToBeDeploy {
     }
 }
 
+contract ToBeDeployWithMapping {
+    mapping(address => int) public address2Int;
+    address[] public addresses;
+
+    constructor() {
+        for (int i = 0; i < 10; ++i) {
+            address addr = address(new ToBeDeploy());
+            address2Int[addr] = i;
+            addresses.push(addr);
+        }
+    }
+
+    function get(address addr) public view returns (int) {
+        return address2Int[addr];
+    }
+}
+
 contract DelegateCallTarget {
     int m_aValue;
     string m_bValue;
@@ -27,7 +44,7 @@ contract DeployWithDeploy {
     address m_deployedAddress;
 
     constructor() {
-        m_deployedAddress = address(new ToBeDeploy());
+        m_deployedAddress = address(new ToBeDeployWithMapping());
     }
 
     function getAddress() public view returns (address) {
@@ -108,3 +125,4 @@ contract HelloWorld {
         require(contract1 != contract2);
     }
 }
+

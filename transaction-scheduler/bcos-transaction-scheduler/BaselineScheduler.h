@@ -569,7 +569,8 @@ public:
             if (ledgerConfig)
             {
                 blockHeader->setVersion(ledgerConfig->compatibilityVersion());
-                blockHeader->setNumber(ledgerConfig->blockNumber());
+                blockHeader->setNumber(ledgerConfig->blockNumber() + 1);  // Use next block number
+                blockHeader->calculateHash(self->m_hashImpl);
                 receipt = co_await transaction_executor::executeTransaction(self->m_executor, view,
                     *blockHeader, *transaction, 0, *ledgerConfig, task::syncWait);
             }
@@ -577,6 +578,7 @@ public:
             {
                 ledger::LedgerConfig emptyLedgerConfig;
                 blockHeader->setVersion((uint32_t)bcos::protocol::BlockVersion::V3_2_4_VERSION);
+                blockHeader->calculateHash(self->m_hashImpl);
                 receipt = co_await transaction_executor::executeTransaction(self->m_executor, view,
                     *blockHeader, *transaction, 0, emptyLedgerConfig, task::syncWait);
             }
