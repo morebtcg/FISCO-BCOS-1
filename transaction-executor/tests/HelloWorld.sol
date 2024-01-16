@@ -25,6 +25,10 @@ contract ToBeDeployWithMapping {
         }
     }
 
+    function all() public view returns (address[] memory) {
+        return addresses;
+    }
+
     function get(address addr) public view returns (int) {
         return address2Int[addr];
     }
@@ -124,5 +128,8 @@ contract HelloWorld {
 
         require(contract1 != contract2);
     }
-}
 
+    function deployWithDeploy() public returns (address) {
+        return address(new ToBeDeployWithMapping());
+    }
+}

@@ -101,8 +101,7 @@ private:
             waitOperator(hostContext.prepare());
             co_yield receipt;  // 完成第一步 Complete the first step
 
-            task::AwaitableReturnType<decltype(hostContext.execute())> evmcResult;
-            evmcResult = waitOperator(hostContext.execute());
+            auto evmcResult = waitOperator(hostContext.execute());
             co_yield receipt;  // 完成第二步 Complete the second step
 
             bcos::bytesConstRef output;

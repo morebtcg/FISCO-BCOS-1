@@ -81,17 +81,16 @@ public:
             bcos::task::syncWait);
         syncWait(hostContext.prepare());
         auto result = syncWait(hostContext.execute());
-
         BOOST_REQUIRE_EQUAL(result.status_code, 0);
 
         helloworldAddress = result.create_address;
     }
 
-    template <class... Arg>
-    Task<EVMCResult> call(std::string_view abi, evmc_address sender, Arg const&... args)
+    Task<EVMCResult> call(
+        const evmc_address& address, std::string_view abi, evmc_address sender, auto&&... args)
     {
         bcos::codec::abi::ContractABICodec abiCodec(bcos::executor::GlobalHashImpl::g_hashImpl);
-        auto input = abiCodec.abiIn(std::string(abi), args...);
+        auto input = abiCodec.abiIn(std::string(abi), std::forward<decltype(args)>(args)...);
 
         bcostars::protocol::BlockHeaderImpl blockHeader(
             [inner = bcostars::BlockHeader()]() mutable { return std::addressof(inner); });
@@ -115,7 +114,7 @@ public:
             .input_size = input.size(),
             .value = {},
             .create2_salt = {},
-            .code_address = helloworldAddress};
+            .code_address = address};
         evmc_address origin = {};
 
         HostContext<decltype(rollbackableStorage)> hostContext(rollbackableStorage, blockHeader,
@@ -125,6 +124,20 @@ public:
         auto result = co_await hostContext.execute();
 
         co_return result;
+    }
+
+    Task<EVMCResult> call(
+        const bcos::Address& address, std::string_view abi, evmc_address sender, auto&&... args)
+    {
+        evmc_address evmcAddress{};
+        std::copy(address.begin(), address.end(), evmcAddress.bytes);
+        co_return co_await call(evmcAddress, abi, sender, std::forward<decltype(args)>(args)...);
+    }
+
+    Task<EVMCResult> call(std::string_view abi, evmc_address sender, auto&&... args)
+    {
+        co_return co_await call(
+            helloworldAddress, abi, sender, std::forward<decltype(args)>(args)...);
     }
 };
 
@@ -377,6 +390,38 @@ BOOST_AUTO_TEST_CASE(precompiled)
     bcos::s256 getIntResult = -1;
     abiCodec.abiOut(bcos::bytesConstRef(result->output_data, result->output_size), getIntResult);
     BOOST_CHECK_EQUAL(getIntResult, 0);
+}
+
+BOOST_AUTO_TEST_CASE(constructor)
+{
+    syncWait([this]() -> Task<void> {
+        auto result1 = co_await call("deployWithDeploy()", {});
+
+        BOOST_REQUIRE_EQUAL(result1.status_code, 0);
+        bcos::Address address1{};
+        bcos::codec::abi::ContractABICodec abiCodec(hashImpl);
+        abiCodec.abiOut(bcos::bytesConstRef(result1.output_data, result1.output_size), address1);
+        BOOST_REQUIRE_NE(address1, bcos::Address{});
+
+        auto result2 = co_await call(address1, "all()", {});
+        std::vector<bcos::Address> addresses;
+        bcos::codec::abi::ContractABICodec abiCodec2(hashImpl);
+        abiCodec2.abiOut(bcos::bytesConstRef(result2.output_data, result2.output_size), addresses);
+
+        BOOST_REQUIRE_EQUAL(addresses.size(), 10);
+        for (auto& address2 : addresses)
+        {
+            BOOST_CHECK_NE(address2, bcos::Address{});
+            auto result3 = co_await call(address1, "get(address)", {}, address2);
+
+            bcos::codec::abi::ContractABICodec abiCodec3(hashImpl);
+            bcos::s256 num;
+            abiCodec3.abiOut(
+                bcos::bytesConstRef(result3.output_data, result3.output_size), addresses);
+        }
+
+        co_return;
+    }());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -442,12 +442,12 @@ private:
     task::Task<EVMCResult> executeCall()
     {
         auto savepoint = m_rollbackableStorage.current();
-        EVMCResult result;
+        std::optional<EVMCResult> result;
         if (m_preparedPrecompiled != nullptr) [[unlikely]]
         {
-            result = transaction_executor::callPrecompiled(*m_preparedPrecompiled,
+            result.emplace(transaction_executor::callPrecompiled(*m_preparedPrecompiled,
                 m_rollbackableStorage, m_blockHeader, message(), m_origin,
-                buildLegacyExternalCaller(), m_precompiledManager);
+                buildLegacyExternalCaller(), m_precompiledManager));
         }
         else
         {
@@ -457,17 +457,19 @@ private:
                     co_await getExecutable(m_rollbackableStorage, message().code_address);
             }
             auto& ref = message();
-            result = m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
-                (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size());
+            result.emplace(
+                m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
+                    (const uint8_t*)m_executable->m_code->data(), m_executable->m_code->size()));
         }
 
-        if (result.status_code != 0)
+        if (result->status_code != 0)
         {
-            HOST_CONTEXT_LOG(DEBUG) << "Execute transaction failed, status: " << result.status_code;
+            HOST_CONTEXT_LOG(DEBUG)
+                << "Execute transaction failed, status: " << result->status_code;
             co_await m_rollbackableStorage.rollback(savepoint);
         }
 
-        co_return result;
+        co_return std::move(*result);
     }
 };
 
