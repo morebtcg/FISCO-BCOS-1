@@ -380,11 +380,24 @@ void SystemConfigPrecompiled::registerGovernorToCaller(
     const std::shared_ptr<executor::TransactionExecutive>& _executive,
     const PrecompiledExecResult::Ptr& _callParameters, CodecWrapper const& codec)
 {
-    // get governor address
-    auto governorAddress = getGovernorList(_executive, _callParameters, codec);
+    std::vector<Address> governorAddress;
+    try
+    {
+        governorAddress = getGovernorList(_executive, _callParameters, codec);
+    }
+    catch (std::exception const& e)
+    {
+        PRECOMPILED_LOG(INFO) << LOG_BADGE("SystemConfigPrecompiled, registerGovernorToCaller")
+                              << LOG_DESC("get governor list failed")
+                              << LOG_KV("info", boost::diagnostic_information(e));
+        BOOST_THROW_EXCEPTION(
+            PrecompiledError("get governor list failed, maybe current is wasm model, "
+                             "feature_balance_precompiled is not supported in wasm model."));
+    }
     if (governorAddress.empty())
     {
-        BOOST_THROW_EXCEPTION(PrecompiledError("Governor address is empty."));
+        PRECOMPILED_LOG(INFO) << LOG_BADGE("SystemConfigPrecompiled")
+                              << LOG_DESC("get governor is empty, maybe governor is not set");
         return;
     }
     // register governor to caller

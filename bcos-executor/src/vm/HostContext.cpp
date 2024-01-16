@@ -133,7 +133,7 @@ evmc_result HostContext::externalRequest(const evmc_message* _msg)
         evmAddress2String(_msg->sender) ==
             std::string(bcos::precompiled::EVM_BALANCE_SENDER_ADDRESS))
     {
-        // for AccountPrecompiled to sub and add
+        // comes from selfdestruct() getAccountBalance use EVM_BALANCE_SENDER_ADDRESS as msg->sender
         request->senderAddress = std::string(bcos::precompiled::EVM_BALANCE_SENDER_ADDRESS);
     }
     else
@@ -288,11 +288,18 @@ evmc_result HostContext::callBuiltInPrecompiled(
         {
             callResults->gas = _request->gas - gasUsed;
         }
-        auto [success, output] =
-            m_executive->executeOriginPrecompiled(_request->receiveAddress, ref(_request->data));
-        resultCode =
-            (int32_t)(success ? TransactionStatus::None : TransactionStatus::RevertInstruction);
-        resultData.swap(output);
+        try
+        {
+            auto [success, output] = m_executive->executeOriginPrecompiled(
+                _request->receiveAddress, ref(_request->data));
+            resultCode =
+                (int32_t)(success ? TransactionStatus::None : TransactionStatus::RevertInstruction);
+            resultData.swap(output);
+        }
+        catch (...)
+        {
+            resultCode = (int32_t)TransactionStatus::RevertInstruction;
+        }
     }
     else
     {
