@@ -330,22 +330,13 @@ public:
     {
         if (c_fileLogLevel <= LogLevel::TRACE)
         {
-            HOST_CONTEXT_LOG(TRACE)
-                << "External call, sender:" << address2HexString(message.sender);
+            HOST_CONTEXT_LOG(TRACE) << "External call, kind: " << message.kind
+                                    << " sender:" << address2HexString(message.sender)
+                                    << " recipient:" << address2HexString(message.recipient);
         }
         ++m_seq;
 
-        const auto* messagePtr = std::addressof(message);
-        std::optional<evmc_message> messageWithSender;
-        if (message.kind == EVMC_CREATE &&
-            RANGES::equal(message.sender.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
-        {
-            messageWithSender.emplace(message);
-            messageWithSender->sender = message.code_address;
-            messagePtr = std::addressof(*messageWithSender);
-        }
-
-        HostContext hostcontext(innerConstructor, m_rollbackableStorage, m_blockHeader, *messagePtr,
+        HostContext hostcontext(innerConstructor, m_rollbackableStorage, m_blockHeader, message,
             m_origin, {}, m_contextID, m_seq, m_precompiledManager, m_ledgerConfig, m_hashImpl,
             interface);
 

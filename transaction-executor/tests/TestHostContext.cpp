@@ -84,6 +84,7 @@ public:
         BOOST_REQUIRE_EQUAL(result.status_code, 0);
 
         helloworldAddress = result.create_address;
+        BCOS_LOG(INFO) << "Hello world address: " << bcos::address2HexString(helloworldAddress);
     }
 
     Task<EVMCResult> call(
@@ -104,7 +105,7 @@ public:
             .flags = 0,
             .depth = 0,
             .gas = 1000000,
-            .recipient = helloworldAddress,
+            .recipient = address,
             .destination_ptr = nullptr,
             .destination_len = 0,
             .sender = sender,
@@ -392,7 +393,7 @@ BOOST_AUTO_TEST_CASE(precompiled)
     BOOST_CHECK_EQUAL(getIntResult, 0);
 }
 
-BOOST_AUTO_TEST_CASE(constructor)
+BOOST_AUTO_TEST_CASE(nestConstructor)
 {
     syncWait([this]() -> Task<void> {
         auto result1 = co_await call("deployWithDeploy()", {});
