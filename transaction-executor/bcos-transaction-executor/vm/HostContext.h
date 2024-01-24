@@ -399,14 +399,13 @@ private:
         }
 
         auto& ref = message();
+        co_await ledger::account::create(m_myAccount);
         auto result = m_executable->m_vmInstance.execute(
             interface, this, mode, std::addressof(ref), message().input_data, message().input_size);
         if (result.status_code == 0)
         {
             auto code = bytesConstRef(result.output_data, result.output_size);
             auto codeHash = m_hashImpl.hash(code);
-
-            co_await ledger::account::create(m_myAccount);
             co_await ledger::account::setCode(
                 m_myAccount, code.toBytes(), std::string(m_abi), codeHash);
 
