@@ -462,10 +462,11 @@ private:
             co_return;
         }
 
-        auto hashesRange = block.transactionsMetaData | RANGES::views::transform([
-        ](typename decltype(block.transactionsMetaData)::value_type const& metaData) -> auto& {
-            return metaData.hash;
-        });
+        auto hashesRange =
+            block.transactionsMetaData |
+            RANGES::views::transform(
+                [](typename decltype(block.transactionsMetaData)::value_type const& metaData)
+                    -> auto& { return metaData.hash; });
         auto outputSize = RANGES::size(block.transactionsMetaData);
 
         if constexpr (std::is_same_v<Type, concepts::ledger::TRANSACTIONS>)

@@ -277,17 +277,7 @@ void AccountPrecompiled::addAccountBalance(const std::string& accountTableName,
         getErrorCodeOut(_callParameters->mutableExecResult(), CODE_NO_AUTHORIZED, codec);
         return;
     }
-    if (isPrecompiledAddressRange(accountTableName.substr(USER_APPS_PREFIX.length())))
-    {
-        PRECOMPILED_LOG(INFO) << BLOCK_NUMBER(blockContext.number())
-                              << LOG_BADGE("AccountPrecompiled, addAccountBalance")
-                              << LOG_DESC("account is precompiled address")
-                              << LOG_KV(
-                                     "account", accountTableName.substr(USER_APPS_PREFIX.length()));
-        BOOST_THROW_EXCEPTION(
-            PrecompiledError("addBalance failed, toAddress is precompiledAddress!"));
-        return;
-    }
+
     // check account exist
     auto table = _executive->storage().openTable(accountTableName);
     if (!table.has_value()) [[unlikely]]
@@ -323,6 +313,17 @@ void AccountPrecompiled::addAccountBalance(const std::string& accountTableName,
     if (entry.has_value())
     {
         u256 balance = u256(std::string(entry->get()));
+        if (balance >= (u256(-1) - value))
+        {
+            PRECOMPILED_LOG(INFO) << BLOCK_NUMBER(blockContext.number())
+                                  << LOG_BADGE("AccountPrecompiled, addAccountBalance")
+                                  << LOG_DESC("account balance overflow")
+                                  << LOG_KV("account", accountTableName)
+                                  << LOG_KV("balance", to_string(balance))
+                                  << LOG_KV("add balance", to_string(value));
+            BOOST_THROW_EXCEPTION(PrecompiledError("Account balance overflow!"));
+            return;
+        }
         balance += value;
         Entry Balance;
         Balance.importFields({boost::lexical_cast<std::string>(balance)});
@@ -363,17 +364,6 @@ void AccountPrecompiled::subAccountBalance(const std::string& accountTableName,
             _callParameters->m_sender == TXEXEC_GAS_CONSUMER_ADDRESS))
     {
         getErrorCodeOut(_callParameters->mutableExecResult(), CODE_NO_AUTHORIZED, codec);
-        return;
-    }
-    // check account is precompiled address, if true, return
-    if (isPrecompiledAddressRange(accountTableName.substr(USER_APPS_PREFIX.length())))
-    {
-        PRECOMPILED_LOG(INFO) << BLOCK_NUMBER(blockContext.number())
-                              << LOG_BADGE("AccountPrecompiled, addAccountBalance")
-                              << LOG_DESC("account is precompiled address")
-                              << LOG_KV("account", accountTableName.substr(6));
-        BOOST_THROW_EXCEPTION(
-            PrecompiledError("addBalance failed, toAddress is precompiledAddress!"));
         return;
     }
 

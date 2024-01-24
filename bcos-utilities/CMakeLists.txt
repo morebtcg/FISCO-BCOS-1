@@ -1,7 +1,8 @@
 
 project(bcos-utilities VERSION ${VERSION})
 
-find_package(Boost REQUIRED COMPONENTS log filesystem chrono thread serialization)
+find_package(Boost REQUIRED COMPONENTS log filesystem chrono thread serialization iostreams)
+find_package(ZLIB REQUIRED)
 if(NOT ONLY_CPP_SDK)
     find_package(zstd CONFIG REQUIRED)
     find_package(redis++ CONFIG REQUIRED)
@@ -20,9 +21,9 @@ target_include_directories(bcos-utilities PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include/bcos-utilities>)
 if (ONLY_CPP_SDK)
-    target_link_libraries(bcos-utilities PUBLIC Boost::log Boost::filesystem Boost::chrono Boost::thread Boost::serialization)
+    target_link_libraries(bcos-utilities PUBLIC Boost::iostreams Boost::log Boost::filesystem Boost::chrono Boost::thread Boost::serialization ZLIB::ZLIB)
 else ()
-    target_link_libraries(bcos-utilities PUBLIC Boost::log Boost::filesystem Boost::chrono Boost::thread Boost::serialization redis++::redis++_static zstd::libzstd_static ittapi)
+    target_link_libraries(bcos-utilities PUBLIC Boost::iostreams Boost::log Boost::filesystem Boost::chrono Boost::thread Boost::serialization redis++::redis++_static ZLIB::ZLIB zstd::libzstd_static ittapi)
 endif ()
 
 if(TESTS)
