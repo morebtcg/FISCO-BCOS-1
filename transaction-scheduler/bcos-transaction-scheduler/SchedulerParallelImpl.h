@@ -162,7 +162,7 @@ private:
 
     friend size_t executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
         protocol::BlockHeader const& blockHeader, ledger::LedgerConfig const& ledgerConfig,
-        size_t offset, RANGES::random_access_range auto& contexts, size_t chunkSize)
+        RANGES::random_access_range auto& contexts, size_t chunkSize)
     {
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().SINGLE_PASS);
@@ -174,14 +174,12 @@ private:
             std::decay_t<decltype(executor)>,
             decltype(RANGES::subrange<RANGES::iterator_t<decltype(contexts)>>(contexts))>;
         using ChunkStorage = typename std::decay_t<decltype(storage)>::MutableStorage;
-        PARALLEL_SCHEDULER_LOG(DEBUG)
-            << "Start new chunk executing... " << offset << " | " << RANGES::size(contexts);
 
         boost::atomic_flag hasRAW;
         ChunkStorage lastStorage;
-        auto contextChunks =
-            RANGES::views::drop(contexts, offset) | RANGES::views::chunk(chunkSize);
+        auto contextChunks = RANGES::views::chunk(contexts, chunkSize);
 
+        std::atomic_size_t offset = 0;
         RANGES::range_size_t<decltype(contextChunks)> chunkIndex = 0;
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
         // Five-level pipeline: shard preparation, parallel execution, detection of RAW
@@ -285,8 +283,11 @@ private:
         scheduler.m_gc.collect(std::move(writeSet));
         if (offset < count)
         {
+            PARALLEL_SCHEDULER_LOG(DEBUG)
+                << "Start new chunk executing... " << offset << " | " << RANGES::size(contexts);
+            auto nextView = RANGES::views::drop(contexts, offset);
             return 1 + executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig,
-                           offset, contexts, chunkSize);
+                           nextView, chunkSize);
         }
 
         return 0;
@@ -335,9 +336,8 @@ private:
 
         static tbb::task_arena arena(8);
         arena.execute([&]() {
-            // auto chunkSize = count / tbb::this_task_arena::max_concurrency();
             auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
-                ledgerConfig, 0, contexts, TRANSACTION_GRAIN_SIZE);
+                ledgerConfig, contexts, TRANSACTION_GRAIN_SIZE);
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
         });
