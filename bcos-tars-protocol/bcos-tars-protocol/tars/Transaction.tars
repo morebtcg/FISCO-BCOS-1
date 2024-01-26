@@ -26,7 +26,5 @@ module bcostars {
         // 6 optional string source;
         7 optional vector<byte> sender;
         8 optional string extraData;
-
-        9 optional vector<ConflictField> conflictFields;
     };
 };

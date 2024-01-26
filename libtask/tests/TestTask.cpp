@@ -15,6 +15,7 @@
 #include <boost/throw_exception.hpp>
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 
@@ -217,6 +218,18 @@ BOOST_AUTO_TEST_CASE(generator)
         std::cout << i << std::endl;
     }
     std::cout << "All outputed" << std::endl;
+}
+
+bcos::task::Task<void> pmrTask(
+    std::allocator_arg_t /*unused*/, std::pmr::polymorphic_allocator<void> alloc)
+{
+    std::cout << "using pmr!" << std::endl;
+    co_return;
+}
+
+BOOST_AUTO_TEST_CASE(pmr)
+{
+    auto task = pmrTask(std::allocator_arg, std::pmr::get_default_resource());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -48,9 +48,6 @@ private:
         std::vector<ExecutionContext, tbb::cache_aligned_allocator<ExecutionContext>> contexts(
             count);
 
-        constexpr static bool retryFlag = false;
-        constexpr static std::add_pointer_t<std::add_pointer_t<decltype(storage)>>
-            changeableStorage = nullptr;
         auto chunks = RANGES::views::iota(RANGES::range_size_t<decltype(transactions)>(0),
                           RANGES::size(transactions)) |
                       RANGES::views::chunk(std::max<size_t>(
