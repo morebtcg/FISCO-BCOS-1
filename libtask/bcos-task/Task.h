@@ -123,25 +123,29 @@ public:
             }
         }
 
-        // void operator new(const std::size_t size, auto&&... args)
-        // {
-        //     auto memoryResource = std::forward<decltype(args)>(args)...;
-        //     auto p = memoryResource->allocate(
-        //         size + sizeof(pmr::memory_resource*), alignof(pmr::memory_resource*));
-        //     auto p2 = static_cast<pmr::memory_resource**>(p);
-        //     *p2 = memoryResource;
-        //     return p2 + 1;
-        // }
-
-        static void* operator new(std::size_t size, auto&&... args) { return ::operator new(size); }
-        static void operator delete(void* raw, std::size_t size)
+        static void* operator new(
+            size_t size, std::allocator_arg_t /*unused*/, std::pmr::memory_resource* memoryResource)
         {
-            return ::operator delete(raw, size);
+            auto* const ptr = static_cast<std::pmr::memory_resource**>(memoryResource->allocate(
+                size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*)));
+            *ptr = memoryResource;
+            return ptr + 1;
+        }
+        static void* operator new(size_t size)
+        {
+            return operator new(size, std::allocator_arg, std::pmr::get_default_resource());
+        }
+        static void operator delete(void* object, size_t size)
+        {
+            void* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
+            std::pmr::memory_resource* memoryResource =
+                *static_cast<std::pmr::memory_resource**>(ptr);
+            memoryResource->deallocate(ptr, size + sizeof(std::pmr::memory_resource*),
+                alignof(std::pmr::memory_resource*));
         }
 
         CO_STD::coroutine_handle<> m_continuationHandle;
         Awaitable* m_awaitable = nullptr;
-        std::pmr::memory_resource* m_memoryResource = nullptr;
     };
     struct PromiseVoid : public PromiseBase<PromiseVoid>
     {

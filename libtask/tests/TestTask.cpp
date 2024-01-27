@@ -4,18 +4,18 @@
 #include <bcos-task/Task.h>
 #include <bcos-task/Wait.h>
 #include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/concurrent_vector.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/task.h>
 #include <oneapi/tbb/task_arena.h>
 #include <oneapi/tbb/task_group.h>
-#include <tbb/concurrent_vector.h>
-#include <tbb/parallel_for.h>
-#include <tbb/task.h>
-#include <tbb/task_group.h>
 #include <boost/test/tools/old/interface.hpp>
 #include <boost/test/unit_test.hpp>
 #include <boost/throw_exception.hpp>
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <memory_resource>
 #include <stdexcept>
 #include <thread>
 
@@ -220,8 +220,7 @@ BOOST_AUTO_TEST_CASE(generator)
     std::cout << "All outputed" << std::endl;
 }
 
-bcos::task::Task<void> pmrTask(
-    std::allocator_arg_t /*unused*/, std::pmr::polymorphic_allocator<void> alloc)
+bcos::task::Task<void> pmrTask(std::allocator_arg_t /*unused*/, std::pmr::memory_resource* alloc)
 {
     std::cout << "using pmr!" << std::endl;
     co_return;
@@ -229,7 +228,8 @@ bcos::task::Task<void> pmrTask(
 
 BOOST_AUTO_TEST_CASE(pmr)
 {
-    auto task = pmrTask(std::allocator_arg, std::pmr::get_default_resource());
+    std::pmr::synchronized_pool_resource pool;
+    auto task = pmrTask(std::allocator_arg, std::addressof(pool));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
