@@ -226,10 +226,47 @@ bcos::task::Task<void> pmrTask(std::allocator_arg_t /*unused*/, std::pmr::memory
     co_return;
 }
 
+class MockMemoryResource : public std::pmr::memory_resource
+{
+public:
+    boost::atomic_flag m_new{};
+    boost::atomic_flag m_delete{};
+
+private:
+    void* do_allocate(size_t size, size_t __alignment) override
+    {
+        m_new.test_and_set();
+        return std::malloc(size);
+    }
+    void do_deallocate(void* p, size_t __bytes, size_t __alignment) override
+    {
+        m_delete.test_and_set();
+        std::free(p);
+    }
+    bool do_is_equal(const memory_resource& __other) const noexcept override { return true; }
+};
+
 BOOST_AUTO_TEST_CASE(pmr)
 {
-    std::pmr::synchronized_pool_resource pool;
-    auto task = pmrTask(std::allocator_arg, std::addressof(pool));
+    {
+        MockMemoryResource pool;
+        {
+            auto task = pmrTask(std::allocator_arg, std::addressof(pool));
+        }
+
+        BOOST_CHECK(pool.m_new.test());
+    }
+
+    {
+        MockMemoryResource pool;
+        {
+            syncWait(std::allocator_arg, std::addressof(pool),
+                pmrTask(std::allocator_arg, std::addressof(pool)));
+        }
+
+        BOOST_CHECK(pool.m_new.test());
+        BOOST_CHECK(pool.m_delete.test());
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

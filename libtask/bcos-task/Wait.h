@@ -4,6 +4,7 @@
 #include <boost/atomic/atomic_flag.hpp>
 #include <exception>
 #include <future>
+#include <memory>
 #include <type_traits>
 #include <variant>
 
@@ -26,6 +27,16 @@ struct SyncWait
     auto operator()(Task&& task) const -> AwaitableReturnType<std::remove_cvref_t<Task>>
         requires IsAwaitable<Task> && std::is_rvalue_reference_v<decltype(task)>
     {
+        return this->operator()(
+            std::allocator_arg, std::pmr::get_default_resource(), std::forward<Task>(task));
+    }
+
+    template <class Task>
+    auto operator()(std::allocator_arg_t /*unused*/,
+        const std::pmr::polymorphic_allocator<void>& allocator, Task&& task) const
+        -> AwaitableReturnType<std::remove_cvref_t<Task>>
+        requires IsAwaitable<Task> && std::is_rvalue_reference_v<decltype(task)>
+    {
         using ReturnType = AwaitableReturnType<std::remove_cvref_t<Task>>;
         using ReturnTypeWrap = std::conditional_t<std::is_reference_v<ReturnType>,
             std::add_pointer_t<ReturnType>, ReturnType>;
@@ -36,7 +47,9 @@ struct SyncWait
         boost::atomic_flag finished;
         boost::atomic_flag waitFlag;
 
-        auto waitTask = [](Task&& task, decltype(result)& result, boost::atomic_flag& finished,
+        auto waitTask = [](std::allocator_arg_t,
+                            const std::pmr::polymorphic_allocator<void>& allocator, Task&& task,
+                            decltype(result)& result, boost::atomic_flag& finished,
                             boost::atomic_flag& waitFlag) -> task::Task<void> {
             try
             {
@@ -70,7 +83,7 @@ struct SyncWait
                 waitFlag.test_and_set();
                 waitFlag.notify_one();
             }
-        }(std::forward<Task>(task), result, finished, waitFlag);
+        }(std::allocator_arg, allocator, std::forward<Task>(task), result, finished, waitFlag);
         waitTask.start();
 
         if (!finished.test_and_set())

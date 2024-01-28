@@ -70,6 +70,7 @@ struct NotFoundCodeError : public bcos::Error {};
 evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size);
 executor::VMSchedule const& vmSchedule();
 static const auto mode = toRevision(vmSchedule());
+std::pmr::memory_resource* globalMemoryResource();
 
 template <class Storage>
 class HostContext : public evmc_host_context
@@ -212,6 +213,8 @@ public:
     HostContext& operator=(HostContext const&) = delete;
     HostContext(HostContext&&) = delete;
     HostContext& operator=(HostContext&&) = delete;
+
+    std::pmr::memory_resource* memoryResource() { return globalMemoryResource(); }
 
     task::Task<evmc_bytes32> get(const evmc_bytes32* key)
     {

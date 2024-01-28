@@ -123,23 +123,26 @@ public:
             }
         }
 
-        static void* operator new(
-            size_t size, std::allocator_arg_t /*unused*/, std::pmr::memory_resource* memoryResource)
+        static void* operator new(std::size_t size, std::allocator_arg_t /*unused*/,
+            const std::pmr::polymorphic_allocator<void>& allocator)
         {
-            auto* const ptr = static_cast<std::pmr::memory_resource**>(memoryResource->allocate(
-                size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*)));
-            *ptr = memoryResource;
-            return ptr + 1;
+            auto* memoryResource = allocator.resource();
+            assert(memoryResource);
+            auto* const ptr = memoryResource->allocate(
+                size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
+            auto* ptr2Ptr = static_cast<std::pmr::memory_resource**>(ptr);
+            *ptr2Ptr = memoryResource;
+            return ptr2Ptr + 1;
         }
-        static void* operator new(size_t size)
+        static void* operator new(std::size_t size)
         {
-            return operator new(size, std::allocator_arg, std::pmr::get_default_resource());
+            return PromiseBase::operator new(
+                size, std::allocator_arg, std::pmr::get_default_resource());
         }
         static void operator delete(void* object, size_t size)
         {
-            void* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
-            std::pmr::memory_resource* memoryResource =
-                *static_cast<std::pmr::memory_resource**>(ptr);
+            auto* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
+            std::pmr::memory_resource* memoryResource = *ptr;
             memoryResource->deallocate(ptr, size + sizeof(std::pmr::memory_resource*),
                 alignof(std::pmr::memory_resource*));
         }
