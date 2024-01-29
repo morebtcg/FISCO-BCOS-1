@@ -220,7 +220,8 @@ BOOST_AUTO_TEST_CASE(generator)
     std::cout << "All outputed" << std::endl;
 }
 
-bcos::task::Task<void> pmrTask(std::allocator_arg_t /*unused*/, std::pmr::memory_resource* alloc)
+bcos::task::Task<void> pmrTask(
+    std::allocator_arg_t /*unused*/, std::pmr::polymorphic_allocator<void>& alloc)
 {
     std::cout << "using pmr!" << std::endl;
     co_return;
@@ -250,8 +251,9 @@ BOOST_AUTO_TEST_CASE(pmr)
 {
     {
         MockMemoryResource pool;
+        std::pmr::polymorphic_allocator<void> allocator(std::addressof(pool));
         {
-            auto task = pmrTask(std::allocator_arg, std::addressof(pool));
+            auto task = pmrTask(std::allocator_arg, allocator);
         }
 
         BOOST_CHECK(pool.m_new.test());
@@ -259,9 +261,9 @@ BOOST_AUTO_TEST_CASE(pmr)
 
     {
         MockMemoryResource pool;
+        std::pmr::polymorphic_allocator<void> allocator(std::addressof(pool));
         {
-            syncWait(std::allocator_arg, std::addressof(pool),
-                pmrTask(std::allocator_arg, std::addressof(pool)));
+            syncWait(std::allocator_arg, allocator, pmrTask(std::allocator_arg, allocator));
         }
 
         BOOST_CHECK(pool.m_new.test());
