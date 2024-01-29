@@ -188,10 +188,11 @@ private:
     std::mutex m_blocksMutex;
 
     std::mutex m_executeMutex;
-    std::mutex m_commitMutex;
+    std::timed_mutex m_commitMutex;
 
     std::atomic_int64_t m_calledContextID = 1;
 
+    std::string m_gasPrice = std::string("0x0");
     uint64_t m_gasLimit = 0;
     uint32_t m_blockVersion = 0;
 

@@ -246,8 +246,8 @@ void SchedulerImpl::executeBlockInternal(bcos::protocol::Block::Ptr block, bool 
     }
 
     SCHEDULER_LOG(INFO) << METRIC << BLOCK_NUMBER(requestBlockNumber) << "ExecuteBlock request"
-                        << LOG_KV("gasLimit", m_gasLimit) << LOG_KV("verify", verify)
-                        << LOG_KV("signatureSize", signature.size())
+                        << LOG_KV("gasLimit", m_gasLimit) << LOG_KV("gasPrice", m_gasPrice)
+                        << LOG_KV("verify", verify) << LOG_KV("signatureSize", signature.size())
                         << LOG_KV("txCount", block->transactionsSize())
                         << LOG_KV("metaTxCount", block->transactionsMetaDataSize())
                         << LOG_KV("version", (bcos::protocol::BlockVersion)(block->version()))
@@ -358,7 +358,7 @@ void SchedulerImpl::executeBlockInternal(bcos::protocol::Block::Ptr block, bool 
             //     m_gasLimit, verify);
             blockExecutive = m_blockExecutiveFactory->build(std::move(block), this, 0,
                 m_transactionSubmitResultFactory, false, m_blockFactory, m_txPool, m_gasLimit,
-                verify);
+                m_gasPrice, verify);
 
             blockExecutive->setOnNeedSwitchEventHandler([this]() { triggerSwitch(); });
         }
@@ -507,14 +507,14 @@ void SchedulerImpl::commitBlock(bcos::protocol::BlockHeader::Ptr header,
     auto whenQueueFront = [this, requestBlockNumber, header = std::move(header), callback](
                               BlockExecutive::Ptr blockExecutive) {
         // acquire lock
-        std::shared_ptr<std::unique_lock<std::mutex>> commitLock =
-            std::make_shared<std::unique_lock<std::mutex>>(m_commitMutex, std::try_to_lock);
+        std::shared_ptr<std::unique_lock<std::timed_mutex>> commitLock =
+            std::make_shared<std::unique_lock<std::timed_mutex>>(m_commitMutex, std::try_to_lock);
 
-        if (!commitLock->owns_lock())
+        if (!commitLock->owns_lock() && !commitLock->try_lock_for(std::chrono::seconds(1)))
         {
             std::string message =
                 (boost::format("commitBlock: Another block is committing! Block to commit "
-                               "number: %ld, hash: %s") %
+                               "number: %ld, hash: %s, waiting for it") %
                     requestBlockNumber % header->hash().abridged())
                     .str();
 
@@ -742,9 +742,9 @@ void SchedulerImpl::call(protocol::Transaction::Ptr tx,
     // auto blockExecutive = std::make_shared<SerialBlockExecutive>(std::move(block), this,
     //     m_calledContextID.fetch_add(1), m_transactionSubmitResultFactory, true, m_blockFactory,
     //     m_txPool, m_gasLimit, false);
-    auto blockExecutive =
-        m_blockExecutiveFactory->build(std::move(block), this, m_calledContextID.fetch_add(1),
-            m_transactionSubmitResultFactory, true, m_blockFactory, m_txPool, m_gasLimit, false);
+    auto blockExecutive = m_blockExecutiveFactory->build(std::move(block), this,
+        m_calledContextID.fetch_add(1), m_transactionSubmitResultFactory, true, m_blockFactory,
+        m_txPool, m_gasLimit, m_gasPrice, false);
     blockExecutive->setOnNeedSwitchEventHandler([this]() { triggerSwitch(); });
 
     blockExecutive->asyncCall([callback = std::move(callback)](Error::UniquePtr&& error,
@@ -906,13 +906,14 @@ void SchedulerImpl::preExecuteBlock(
         // Note: must build blockExecutive before enqueue() for executeBlock use the same
         // blockExecutive
         blockExecutive = m_blockExecutiveFactory->build(std::move(block), this, 0,
-            m_transactionSubmitResultFactory, false, m_blockFactory, m_txPool, m_gasLimit, verify);
+            m_transactionSubmitResultFactory, false, m_blockFactory, m_txPool, m_gasLimit,
+            m_gasPrice, verify);
 
         blockExecutive->setOnNeedSwitchEventHandler([this]() { triggerSwitch(); });
 
         setPreparedBlock(blockNumber, timestamp, blockExecutive);
 
-        m_preExeWorker.enqueue([this, blockNumber, timestamp, block, blockExecutive,
+        m_preExeWorker.enqueue([this, blockNumber, timestamp, blockExecutive,
                                    callback = std::move(callback)]() {
             try
             {
@@ -987,6 +988,27 @@ bcos::protocol::BlockNumber SchedulerImpl::getCurrentBlockNumber()
 
 void SchedulerImpl::fetchConfig(protocol::BlockNumber _number)
 {
+    {
+        std::promise<std::tuple<Error::Ptr, std::string>> p;
+        m_ledger->asyncGetSystemConfigByKey(ledger::SYSTEM_KEY_TX_GAS_PRICE,
+            [&p](Error::Ptr _e, std::string _value, protocol::BlockNumber) {
+                p.set_value(std::make_tuple(std::move(_e), std::move(_value)));
+                return;
+            });
+        auto [e, value] = p.get_future().get();
+        if (e)
+        {
+            SCHEDULER_LOG(WARNING)
+                << BLOCK_NUMBER(_number) << LOG_DESC("fetchGasPrice failed")
+                << LOG_KV("code", e->errorCode()) << LOG_KV("message", e->errorMessage());
+            // BOOST_THROW_EXCEPTION(
+            //     BCOS_ERROR(SchedulerError::fetchGasLimitError, e->errorMessage()));
+            value = "0x0";
+        }
+
+        m_gasPrice = value;
+    }
+
     if (m_gasLimit > 0 && m_blockVersion > 0)
     {
         return;
