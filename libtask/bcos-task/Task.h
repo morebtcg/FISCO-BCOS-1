@@ -2,6 +2,8 @@
 #include "Coroutine.h"
 #include <bcos-concepts/Exception.h>
 #include <boost/exception/diagnostic_information.hpp>
+#include <boost/mp11/algorithm.hpp>
+#include <boost/mp11/list.hpp>
 #include <boost/throw_exception.hpp>
 #include <concepts>
 #include <exception>
@@ -17,6 +19,42 @@ namespace bcos::task
 // clang-format off
 struct NoReturnValue : public bcos::error::Exception {};
 // clang-format on
+
+template <typename... Args>
+std::pmr::memory_resource* getMemoryResourceFromArgs(Args&&... args)
+{
+    using args_type = boost::mp11::mp_list<std::decay_t<Args>...>;
+    constexpr static auto I = boost::mp11::mp_find<args_type, std::allocator_arg_t>::value;
+    if constexpr (sizeof...(Args) == I)
+    {
+        return std::pmr::get_default_resource();
+    }
+    else
+    {
+        return std::get<I + 1U>(std::tie(args...)).resource();
+    }
+}
+
+struct MemoryResourcePromise
+{
+    static void* operator new(std::size_t size, auto&&... args)
+    {
+        auto* memoryResource = getMemoryResourceFromArgs(args...);
+        assert(memoryResource);
+        auto* const ptr = memoryResource->allocate(
+            size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
+        auto* ptr2Ptr = static_cast<std::pmr::memory_resource**>(ptr);
+        *ptr2Ptr = memoryResource;
+        return ptr2Ptr + 1;
+    }
+    static void operator delete(void* object, size_t size)
+    {
+        auto* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
+        std::pmr::memory_resource* memoryResource = *ptr;
+        memoryResource->deallocate(
+            ptr, size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
+    }
+};
 
 template <class Value>
     requires(!std::is_rvalue_reference_v<Value>)
@@ -84,7 +122,7 @@ public:
     Awaitable operator co_await() { return Awaitable(*static_cast<Task*>(this)); }
 
     template <class PromiseImpl>
-    struct PromiseBase
+    struct PromiseBase : public MemoryResourcePromise
     {
         constexpr CO_STD::suspend_always initial_suspend() const noexcept { return {}; }
         constexpr auto final_suspend() noexcept
@@ -121,30 +159,6 @@ public:
             {
                 std::rethrow_exception(std::current_exception());
             }
-        }
-
-        static void* operator new(std::size_t size, std::allocator_arg_t /*unused*/,
-            const std::pmr::polymorphic_allocator<void>& allocator)
-        {
-            auto* memoryResource = allocator.resource();
-            assert(memoryResource);
-            auto* const ptr = memoryResource->allocate(
-                size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
-            auto* ptr2Ptr = static_cast<std::pmr::memory_resource**>(ptr);
-            *ptr2Ptr = memoryResource;
-            return ptr2Ptr + 1;
-        }
-        static void* operator new(std::size_t size)
-        {
-            return PromiseBase::operator new(
-                size, std::allocator_arg, std::pmr::get_default_resource());
-        }
-        static void operator delete(void* object, size_t size)
-        {
-            auto* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
-            std::pmr::memory_resource* memoryResource = *ptr;
-            memoryResource->deallocate(ptr, size + sizeof(std::pmr::memory_resource*),
-                alignof(std::pmr::memory_resource*));
         }
 
         CO_STD::coroutine_handle<> m_continuationHandle;
