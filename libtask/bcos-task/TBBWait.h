@@ -12,8 +12,8 @@ namespace bcos::task::tbb
 struct SyncWait
 {
     template <class Task>
-    auto operator()(Task&& task) const -> AwaitableReturnType<std::remove_cvref_t<Task>>
-        requires IsAwaitable<Task> && std::is_rvalue_reference_v<decltype(task)>
+    auto operator()(Task task) const -> AwaitableReturnType<std::remove_cvref_t<Task>>
+        requires IsAwaitable<Task>
     {
         return this->operator()(
             std::allocator_arg, std::pmr::get_default_resource(), std::forward<Task>(task));
@@ -21,9 +21,9 @@ struct SyncWait
 
     template <class Task>
     auto operator()(std::allocator_arg_t /*unused*/,
-        const std::pmr::polymorphic_allocator<void>& allocator, Task&& task) const
+        std::pmr::polymorphic_allocator<void> allocator, Task task) const
         -> AwaitableReturnType<std::remove_cvref_t<Task>>
-        requires IsAwaitable<Task> && std::is_rvalue_reference_v<decltype(task)>
+        requires IsAwaitable<Task>
     {
         using ReturnType = AwaitableReturnType<std::remove_cvref_t<Task>>;
         using ReturnTypeWrap = std::conditional_t<std::is_reference_v<ReturnType>,
@@ -37,8 +37,8 @@ struct SyncWait
         boost::atomic<oneapi::tbb::task::suspend_point> suspendPoint{};
 
         auto waitTask =
-            [](std::allocator_arg_t, const std::pmr::polymorphic_allocator<void>& allocator,
-                Task&& task, decltype(result)& result, boost::atomic_flag& finished,
+            [](std::allocator_arg_t, std::pmr::polymorphic_allocator<void> allocator, Task&& task,
+                decltype(result)& result, boost::atomic_flag& finished,
                 boost::atomic<oneapi::tbb::task::suspend_point>& suspendPoint) -> task::Task<void> {
             try
             {

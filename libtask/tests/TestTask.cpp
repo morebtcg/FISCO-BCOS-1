@@ -220,11 +220,18 @@ BOOST_AUTO_TEST_CASE(generator)
     std::cout << "All outputed" << std::endl;
 }
 
-bcos::task::Task<void> pmrTask(
-    std::allocator_arg_t /*unused*/, std::pmr::polymorphic_allocator<void>& alloc)
+bcos::task::Task<int> pmrTask(
+    std::allocator_arg_t /*unused*/, std::pmr::polymorphic_allocator<void>& alloc, int count)
 {
     std::cout << "using pmr!" << std::endl;
-    co_return;
+    int a = 10;
+    int b = 10;
+    int c = 10;
+
+    auto r = a * count;
+    r += b;
+    r /= c;
+    co_return r;
 }
 
 class MockMemoryResource : public std::pmr::memory_resource
@@ -253,7 +260,7 @@ BOOST_AUTO_TEST_CASE(pmr)
         MockMemoryResource pool;
         std::pmr::polymorphic_allocator<void> allocator(std::addressof(pool));
         {
-            auto task = pmrTask(std::allocator_arg, allocator);
+            auto task = pmrTask(std::allocator_arg, allocator, 100);
         }
 
         BOOST_CHECK(pool.m_new.test());
@@ -263,9 +270,27 @@ BOOST_AUTO_TEST_CASE(pmr)
         MockMemoryResource pool;
         std::pmr::polymorphic_allocator<void> allocator(std::addressof(pool));
         {
-            syncWait(std::allocator_arg, allocator, pmrTask(std::allocator_arg, allocator));
+            auto result = syncWait(
+                std::allocator_arg, allocator, pmrTask(std::allocator_arg, allocator, 100));
+            BOOST_CHECK_GT(result, 0);
         }
 
+        BOOST_CHECK(pool.m_new.test());
+        BOOST_CHECK(pool.m_delete.test());
+    }
+
+    {
+        MockMemoryResource pool;
+        std::pmr::polymorphic_allocator<void> allocator(std::addressof(pool));
+        bool finished = false;
+        bcos::task::syncWait(std::allocator_arg, allocator, [](bool& finished) -> Task<void> {
+            co_await level1();
+            std::cout << "Callback called!" << std::endl;
+            finished = true;
+
+            co_return;
+        }(finished));
+        BOOST_CHECK_EQUAL(finished, true);
         BOOST_CHECK(pool.m_new.test());
         BOOST_CHECK(pool.m_delete.test());
     }

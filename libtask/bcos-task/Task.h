@@ -21,7 +21,7 @@ struct NoReturnValue : public bcos::error::Exception {};
 // clang-format on
 
 template <typename... Args>
-std::pmr::memory_resource* getMemoryResourceFromArgs(Args&&... args)
+std::pmr::memory_resource* getMemoryResourceFromArgs(Args&... args)
 {
     using args_type = boost::mp11::mp_list<std::decay_t<Args>...>;
     constexpr static auto I = boost::mp11::mp_find<args_type, std::allocator_arg_t>::value;
