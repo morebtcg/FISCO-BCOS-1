@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE(bits)
 BOOST_AUTO_TEST_CASE(simpleCall)
 {
     syncWait([this]() -> Task<void> {
-        auto result = co_await call(std::string("getInt()"), {});
+        auto result = co_await call("getInt()", {});
 
         BOOST_CHECK_EQUAL(result.status_code, 0);
         bcos::s256 getIntResult = -1;

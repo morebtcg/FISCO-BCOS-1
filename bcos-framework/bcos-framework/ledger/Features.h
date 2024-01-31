@@ -34,6 +34,7 @@ public:
         bugfix_event_log_order,
         bugfix_call_noaddr_return,
         bugfix_precompiled_codehash,
+        bugfix_dmc_revert,
         feature_dmc2serial,
         feature_sharding,
         feature_rpbft,
@@ -118,25 +119,55 @@ public:
         }
     }
 
-    void setToDefault(protocol::BlockVersion version)
+    void setUpgradeFeatures(protocol::BlockVersion from, protocol::BlockVersion to)
     {
-        if (version >= protocol::BlockVersion::V3_2_3_VERSION)
+        struct UpgradeFeatures
         {
-            set(Flag::bugfix_revert);
+            protocol::BlockVersion from;
+            protocol::BlockVersion to;
+            std::vector<Flag> flags;
+        };
+        const static auto upgradeRoadmap = std::to_array<UpgradeFeatures>(
+            {{protocol::BlockVersion::V3_2_2_VERSION, protocol::BlockVersion::V3_2_3_VERSION,
+                 {Flag::bugfix_revert}},
+                {protocol::BlockVersion::V3_2_3_VERSION, protocol::BlockVersion::V3_2_4_VERSION,
+                    {Flag::bugfix_statestorage_hash,
+                        Flag::bugfix_evm_create2_delegatecall_staticcall_codecopy}},
+                {protocol::BlockVersion::V3_2_4_VERSION, protocol::BlockVersion::V3_2_7_VERSION,
+                    {Flag::bugfix_event_log_order, Flag::bugfix_call_noaddr_return,
+                        Flag::bugfix_precompiled_codehash, Flag::bugfix_dmc_revert}},
+                {protocol::BlockVersion::V3_4_VERSION, protocol::BlockVersion::V3_5_VERSION,
+                    {Flag::bugfix_revert}}});
+
+        for (const auto& upgradeFeatures : upgradeRoadmap)
+        {
+            if (from <= upgradeFeatures.from && to >= upgradeFeatures.to)
+            {
+                for (auto flag : upgradeFeatures.flags)
+                {
+                    set(flag);
+                }
+            }
         }
-        if (version >= protocol::BlockVersion::V3_2_4_VERSION)
+    }
+
+    void setGenesisFeatures(protocol::BlockVersion to)
+    {
+        if (to == protocol::BlockVersion::V3_3_VERSION ||
+            to == protocol::BlockVersion::V3_4_VERSION)
         {
-            set(Flag::bugfix_statestorage_hash);
-            set(Flag::bugfix_evm_create2_delegatecall_staticcall_codecopy);
-        }
-        if (version >= protocol::BlockVersion::V3_2_6_VERSION)
-        {
-            set(Flag::bugfix_event_log_order);
-            set(Flag::bugfix_call_noaddr_return);
-            set(Flag::bugfix_precompiled_codehash);
+            return;
         }
 
-        setToShardingDefault(version);
+        if (to == protocol::BlockVersion::V3_5_VERSION)
+        {
+            setUpgradeFeatures(protocol::BlockVersion::V3_4_VERSION, to);
+        }
+        else
+        {
+            setUpgradeFeatures(protocol::BlockVersion::MIN_VERSION, to);
+        }
+        setToShardingDefault(to);
     }
 
     auto flags() const
@@ -155,6 +186,39 @@ public:
                    auto flag = magic_enum::enum_value<Flag>(index);
                    return magic_enum::enum_name(flag);
                });
+    }
+
+    task::Task<void> readFromStorage(auto& storage, long blockNumber)
+    {
+        for (auto key : bcos::ledger::Features::featureKeys())
+        {
+            auto entry = co_await storage2::readOne(
+                storage, transaction_executor::StateKeyView(ledger::SYS_CONFIG, key));
+            if (entry)
+            {
+                auto [value, enableNumber] = entry->template getObject<ledger::SystemConfigEntry>();
+                if (blockNumber >= enableNumber)
+                {
+                    set(key);
+                }
+            }
+        }
+    }
+
+    task::Task<void> writeToStorage(auto& storage, long blockNumber) const
+    {
+        for (auto [flag, name, value] : flags())
+        {
+            if (value && !co_await storage2::existsOne(
+                             storage, transaction_executor::StateKeyView(ledger::SYS_CONFIG, name)))
+            {
+                storage::Entry entry;
+                entry.setObject(
+                    SystemConfigEntry{boost::lexical_cast<std::string>((int)value), blockNumber});
+                co_await storage2::writeOne(storage,
+                    transaction_executor::StateKey(ledger::SYS_CONFIG, name), std::move(entry));
+            }
+        }
     }
 };
 

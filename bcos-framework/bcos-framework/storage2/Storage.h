@@ -161,8 +161,8 @@ inline constexpr struct ExistsOne
         }
         else
         {
-            auto result = co_await readOne(std::forward<decltype(storage)>(storage),
-                std::forward<decltype(key)>(key), std::forward<decltype(args)>(args)...);
+            auto result = co_await readOne(
+                storage, std::forward<decltype(key)>(key), std::forward<decltype(args)>(args)...);
             co_return result.has_value();
         }
     }
