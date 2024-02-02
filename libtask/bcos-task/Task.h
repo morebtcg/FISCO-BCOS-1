@@ -37,17 +37,22 @@ std::pmr::memory_resource* getMemoryResourceFromArgs(Args&... args)
 
 struct MemoryResourcePromise
 {
-    static void* operator new(std::size_t size, auto&&... args)
+    MemoryResourcePromise(std::pmr::memory_resource* memoryResource = nullptr)
+      : m_memoryResource(memoryResource)
+    {}
+    std::pmr::memory_resource* m_memoryResource;
+
+    void* operator new(std::size_t size, auto&&... args)
     {
         auto* memoryResource = getMemoryResourceFromArgs(args...);
         assert(memoryResource);
-        auto* const ptr = memoryResource->allocate(
+        auto p = memoryResource->allocate(
             size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
-        auto* ptr2Ptr = static_cast<std::pmr::memory_resource**>(ptr);
-        *ptr2Ptr = memoryResource;
-        return ptr2Ptr + 1;
+        auto** ptr = static_cast<std::pmr::memory_resource**>(p);
+        *ptr = memoryResource;
+        return ptr + 1;
     }
-    static void operator delete(void* object, size_t size)
+    void operator delete(void* object, std::size_t size)
     {
         auto* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
         std::pmr::memory_resource* memoryResource = *ptr;
