@@ -78,11 +78,11 @@ struct ITT_DOMAINS
 
     const __itt_domain* const SERIAL_SCHEDULER = __itt_domain_create("serialScheduler");
     __itt_string_handle* SERIAL_EXECUTE = __itt_string_handle_create("serialExecute");
-    __itt_string_handle* STEP_1 = __itt_string_handle_create("step1");
-    __itt_string_handle* STEP_2 = __itt_string_handle_create("step2");
-    __itt_string_handle* STEP_3 = __itt_string_handle_create("step3");
-    __itt_string_handle* STEP_4 = __itt_string_handle_create("step4");
-    __itt_string_handle* STEP_5 = __itt_string_handle_create("step5");
+    __itt_string_handle* STAGE_1 = __itt_string_handle_create("stage1");
+    __itt_string_handle* STAGE_2 = __itt_string_handle_create("stage2");
+    __itt_string_handle* STAGE_3 = __itt_string_handle_create("stage3");
+    __itt_string_handle* STAGE_4 = __itt_string_handle_create("stage4");
+    __itt_string_handle* STAGE_5 = __itt_string_handle_create("stage5");
 
     const __itt_domain* const PARALLEL_SCHEDULER = __itt_domain_create("parallelScheduler");
     __itt_string_handle* PARALLEL_EXECUTE = __itt_string_handle_create("parallelExecute");

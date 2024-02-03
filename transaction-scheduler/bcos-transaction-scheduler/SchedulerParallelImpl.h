@@ -182,7 +182,7 @@ private:
         std::atomic_size_t offset = 0;
         RANGES::range_size_t<decltype(contextChunks)> chunkIndex = 0;
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
-        // Five-level pipeline: shard preparation, parallel execution, detection of RAW
+        // Five-stage pipeline: shard preparation, parallel execution, detection of RAW
         // conflicts & merging read/write sets, generating receipts, and merging storage
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
@@ -194,7 +194,7 @@ private:
                     }
 
                     ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                        ittapi::ITT_DOMAINS::instance().STEP_1);
+                        ittapi::ITT_DOMAINS::instance().STAGE_1);
                     PARALLEL_SCHEDULER_LOG(DEBUG) << "Chunk: " << chunkIndex;
                     auto chunk = std::make_unique<Chunk>(
                         chunkIndex, hasRAW, contextChunks[chunkIndex], executor, storage);
@@ -205,7 +205,7 @@ private:
                     tbb::filter_mode::parallel,
                     [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
                         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STEP_2);
+                            ittapi::ITT_DOMAINS::instance().STAGE_2);
                         if (chunk && !hasRAW.test())
                         {
                             chunk->executeStep1(blockHeader, ledgerConfig);
@@ -218,7 +218,7 @@ private:
                     tbb::filter_mode::serial_in_order,
                     [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
                         ittapi::Report report1(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STEP_3);
+                            ittapi::ITT_DOMAINS::instance().STAGE_3);
                         if (hasRAW.test())
                         {
                             scheduler.m_gc.collect(std::move(chunk));
@@ -252,7 +252,7 @@ private:
                     tbb::filter_mode::parallel,
                     [&](std::unique_ptr<Chunk> chunk) -> std::unique_ptr<Chunk> {
                         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STEP_4);
+                            ittapi::ITT_DOMAINS::instance().STAGE_4);
                         if (chunk)
                         {
                             chunk->executeStep3();
@@ -263,7 +263,7 @@ private:
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
                     tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
                         ittapi::Report report1(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STEP_5);
+                            ittapi::ITT_DOMAINS::instance().STAGE_5);
                         if (chunk)
                         {
                             offset += (size_t)chunk->count();
@@ -293,7 +293,7 @@ private:
         return 0;
     }
 
-    template <class CoroType, class Storage>
+    template <class CoroType>
     struct ExecutionContext
     {
         int contextID;
@@ -321,13 +321,13 @@ private:
             std::add_lvalue_reference_t<typename StorageTrait<Storage>::LocalReadWriteSetStorage>,
             protocol::BlockHeader const&, protocol::Transaction const&, int,
             ledger::LedgerConfig const&, task::tbb::SyncWait>;
-        std::vector<ExecutionContext<CoroType, Storage>,
-            tbb::cache_aligned_allocator<ExecutionContext<CoroType, Storage>>>
+        std::vector<ExecutionContext<CoroType>,
+            tbb::cache_aligned_allocator<ExecutionContext<CoroType>>>
             contexts;
         contexts.reserve(RANGES::size(transactions));
         for (auto index : RANGES::views::iota(0, (int)RANGES::size(transactions)))
         {
-            contexts.emplace_back(ExecutionContext<CoroType, Storage>{.contextID = index,
+            contexts.emplace_back(ExecutionContext<CoroType>{.contextID = index,
                 .transaction = transactions[index],
                 .receipt = receipts[index],
                 .coro = {},
@@ -340,8 +340,8 @@ private:
                 ledgerConfig, contexts, TRANSACTION_GRAIN_SIZE);
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
+            scheduler.m_gc.collect(std::move(contexts));
         });
-        scheduler.m_gc.collect(std::move(contexts));
 
         co_return receipts;
     }

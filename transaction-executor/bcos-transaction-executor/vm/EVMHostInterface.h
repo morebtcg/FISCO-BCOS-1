@@ -46,15 +46,14 @@ struct EVMHostInterface
     static bool accountExists(evmc_host_context* context, const evmc_address* addr) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        return waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.exists(*addr));
+        return waitOperator(hostContext.exists(*addr));
     }
 
     static evmc_bytes32 getStorage(evmc_host_context* context,
         [[maybe_unused]] const evmc_address* addr, const evmc_bytes32* key) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        return waitOperator(std::allocator_arg, hostContext.memoryResource(), hostContext.get(key));
+        return waitOperator(hostContext.get(key));
     }
 
     static evmc_storage_status setStorage(evmc_host_context* context,
@@ -69,7 +68,7 @@ struct EVMHostInterface
         {
             status = EVMC_STORAGE_DELETED;
         }
-        waitOperator(std::allocator_arg, hostContext.memoryResource(), hostContext.set(key, value));
+        waitOperator(hostContext.set(key, value));
         return status;
     }
 
@@ -83,23 +82,20 @@ struct EVMHostInterface
     static size_t getCodeSize(evmc_host_context* context, const evmc_address* addr) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        return waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.codeSizeAt(*addr));
+        return waitOperator(hostContext.codeSizeAt(*addr));
     }
 
     static evmc_bytes32 getCodeHash(evmc_host_context* context, const evmc_address* addr) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        return toEvmC(waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.codeHashAt(*addr)));
+        return toEvmC(waitOperator(hostContext.codeHashAt(*addr)));
     }
 
     static size_t copyCode(evmc_host_context* context, const evmc_address* address,
         size_t codeOffset, uint8_t* bufferData, size_t bufferSize) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        auto codeEntry = waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.code(*address));
+        auto codeEntry = waitOperator(hostContext.code(*address));
 
         // Handle "big offset" edge case.
         if (!codeEntry || codeOffset >= (size_t)codeEntry->size())
@@ -170,8 +166,7 @@ struct EVMHostInterface
     static evmc_bytes32 getBlockHash(evmc_host_context* context, int64_t number) noexcept
     {
         auto& hostContext = static_cast<HostContextType&>(*context);
-        return toEvmC(waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.blockHash(number)));
+        return toEvmC(waitOperator(hostContext.blockHash(number)));
     }
 
     static evmc_result call(evmc_host_context* context, const evmc_message* message) noexcept
@@ -184,8 +179,7 @@ struct EVMHostInterface
         }
 
         auto& hostContext = static_cast<HostContextType&>(*context);
-        auto result = waitOperator(
-            std::allocator_arg, hostContext.memoryResource(), hostContext.externalCall(*message));
+        auto result = waitOperator(hostContext.externalCall(*message));
         evmc_result evmcResult = result;
         result.release = nullptr;
         return evmcResult;

@@ -69,7 +69,7 @@ private:
                             return {};
                         }
                         ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STEP_1);
+                            ittapi::ITT_DOMAINS::instance().STAGE_1);
 
                         auto range = chunks[chunkIndex++];
                         for (auto i : range)
@@ -86,7 +86,7 @@ private:
                     tbb::make_filter<ChunkRange, ChunkRange>(tbb::filter_mode::serial_in_order,
                         [&](ChunkRange range) {
                             ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                                ittapi::ITT_DOMAINS::instance().STEP_2);
+                                ittapi::ITT_DOMAINS::instance().STAGE_2);
                             for (auto i : range)
                             {
                                 auto& [coro, iterator, receipt] = contexts[i];
@@ -100,7 +100,7 @@ private:
                     tbb::make_filter<ChunkRange, void>(
                         tbb::filter_mode::serial_in_order, [&](ChunkRange range) {
                             ittapi::Report report(ittapi::ITT_DOMAINS::instance().SERIAL_SCHEDULER,
-                                ittapi::ITT_DOMAINS::instance().STEP_3);
+                                ittapi::ITT_DOMAINS::instance().STAGE_3);
                             for (auto i : range)
                             {
                                 auto& [coro, iterator, receipt] = contexts[i];

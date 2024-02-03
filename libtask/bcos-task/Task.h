@@ -35,32 +35,6 @@ std::pmr::memory_resource* getMemoryResourceFromArgs(Args&... args)
     }
 }
 
-struct MemoryResourcePromise
-{
-    MemoryResourcePromise(std::pmr::memory_resource* memoryResource = nullptr)
-      : m_memoryResource(memoryResource)
-    {}
-    std::pmr::memory_resource* m_memoryResource;
-
-    void* operator new(std::size_t size, auto&&... args)
-    {
-        auto* memoryResource = getMemoryResourceFromArgs(args...);
-        assert(memoryResource);
-        auto p = memoryResource->allocate(
-            size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
-        auto** ptr = static_cast<std::pmr::memory_resource**>(p);
-        *ptr = memoryResource;
-        return ptr + 1;
-    }
-    void operator delete(void* object, std::size_t size)
-    {
-        auto* ptr = static_cast<std::pmr::memory_resource**>(object) - 1;
-        std::pmr::memory_resource* memoryResource = *ptr;
-        memoryResource->deallocate(
-            ptr, size + sizeof(std::pmr::memory_resource*), alignof(std::pmr::memory_resource*));
-    }
-};
-
 template <class Value>
     requires(!std::is_rvalue_reference_v<Value>)
 class [[nodiscard]] Task
@@ -127,7 +101,7 @@ public:
     Awaitable operator co_await() { return Awaitable(*static_cast<Task*>(this)); }
 
     template <class PromiseImpl>
-    struct PromiseBase : public MemoryResourcePromise
+    struct PromiseBase
     {
         constexpr CO_STD::suspend_always initial_suspend() const noexcept { return {}; }
         constexpr auto final_suspend() noexcept

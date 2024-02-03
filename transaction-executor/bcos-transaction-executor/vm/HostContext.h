@@ -214,8 +214,6 @@ public:
     HostContext(HostContext&&) = delete;
     HostContext& operator=(HostContext&&) = delete;
 
-    std::pmr::memory_resource* memoryResource() { return globalMemoryResource(); }
-
     task::Task<evmc_bytes32> get(const evmc_bytes32* key)
     {
         co_return co_await ledger::account::storage(m_myAccount, *key);

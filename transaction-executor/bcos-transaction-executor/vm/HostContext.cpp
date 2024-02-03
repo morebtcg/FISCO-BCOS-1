@@ -10,9 +10,3 @@ bcos::executor::VMSchedule const& bcos::transaction_executor::vmSchedule()
 {
     return executor::FiscoBcosScheduleV320;
 }
-
-std::pmr::memory_resource* bcos::transaction_executor::globalMemoryResource()
-{
-    static std::pmr::synchronized_pool_resource poolResource;
-    return std::addressof(poolResource);
-}
