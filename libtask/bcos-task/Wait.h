@@ -11,17 +11,16 @@
 namespace bcos::task
 {
 
-struct Wait
+constexpr inline struct Wait
 {
     void operator()(auto&& task) const
         requires std::is_rvalue_reference_v<decltype(task)>
     {
         task.start();
     }
-};
-constexpr inline Wait wait{};
+} wait{};
 
-struct SyncWait
+constexpr inline struct SyncWait
 {
     template <class Task>
     auto operator()(Task task) const -> AwaitableReturnType<std::remove_cvref_t<Task>>
@@ -98,7 +97,6 @@ struct SyncWait
             }
         }
     }
-};
-constexpr inline SyncWait syncWait{};
+} syncWait{};
 
 }  // namespace bcos::task

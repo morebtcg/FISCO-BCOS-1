@@ -9,7 +9,7 @@
 namespace bcos::task::tbb
 {
 
-struct SyncWait
+constexpr inline struct SyncWait
 {
     template <class Task>
     auto operator()(Task task) const -> AwaitableReturnType<std::remove_cvref_t<Task>>
@@ -92,7 +92,6 @@ struct SyncWait
             }
         }
     }
-};
-constexpr inline SyncWait syncWait{};
+} syncWait{};
 
 }  // namespace bcos::task::tbb
