@@ -390,12 +390,14 @@ public:
             auto& toIndex = bucket.container.template get<0>();
             auto& fromIndex = fromBucket.container.template get<0>();
 
-            if (toIndex.empty())
+            if (toIndex.empty() || fromIndex.size() > toIndex.size())
             {
                 toIndex.swap(fromIndex);
+            }
+            if (fromIndex.empty())
+            {
                 continue;
             }
-
             auto hintIt = toIndex.end();
             while (!fromIndex.empty())
             {
