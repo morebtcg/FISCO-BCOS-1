@@ -2,8 +2,9 @@
 #include "bcos-framework/storage2/Storage.h"
 #include "bcos-framework/transaction-executor/StateKey.h"
 #include <bcos-task/Trait.h>
-#include <roaring/roaring.hh>
+#include <compare>
 #include <type_traits>
+#include <variant>
 
 namespace bcos::transaction_scheduler
 {
@@ -13,19 +14,27 @@ class ReadWriteSetStorage
 {
 private:
     Storage& m_storage;
-    roaring::Roaring m_readSet;
-    roaring::Roaring m_writeSet;
+    struct ReadWriteFlag
+    {
+        bool read = false;
+        bool write = false;
+    };
+    std::unordered_map<size_t, ReadWriteFlag> m_readWriteSet;
 
-    void putSet(bool write, auto const& key) { putSet(write, std::hash<KeyType>{}(key)); }
+    void putSet(bool write, auto const& key)
+    {
+        auto hash = std::hash<KeyType>{}(key);
+        putSet(write, hash);
+    }
+
     void putSet(bool write, size_t hash)
     {
-        if (write)
+        auto [it, inserted] =
+            m_readWriteSet.try_emplace(hash, ReadWriteFlag{.read = !write, .write = write});
+        if (!inserted)
         {
-            m_writeSet.add(hash);
-        }
-        else
-        {
-            m_readSet.add(hash);
+            it->second.write |= write;
+            it->second.read |= (!write);
         }
     }
 
@@ -102,13 +111,41 @@ public:
 
     ReadWriteSetStorage(Storage& storage) : m_storage(storage) {}
 
-    const auto& readSet() const& { return m_readSet; }
-    const auto& writeSet() const& { return m_writeSet; }
-
-    void mergeWriteSet(auto& inputWriteSet) { m_writeSet |= inputWriteSet.writeSet(); }
+    auto& readWriteSet() { return m_readWriteSet; }
+    auto const& readWriteSet() const { return m_readWriteSet; }
+    void mergeWriteSet(auto& inputWriteSet)
+    {
+        auto& writeMap = inputWriteSet.readWriteSet();
+        for (auto& [key, flag] : writeMap)
+        {
+            if (flag.write)
+            {
+                putSet(true, key);
+            }
+        }
+    }
 
     // RAW: read after write
-    bool hasRAWIntersection(const auto& rhs) const { return m_writeSet.intersect(rhs.readSet()); }
+    bool hasRAWIntersection(const auto& rhs) const
+    {
+        auto const& lhsSet = m_readWriteSet;
+        auto const& rhsSet = rhs.readWriteSet();
+
+        if (RANGES::empty(lhsSet) || RANGES::empty(rhsSet))
+        {
+            return false;
+        }
+
+        for (auto const& [key, flag] : rhsSet)
+        {
+            if (flag.read && lhsSet.contains(key))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 };
 
 }  // namespace bcos::transaction_scheduler

@@ -34,26 +34,13 @@ BOOST_AUTO_TEST_CASE(readWriteSet)
         co_await storage2::writeOne(firstStorage, 200, 1);
         co_await storage2::writeOne(firstStorage, 300, 1);
 
-        const auto& writeSet = firstStorage.writeSet();
-        BOOST_CHECK(writeSet.contains(100));
-        BOOST_CHECK(writeSet.contains(200));
-        BOOST_CHECK(writeSet.contains(300));
-
         co_await storage2::readOne(secondStorage, 400);
         co_await storage2::readOne(secondStorage, 500);
         co_await storage2::readOne(secondStorage, 600);
 
-        const auto& readSet = secondStorage.readSet();
-        BOOST_CHECK(readSet.contains(400));
-        BOOST_CHECK(readSet.contains(500));
-        BOOST_CHECK(readSet.contains(600));
-
-        BOOST_CHECK(!writeSet.intersect(readSet));
         BOOST_CHECK(!firstStorage.hasRAWIntersection(secondStorage));
 
         co_await storage2::readOne(secondStorage, 200);
-        BOOST_CHECK(readSet.contains(200));
-        BOOST_CHECK(writeSet.intersect(readSet));
         BOOST_CHECK(firstStorage.hasRAWIntersection(secondStorage));
 
         co_return;
