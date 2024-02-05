@@ -129,6 +129,13 @@ TransactionMetaDataImpl BlockImpl::transactionMetaDataImpl(uint64_t _index) cons
         [inner = m_inner, _index]() { return &inner->transactionsMetaData[_index]; });
 }
 
+bcos::crypto::HashType bcostars::protocol::BlockImpl::transactionHash(uint64_t _index) const
+{
+    const auto& hashBytes = m_inner->transactionsMetaData[_index].hash;
+    return bcos::crypto::HashType{
+        bcos::bytesConstRef((const bcos::byte*)hashBytes.data(), hashBytes.size())};
+}
+
 void BlockImpl::appendTransactionMetaData(bcos::protocol::TransactionMetaData::Ptr _txMetaData)
 {
     auto txMetaDataImpl =
