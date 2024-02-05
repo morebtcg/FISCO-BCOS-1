@@ -30,6 +30,7 @@
     "boost-program-options",
     "boost-variant2",
     "ms-gsl",
+    "roaring",
     "tbb",
     {
       "name": "jsoncpp",

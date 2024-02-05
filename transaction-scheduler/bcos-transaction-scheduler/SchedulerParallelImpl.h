@@ -18,7 +18,6 @@
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <tbb/cache_aligned_allocator.h>
 #include <tbb/task_arena.h>
-#include <boost/exception/detail/exception_ptr.hpp>
 #include <boost/throw_exception.hpp>
 #include <atomic>
 #include <cstddef>

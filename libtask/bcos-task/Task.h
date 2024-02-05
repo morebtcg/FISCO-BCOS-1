@@ -1,56 +1,32 @@
 #pragma once
 #include "Coroutine.h"
-#include <bcos-concepts/Exception.h>
+#include "bcos-concepts/Exception.h"
 #include <boost/exception/diagnostic_information.hpp>
-#include <boost/mp11/algorithm.hpp>
-#include <boost/mp11/list.hpp>
 #include <boost/throw_exception.hpp>
 #include <concepts>
 #include <exception>
-#include <functional>
 #include <memory>
-#include <memory_resource>
 #include <type_traits>
 #include <variant>
 
 namespace bcos::task
 {
 
-// clang-format off
-struct NoReturnValue : public bcos::error::Exception {};
-// clang-format on
-
-template <typename... Args>
-std::pmr::memory_resource* getMemoryResourceFromArgs(Args&... args)
+struct NoReturnValue : public bcos::error::Exception
 {
-    using args_type = boost::mp11::mp_list<std::decay_t<Args>...>;
-    constexpr static auto I = boost::mp11::mp_find<args_type, std::allocator_arg_t>::value;
-    if constexpr (sizeof...(Args) == I)
-    {
-        return std::pmr::get_default_resource();
-    }
-    else
-    {
-        return std::get<I + 1U>(std::tie(args...)).resource();
-    }
-}
+};
 
 template <class Value>
-    requires(!std::is_rvalue_reference_v<Value>)
+    requires(!std::is_reference_v<Value>)
 class [[nodiscard]] Task
 {
 public:
-    using ReturnType = Value;
     struct PromiseVoid;
     struct PromiseValue;
     using promise_type = std::conditional_t<std::is_same_v<Value, void>, PromiseVoid, PromiseValue>;
-
-    constexpr static bool isReferenceValue = std::is_reference_v<Value>;
-    using ValueType = std::conditional_t<std::is_reference_v<Value>,
-        std::reference_wrapper<std::remove_reference_t<Value>>, Value>;
     using VariantType =
         std::conditional_t<std::is_void_v<Value>, std::variant<std::monostate, std::exception_ptr>,
-            std::variant<std::monostate, ValueType, std::exception_ptr>>;
+            std::variant<std::monostate, Value, std::exception_ptr>>;
 
     struct Awaitable
     {
@@ -73,25 +49,19 @@ public:
         }
         Value await_resume()
         {
-            auto& value = m_value;
-            if (std::holds_alternative<std::exception_ptr>(value))
+            if (std::holds_alternative<std::exception_ptr>(m_value))
             {
-                std::rethrow_exception(std::get<std::exception_ptr>(value));
+                std::rethrow_exception(std::get<std::exception_ptr>(m_value));
             }
 
             if constexpr (!std::is_void_v<Value>)
             {
-                if (!std::holds_alternative<ValueType>(value))
+                if (!std::holds_alternative<Value>(m_value))
                 {
                     BOOST_THROW_EXCEPTION(NoReturnValue{});
                 }
 
-                auto result = std::move(std::get<ValueType>(value));
-                if constexpr (isReferenceValue)
-                {
-                    return result.get();
-                }
-                return result;
+                return std::move(std::get<Value>(m_value));
             }
         }
 
@@ -103,26 +73,24 @@ public:
     template <class PromiseImpl>
     struct PromiseBase
     {
-        constexpr CO_STD::suspend_always initial_suspend() const noexcept { return {}; }
-        constexpr auto final_suspend() noexcept
+        constexpr static CO_STD::suspend_always initial_suspend() noexcept { return {}; }
+        constexpr static auto final_suspend() noexcept
         {
             struct FinalAwaitable
             {
-                constexpr bool await_ready() const noexcept { return false; }
-                CO_STD::coroutine_handle<> await_suspend(
-                    CO_STD::coroutine_handle<PromiseImpl> handle) const noexcept
+                constexpr static bool await_ready() noexcept { return false; }
+                constexpr static CO_STD::coroutine_handle<> await_suspend(
+                    CO_STD::coroutine_handle<PromiseImpl> handle) noexcept
                 {
                     auto continuationHandle = handle.promise().m_continuationHandle;
                     handle.destroy();
                     return continuationHandle ? continuationHandle : CO_STD::noop_coroutine();
                 }
-                constexpr void await_resume() noexcept {}
-
-                PromiseBase& m_promise;
+                constexpr static void await_resume() noexcept {}
             };
-            return FinalAwaitable{.m_promise = *this};
+            return FinalAwaitable{};
         }
-        constexpr Task get_return_object()
+        Task get_return_object()
         {
             auto handle = CO_STD::coroutine_handle<promise_type>::from_promise(
                 *static_cast<PromiseImpl*>(this));
@@ -145,17 +113,16 @@ public:
     };
     struct PromiseVoid : public PromiseBase<PromiseVoid>
     {
-        constexpr void return_void() noexcept {}
+        constexpr static void return_void() noexcept {}
     };
     struct PromiseValue : public PromiseBase<PromiseValue>
     {
-        template <class ReturnValue>
-        void return_value(ReturnValue&& value)
+        void return_value(Value value)
         {
             if (PromiseBase<PromiseValue>::m_awaitable)
             {
-                PromiseBase<PromiseValue>::m_awaitable->m_value.template emplace<ValueType>(
-                    std::forward<ReturnValue>(value));
+                PromiseBase<PromiseValue>::m_awaitable->m_value.template emplace<Value>(
+                    std::forward<Value>(value));
             }
         }
     };

@@ -70,7 +70,6 @@ struct NotFoundCodeError : public bcos::Error {};
 evmc_bytes32 evm_hash_fn(const uint8_t* data, size_t size);
 executor::VMSchedule const& vmSchedule();
 static const auto mode = toRevision(vmSchedule());
-std::pmr::memory_resource* globalMemoryResource();
 
 template <class Storage>
 class HostContext : public evmc_host_context

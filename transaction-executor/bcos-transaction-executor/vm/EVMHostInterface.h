@@ -30,7 +30,6 @@
 #include <boost/core/pointer_traits.hpp>
 #include <functional>
 #include <memory>
-#include <memory_resource>
 #include <set>
 
 namespace bcos::transaction_executor

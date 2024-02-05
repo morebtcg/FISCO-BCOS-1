@@ -3,7 +3,6 @@
 #include "Trait.h"
 #include <boost/atomic/atomic_flag.hpp>
 #include <exception>
-#include <future>
 #include <memory>
 #include <type_traits>
 #include <variant>
