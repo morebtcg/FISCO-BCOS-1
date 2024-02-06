@@ -12,12 +12,11 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-task/TBBWait.h"
-#include "bcos-task/Wait.h"
 #include "bcos-utilities/Exceptions.h"
 #include "bcos-utilities/ITTAPI.h"
+#include <oneapi/tbb/cache_aligned_allocator.h>
 #include <oneapi/tbb/parallel_pipeline.h>
-#include <tbb/cache_aligned_allocator.h>
-#include <tbb/task_arena.h>
+#include <oneapi/tbb/task_arena.h>
 #include <boost/throw_exception.hpp>
 #include <atomic>
 #include <cstddef>
