@@ -33,6 +33,7 @@ namespace bcos::transaction_scheduler
 
 class SchedulerParallelImpl
 {
+private:
     template <class Storage>
     struct StorageTrait
     {
@@ -42,7 +43,6 @@ class SchedulerParallelImpl
         using LocalReadWriteSetStorage =
             ReadWriteSetStorage<LocalStorageView, transaction_executor::StateKey>;
     };
-    constexpr static auto TRANSACTION_GRAIN_SIZE = 16L;
 
     template <class Storage, class Executor, class ContextRange>
     class ChunkStatus
@@ -137,17 +137,12 @@ class SchedulerParallelImpl
         }
     };
 
-public:
-    SchedulerParallelImpl(const SchedulerParallelImpl&) = delete;
-    SchedulerParallelImpl(SchedulerParallelImpl&&) noexcept = default;
-    SchedulerParallelImpl& operator=(const SchedulerParallelImpl&) = delete;
-    SchedulerParallelImpl& operator=(SchedulerParallelImpl&&) noexcept = default;
+    constexpr static auto DEFAULT_TRANSACTION_GRAIN_SIZE = 16L;
+    constexpr static auto DEFAULT_THREAD_COUNT = 8L;
 
-    SchedulerParallelImpl() = default;
-    ~SchedulerParallelImpl() noexcept = default;
-
-private:
     GC m_gc;
+    size_t m_grainSize = DEFAULT_TRANSACTION_GRAIN_SIZE;
+    int m_threadCount = DEFAULT_THREAD_COUNT;
 
     friend task::Task<void> mergeLastStorage(
         SchedulerParallelImpl& scheduler, auto& storage, auto&& lastStorage)
@@ -165,7 +160,7 @@ private:
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().SINGLE_PASS);
 
-        auto count = RANGES::size(contexts);
+        const auto count = RANGES::size(contexts);
         ReadWriteSetStorage<decltype(storage), transaction_executor::StateKey> writeSet(storage);
 
         using Chunk = SchedulerParallelImpl::ChunkStatus<std::decay_t<decltype(storage)>,
@@ -175,10 +170,10 @@ private:
 
         boost::atomic_flag hasRAW;
         ChunkStorage lastStorage;
-        auto contextChunks = RANGES::views::chunk(contexts, chunkSize);
+        const auto contextChunks = RANGES::views::chunk(contexts, chunkSize);
 
         std::atomic_size_t offset = 0;
-        RANGES::range_size_t<decltype(contextChunks)> chunkIndex = 0;
+        std::atomic_size_t chunkIndex = 0;
         // 五级流水线：分片准备、并行执行、检测RAW冲突&合并读写集、生成回执、合并storage
         // Five-stage pipeline: shard preparation, parallel execution, detection of RAW
         // conflicts & merging read/write sets, generating receipts, and merging storage
@@ -260,10 +255,11 @@ private:
                     }) &
                 tbb::make_filter<std::unique_ptr<Chunk>, void>(
                     tbb::filter_mode::serial_in_order, [&](std::unique_ptr<Chunk> chunk) {
-                        ittapi::Report report1(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
-                            ittapi::ITT_DOMAINS::instance().STAGE_5);
                         if (chunk)
                         {
+                            ittapi::Report report1(
+                                ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
+                                ittapi::ITT_DOMAINS::instance().STAGE_5);
                             offset += (size_t)chunk->count();
                             ittapi::Report report2(
                                 ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
@@ -332,10 +328,10 @@ private:
                 .iterator = {}});
         }
 
-        static tbb::task_arena arena(8);
+        static tbb::task_arena arena(scheduler.m_threadCount);
         arena.execute([&]() {
             auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
-                ledgerConfig, contexts, TRANSACTION_GRAIN_SIZE);
+                ledgerConfig, contexts, scheduler.m_grainSize);
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
             scheduler.m_gc.collect(std::move(contexts));
@@ -343,5 +339,9 @@ private:
 
         co_return receipts;
     }
+
+public:
+    void setThreadCount(int threadCount) { m_threadCount = threadCount; }
+    void setGrainSize(size_t grainSize) { m_grainSize = grainSize; }
 };
 }  // namespace bcos::transaction_scheduler

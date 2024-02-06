@@ -23,7 +23,7 @@ namespace bcos::transaction_scheduler
 class SchedulerSerialImpl
 {
 private:
-    constexpr static auto TRANSACTION_GRAIN_SIZE = 16;
+    constexpr static auto MIN_TRANSACTION_GRAIN_SIZE = 16;
     GC m_gc;
 
     friend task::Task<std::vector<protocol::TransactionReceipt::Ptr>> tag_invoke(
@@ -52,7 +52,7 @@ private:
                           RANGES::size(transactions)) |
                       RANGES::views::chunk(std::max<size_t>(
                           (size_t)(count / tbb::this_task_arena::max_concurrency()),
-                          (size_t)TRANSACTION_GRAIN_SIZE));
+                          (size_t)MIN_TRANSACTION_GRAIN_SIZE));
         using ChunkRange = RANGES::range_value_t<decltype(chunks)>;
         RANGES::range_size_t<decltype(transactions)> chunkIndex = 0;
 
