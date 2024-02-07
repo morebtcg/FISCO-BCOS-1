@@ -138,9 +138,6 @@ private:
     };
 
     constexpr static auto DEFAULT_TRANSACTION_GRAIN_SIZE = 16L;
-    constexpr static auto MIN_CHUNK_COUNT = 2;
-    constexpr static auto MAX_CHUNK_COUNT = 32;
-
     GC m_gc;
     size_t m_grainSize = DEFAULT_TRANSACTION_GRAIN_SIZE;
 
@@ -155,7 +152,7 @@ private:
 
     friend size_t executeSinglePass(SchedulerParallelImpl& scheduler, auto& storage, auto& executor,
         protocol::BlockHeader const& blockHeader, ledger::LedgerConfig const& ledgerConfig,
-        RANGES::random_access_range auto& contexts, size_t chunkSize, size_t chunkCount)
+        RANGES::random_access_range auto& contexts, size_t chunkSize)
     {
         ittapi::Report report(ittapi::ITT_DOMAINS::instance().PARALLEL_SCHEDULER,
             ittapi::ITT_DOMAINS::instance().SINGLE_PASS);
@@ -181,8 +178,7 @@ private:
         tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
             tbb::make_filter<void, std::unique_ptr<Chunk>>(tbb::filter_mode::serial_in_order,
                 [&](tbb::flow_control& control) -> std::unique_ptr<Chunk> {
-                    if (chunkIndex >= RANGES::size(contextChunks) ||
-                        chunkIndex > static_cast<size_t>(chunkCount) || hasRAW.test())
+                    if (chunkIndex >= RANGES::size(contextChunks) || hasRAW.test())
                     {
                         control.stop();
                         return {};
@@ -282,11 +278,8 @@ private:
             PARALLEL_SCHEDULER_LOG(DEBUG)
                 << "Start new chunk executing... " << offset << " | " << RANGES::size(contexts);
             auto nextView = RANGES::views::drop(contexts, offset);
-            auto nextChunkCount = hasRAW.test() ?
-                                      std::max<size_t>(chunkCount / 2, MIN_CHUNK_COUNT) :
-                                      std::min<size_t>(chunkCount * 2, RANGES::size(nextView));
             return 1 + executeSinglePass(scheduler, storage, executor, blockHeader, ledgerConfig,
-                           nextView, chunkSize, nextChunkCount);
+                           nextView, chunkSize);
         }
 
         return 0;
@@ -336,7 +329,7 @@ private:
         static tbb::task_arena arena(8);
         arena.execute([&]() {
             auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
-                ledgerConfig, contexts, scheduler.m_grainSize, RANGES::size(transactions));
+                ledgerConfig, contexts, scheduler.m_grainSize);
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
             scheduler.m_gc.collect(std::move(contexts));
