@@ -336,7 +336,7 @@ private:
         static tbb::task_arena arena(8);
         arena.execute([&]() {
             auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
-                ledgerConfig, contexts, scheduler.m_grainSize, MIN_CHUNK_COUNT);
+                ledgerConfig, contexts, scheduler.m_grainSize, RANGES::size(transactions));
 
             PARALLEL_SCHEDULER_LOG(INFO) << "Parallel execute block retry count: " << retryCount;
             scheduler.m_gc.collect(std::move(contexts));
