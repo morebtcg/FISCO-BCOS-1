@@ -117,12 +117,12 @@ public:
     };
     struct PromiseValue : public PromiseBase<PromiseValue>
     {
-        void return_value(Value value)
+        void return_value(auto&& value)
         {
             if (PromiseBase<PromiseValue>::m_awaitable)
             {
                 PromiseBase<PromiseValue>::m_awaitable->m_value.template emplace<Value>(
-                    std::forward<Value>(value));
+                    std::forward<decltype(value)>(value));
             }
         }
     };
