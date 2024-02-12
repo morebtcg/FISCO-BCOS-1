@@ -75,8 +75,8 @@ private:
             m_localReadWriteSetStorage(m_localStorageView)
         {}
 
-        int64_t chunkIndex() { return m_chunkIndex; }
-        auto count() { return RANGES::size(m_contextRange); }
+        int64_t chunkIndex() const { return m_chunkIndex; }
+        auto count() const { return RANGES::size(m_contextRange); }
         auto& localStorage() & { return m_localStorage; }
         auto& readWriteSetStorage() & { return m_localReadWriteSetStorage; }
 

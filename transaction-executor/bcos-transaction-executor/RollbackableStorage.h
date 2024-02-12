@@ -48,6 +48,10 @@ public:
 
     task::Task<void> rollback(Savepoint savepoint)
     {
+        if (m_records.empty())
+        {
+            co_return;
+        }
         for (auto index = static_cast<int64_t>(m_records.size()); index > savepoint; --index)
         {
             assert(index > 0);

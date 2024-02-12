@@ -87,7 +87,7 @@ public:
     {
         for (auto&& key : keys)
         {
-            storage.putSet(true, std::forward<decltype(key)>(key));
+            storage.putSet(true, key);
         }
         co_return co_await storage2::writeSome(
             storage.m_storage, keys, std::forward<decltype(values)>(values));
@@ -100,7 +100,7 @@ public:
     {
         for (auto&& key : keys)
         {
-            storage.putSet(true, std::forward<decltype(key)>(key));
+            storage.putSet(true, key);
         }
         co_return co_await storage2::removeSome(storage.m_storage, keys);
     }
