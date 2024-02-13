@@ -328,7 +328,7 @@ public:
 
     task::Task<EVMCResult> externalCall(const evmc_message& message)
     {
-        if (c_fileLogLevel <= LogLevel::TRACE)
+        if (c_fileLogLevel <= LogLevel::TRACE) [[unlikely]]
         {
             HOST_CONTEXT_LOG(TRACE) << "External call, kind: " << message.kind
                                     << " sender:" << address2HexString(message.sender)
