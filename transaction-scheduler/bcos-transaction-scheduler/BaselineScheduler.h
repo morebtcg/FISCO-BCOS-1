@@ -81,22 +81,23 @@ std::chrono::milliseconds::rep current();
  * @param hashImpl The hash implementation to use for the calculation.
  * @return A task that will eventually resolve to the calculated state root.
  */
-task::Task<h256> calculateStateRoot(auto& storage, crypto::Hash const& hashImpl)
+task::Task<h256> calculateStateRoot(
+    auto& storage, uint32_t blockVersion, crypto::Hash const& hashImpl)
 {
-    constexpr static auto STATE_ROOT_CHUNK_SIZE = 64;
-    auto range = co_await storage2::range(storage);
-    auto chunkedRange = range | RANGES::views::chunk(STATE_ROOT_CHUNK_SIZE);
-
     storage::Entry deletedEntry;
     deletedEntry.setStatus(storage::Entry::DELETED);
+    auto range = co_await storage2::range(storage);
 
+    constexpr auto STATE_ROOT_CHUNK_SIZE = 64U;
+    auto chunkedRange = range | RANGES::views::chunk(STATE_ROOT_CHUNK_SIZE);
     std::vector<h256, tbb::cache_aligned_allocator<h256>> hashes(RANGES::size(chunkedRange));
     tbb::task_group hashGroup;
     auto index = 0U;
+
     for (auto&& subrange : chunkedRange)
     {
         hashGroup.run([index = index, subrange = std::forward<decltype(subrange)>(subrange),
-                          &hashes, &deletedEntry, &hashImpl]() {
+                          &hashes, &deletedEntry, &hashImpl, blockVersion]() {
             auto& localHash = hashes[index];
             for (auto [key, entry] : subrange)
             {
@@ -107,8 +108,7 @@ task::Task<h256> calculateStateRoot(auto& storage, crypto::Hash const& hashImpl)
                     entry = std::addressof(deletedEntry);
                 }
 
-                localHash ^= entry->hash(tableName, keyName, hashImpl,
-                    static_cast<uint32_t>(bcos::protocol::BlockVersion::V3_1_VERSION));
+                localHash ^= entry->hash(tableName, keyName, hashImpl, blockVersion);
             }
         });
         ++index;
@@ -192,7 +192,10 @@ void finishExecute(auto& storage, RANGES::range auto const& receipts,
     h256 receiptRoot;
 
     tbb::parallel_invoke([&]() { transactionRoot = calcauteTransactionRoot(block, hashImpl); },
-        [&]() { stateRoot = task::tbb::syncWait(calculateStateRoot(storage, hashImpl)); },
+        [&]() {
+            stateRoot = task::tbb::syncWait(
+                calculateStateRoot(storage, block.blockHeaderConst()->version(), hashImpl));
+        },
         [&]() {
             std::tie(gasUsed, receiptRoot) =
                 task::tbb::syncWait(calculateReceiptRoot(receipts, block, hashImpl));
@@ -317,13 +320,12 @@ private:
             auto view = scheduler.m_multiLayerStorage.fork(true);
             auto transactions = co_await getTransactions(scheduler.m_txpool, *block);
 
-            auto ledgerConfig = scheduler.m_ledgerConfig;
             auto receipts = co_await transaction_scheduler::executeBlock(scheduler.m_schedulerImpl,
                 view, scheduler.m_executor, *blockHeader,
                 transactions | RANGES::views::transform(
                                    [](protocol::Transaction::ConstPtr const& transactionPtr)
                                        -> protocol::Transaction const& { return *transactionPtr; }),
-                *ledgerConfig);
+                *scheduler.m_ledgerConfig);
 
             auto executedBlockHeader =
                 scheduler.m_blockHeaderFactory.populateBlockHeader(blockHeader);
