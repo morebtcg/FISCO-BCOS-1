@@ -1,6 +1,3 @@
-#define BOOST_TEST_MODULE FISCO_BCOS_Tests
-#define BOOST_TEST_MAIN
-
 #include "bcos-rpc/jsonrpc/Common.h"
 #include "bcos-task/Generator.h"
 #include "bcos-task/Task.h"
