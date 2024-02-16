@@ -93,7 +93,7 @@ public:
 
     struct Awaitable
     {
-        Awaitable(Task const& task) : m_handle(task.m_handle){};
+        explicit Awaitable(Task const& task) : m_handle(task.m_handle){};
         Awaitable(const Awaitable&) = delete;
         Awaitable(Awaitable&&) noexcept = default;
         Awaitable& operator=(const Awaitable&) = delete;
