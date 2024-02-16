@@ -44,6 +44,10 @@ if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR("${CMAKE_CXX_COMPILER_ID}" MATC
     add_compile_options(-fno-omit-frame-pointer)
     add_compile_options(-Wno-error=strict-aliasing)
 
+    if(CMAKE_UNITY_BUILD)
+        add_compile_options(-Wno-error=subobject-linkage)
+    endif()
+
     if(NOT APPLE)
         set(CMAKE_CXX_VISIBILITY_PRESET hidden)
         add_compile_options(-fvisibility=hidden)
