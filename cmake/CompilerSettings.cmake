@@ -34,6 +34,7 @@ if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR("${CMAKE_CXX_COMPILER_ID}" MATC
     add_compile_options(-Wall)
     add_compile_options(-pedantic)
     add_compile_options(-Wextra)
+    # add_compile_options(-Weffc++)
 
     # Ignore warnings
     add_compile_options(-Wno-unused-parameter)

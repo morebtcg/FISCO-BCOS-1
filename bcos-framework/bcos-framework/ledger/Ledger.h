@@ -88,23 +88,21 @@ struct GetBlockHash
 inline constexpr GetBlockHash getBlockHash{};
 
 using SystemConfigEntry = std::tuple<std::string, protocol::BlockNumber>;
-struct GetSystemConfig
+inline constexpr struct GetSystemConfig
 {
     task::Task<SystemConfigEntry> operator()(auto& ledger, std::string_view key) const
     {
         co_return co_await tag_invoke(*this, ledger, key);
     }
-};
-inline constexpr GetSystemConfig getSystemConfig{};
+} getSystemConfig{};
 
-struct GetNodeList
+inline constexpr struct GetNodeList
 {
     task::Task<consensus::ConsensusNodeList> operator()(auto& ledger, std::string_view type) const
     {
         co_return co_await tag_invoke(*this, ledger, type);
     }
-};
-inline constexpr GetNodeList getNodeList{};
+} getNodeList{};
 
 struct GetLedgerConfig
 {

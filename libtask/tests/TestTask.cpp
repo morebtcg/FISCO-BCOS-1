@@ -103,7 +103,7 @@ Task<int> asyncLevel2(oneapi::tbb::task_group& taskGroup)
         void await_suspend(CO_STD::coroutine_handle<> handle)
         {
             std::cout << "Start run async thread: " << handle.address() << std::endl;
-            taskGroup.run([this, m_handle = std::move(handle)]() {
+            taskGroup.run([this, m_handle = handle]() {
                 std::this_thread::sleep_for(std::chrono::seconds(2));
                 num = 100;
 
@@ -124,7 +124,8 @@ Task<int> asyncLevel2(oneapi::tbb::task_group& taskGroup)
     };
 
     std::cout << "co_await Awaitable started" << std::endl;
-    auto num = co_await Awaitable{taskGroup, 0};
+    Awaitable awaitable{taskGroup, 0};
+    auto num = co_await awaitable;
     std::cout << "co_await Awaitable ended" << std::endl;
 
     BOOST_CHECK_EQUAL(num, 100);
