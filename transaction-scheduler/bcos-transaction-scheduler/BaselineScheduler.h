@@ -104,7 +104,7 @@ task::Task<h256> calculateStateRoot(
             }) &
             tbb::make_filter(tbb::filter_mode::parallel,
                 [&](RANGES::range_value_t<decltype(range)> tuple) -> crypto::HashType {
-                    auto& [key, entry] = tuple;
+                    auto [key, entry] = tuple;
                     transaction_executor::StateKeyView view(*key);
                     auto [tableName, keyName] = view.getTableAndKey();
                     if (!entry)
