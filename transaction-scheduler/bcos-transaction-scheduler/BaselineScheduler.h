@@ -111,10 +111,9 @@ task::Task<h256> calculateStateRoot(
                     {
                         entry = std::addressof(deletedEntry);
                     }
-
                     return entry->hash(tableName, keyName, hashImpl, blockVersion);
                 }) &
-            tbb::make_filter(tbb::filter_mode::serial_in_order,
+            tbb::make_filter(tbb::filter_mode::serial_out_of_order,
                 [&](crypto::HashType hash) { totalHash ^= hash; }));
 
     co_return totalHash;
