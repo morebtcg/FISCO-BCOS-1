@@ -86,37 +86,56 @@ std::chrono::milliseconds::rep current();
 task::Task<h256> calculateStateRoot(
     auto& storage, uint32_t blockVersion, crypto::Hash const& hashImpl)
 {
+    constexpr static auto STATE_ROOT_CHUNK_SIZE = 64;
+    auto range = co_await storage2::range(storage);
+    auto chunkedRange = range | RANGES::views::chunk(STATE_ROOT_CHUNK_SIZE);
+
     storage::Entry deletedEntry;
     deletedEntry.setStatus(storage::Entry::DELETED);
-    auto range = co_await storage2::range(storage);
-    auto it = range.begin();
 
-    crypto::HashType totalHash;
-    tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
-        tbb::make_filter(tbb::filter_mode::serial_in_order,
-            [&](tbb::flow_control& control) -> RANGES::range_value_t<decltype(range)> {
-                if (it == range.end())
+    std::vector<h256, tbb::cache_aligned_allocator<h256>> hashes(RANGES::size(chunkedRange));
+    tbb::task_group hashGroup;
+    auto index = 0U;
+    for (auto&& subrange : chunkedRange)
+    {
+        hashGroup.run([index = index, subrange = std::forward<decltype(subrange)>(subrange),
+                          &hashes, &deletedEntry, &hashImpl]() {
+            auto& localHash = hashes[index];
+            for (auto [key, entry] : subrange)
+            {
+                transaction_executor::StateKeyView view(*key);
+                auto [tableName, keyName] = view.getTableAndKey();
+                if (!entry)
                 {
-                    control.stop();
-                    return {};
+                    entry = std::addressof(deletedEntry);
                 }
-                return *(it++);
-            }) &
-            tbb::make_filter(tbb::filter_mode::parallel,
-                [&](RANGES::range_value_t<decltype(range)> tuple) -> crypto::HashType {
-                    auto [key, entry] = tuple;
-                    transaction_executor::StateKeyView view(*key);
-                    auto [tableName, keyName] = view.getTableAndKey();
-                    if (!entry)
-                    {
-                        entry = std::addressof(deletedEntry);
-                    }
-                    return entry->hash(tableName, keyName, hashImpl, blockVersion);
-                }) &
-            tbb::make_filter(tbb::filter_mode::serial_out_of_order,
-                [&](crypto::HashType hash) { totalHash ^= hash; }));
 
-    co_return totalHash;
+                localHash ^= entry->hash(tableName, keyName, hashImpl,
+                    static_cast<uint32_t>(bcos::protocol::BlockVersion::V3_1_VERSION));
+            }
+        });
+        ++index;
+    }
+    hashGroup.wait();
+
+    struct XORHash
+    {
+        h256 m_hash;
+        decltype(hashes) const& m_hashes;
+
+        XORHash(decltype(hashes) const& hashes) : m_hashes(hashes){};
+        XORHash(XORHash& source, tbb::split /*unused*/) : m_hashes(source.m_hashes){};
+        void operator()(const tbb::blocked_range<size_t>& range)
+        {
+            for (size_t i = range.begin(); i != range.end(); ++i)
+            {
+                m_hash ^= m_hashes[i];
+            }
+        }
+        void join(XORHash const& rhs) { m_hash ^= rhs.m_hash; }
+    } xorHash(hashes);
+    tbb::parallel_reduce(tbb::blocked_range<size_t>(0, hashes.size()), xorHash);
+    co_return xorHash.m_hash;
 }
 
 task::Task<std::tuple<u256, h256>> calculateReceiptRoot(
