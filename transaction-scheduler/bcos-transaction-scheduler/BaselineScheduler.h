@@ -91,20 +91,20 @@ task::Task<h256> calculateStateRoot(
     auto range = co_await storage2::range(storage);
     auto it = range.begin();
 
-    tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency,
+    crypto::HashType totalHash;
+    tbb::parallel_pipeline(tbb::this_task_arena::max_concurrency(),
         tbb::make_filter(tbb::filter_mode::serial_in_order,
-            [&](tbb::flow_control& control) -> crypto::HashType {
+            [&](tbb::flow_control& control) -> RANGES::range_value_t<decltype(range)> {
                 if (it == range.end())
                 {
                     control.stop();
                     return {};
                 }
-                return *it;
+                return *(it++);
             }) &
-            tbb::make_filter(tbb::filter_mode::parallel, [&](auto subrange) -> crypto::Hash {
-                auto& localHash = hashes[index];
-                for (auto [key, entry] : subrange)
-                {
+            tbb::make_filter(tbb::filter_mode::parallel,
+                [&](RANGES::range_value_t<decltype(range)> tuple) -> crypto::HashType {
+                    auto& [key, entry] = tuple;
                     transaction_executor::StateKeyView view(*key);
                     auto [tableName, keyName] = view.getTableAndKey();
                     if (!entry)
@@ -112,35 +112,11 @@ task::Task<h256> calculateStateRoot(
                         entry = std::addressof(deletedEntry);
                     }
 
-                    localHash ^= entry->hash(tableName, keyName, hashImpl, blockVersion);
-                }
-            }));
-    for (auto&& subrange : chunkedRange)
-    {
-        hashGroup.run([index = index, subrange = std::forward<decltype(subrange)>(subrange),
-                          &hashes, &deletedEntry, &hashImpl, blockVersion]() {
-            auto& localHash = hashes[index];
-            for (auto [key, entry] : subrange)
-            {
-                transaction_executor::StateKeyView view(*key);
-                auto [tableName, keyName] = view.getTableAndKey();
-                if (!entry)
-                {
-                    entry = std::addressof(deletedEntry);
-                }
+                    return entry->hash(tableName, keyName, hashImpl, blockVersion);
+                }) &
+            tbb::make_filter(tbb::filter_mode::serial_in_order,
+                [&](crypto::HashType hash) { totalHash ^= hash; }));
 
-                localHash ^= entry->hash(tableName, keyName, hashImpl, blockVersion);
-            }
-        });
-        ++index;
-    }
-    hashGroup.wait();
-
-    crypto::HashType totalHash;
-    for (auto&& hash : hashes)
-    {
-        totalHash ^= hash;
-    }
     co_return totalHash;
 }
 
