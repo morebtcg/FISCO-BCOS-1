@@ -391,9 +391,12 @@ private:
     task::Task<EVMCResult> executeCreate()
     {
         auto savepoint = m_rollbackableStorage.current();
-        createAuthTable(m_rollbackableStorage, m_blockHeader, message(), m_origin,
-            co_await ledger::account::path(m_myAccount), buildLegacyExternalCaller(),
-            m_precompiledManager);
+        if (m_blockHeader.number() != 0)
+        {
+            createAuthTable(m_rollbackableStorage, m_blockHeader, message(), m_origin,
+                co_await ledger::account::path(m_myAccount), buildLegacyExternalCaller(),
+                m_precompiledManager);
+        }
 
         auto& ref = message();
         co_await ledger::account::create(m_myAccount);
