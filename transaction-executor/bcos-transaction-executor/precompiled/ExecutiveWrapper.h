@@ -1,7 +1,9 @@
 #pragma once
 #include "../EVMCResult.h"
 #include "bcos-codec/wrapper/CodecWrapper.h"
+#include "bcos-crypto/ChecksumAddress.h"
 #include "bcos-executor/src/executive/TransactionExecutive.h"
+#include "bcos-executor/src/vm/HostContext.h"
 #include <evmc/evmc.h>
 #include <memory>
 
@@ -63,6 +65,9 @@ public:
     {
         if (input->internalCreate)
         {
+            auto newSeq = seq() + 1;
+            input->codeAddress =
+                bcos::newEVMAddress(m_hashImpl, m_blockContext->number(), m_contextID, newSeq);
             auto [context, response] = create(std::move(input));
             return response;
         }
