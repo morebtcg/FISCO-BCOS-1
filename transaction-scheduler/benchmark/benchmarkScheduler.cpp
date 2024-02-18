@@ -92,9 +92,9 @@ struct Fixture
                         auto block = m_blockFactory->createBlock();
                         auto blockHeader = block->blockHeader();
                         blockHeader->setNumber(1);
-                        blockHeader->calculateHash(*m_cryptoSuite->hashImpl());
                         blockHeader->setVersion(
                             (uint32_t)bcos::protocol::BlockVersion::V3_1_VERSION);
+                        blockHeader->calculateHash(*m_cryptoSuite->hashImpl());
 
                         auto transactions =
                             RANGES::single_view(std::addressof(createTransaction)) |
