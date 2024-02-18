@@ -446,6 +446,11 @@ private:
                 m_executable =
                     co_await getExecutable(m_rollbackableStorage, message().code_address);
             }
+
+            if (!m_executable)
+            {
+                BOOST_THROW_EXCEPTION(NotFoundCodeError());
+            }
             auto& ref = message();
             result.emplace(
                 m_executable->m_vmInstance.execute(interface, this, mode, std::addressof(ref),
