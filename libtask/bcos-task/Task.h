@@ -40,7 +40,7 @@ public:
         {
             struct FinalAwaitable
             {
-                constexpr static bool await_ready() noexcept { return false; }
+                constexpr bool await_ready() noexcept { return false; }
                 constexpr CO_STD::coroutine_handle<> await_suspend(
                     CO_STD::coroutine_handle<PromiseImpl> handle) noexcept
                 {
@@ -53,7 +53,7 @@ public:
 
                     return continuationHandle ? continuationHandle : CO_STD::noop_coroutine();
                 }
-                constexpr static void await_resume() noexcept {}
+                constexpr void await_resume() noexcept {}
             };
             return FinalAwaitable{};
         }

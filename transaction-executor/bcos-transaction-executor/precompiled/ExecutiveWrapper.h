@@ -61,6 +61,12 @@ public:
     executor::CallParameters::UniquePtr externalCall(
         executor::CallParameters::UniquePtr input) override
     {
+        if (input->internalCreate)
+        {
+            auto [context, response] = create(std::move(input));
+            return response;
+        }
+
         evmc_message evmcMessage{.kind = input->create ? EVMC_CREATE : EVMC_CALL,
             .flags = 0,
             .depth = 0,
@@ -77,7 +83,12 @@ public:
             .create2_salt = toEvmC(0x0_cppui256),
             .code_address = unhexAddress(input->codeAddress)};
 
-        std::optional<std::tuple<std::string, bcos::bytes>> internalCallParams;
+        struct InternalCallParams
+        {
+            std::string precompiledContract;
+            bcos::bytes precompiledInput;
+        };
+        std::optional<InternalCallParams> internalCallParams;
         if (input->internalCall)
         {
             internalCallParams.emplace();
@@ -88,7 +99,6 @@ public:
             evmcMessage.input_data = precompiledInput.data();
             evmcMessage.input_size = precompiledInput.size();
         }
-
         auto result = m_externalCaller(evmcMessage);
 
         auto callResult =
