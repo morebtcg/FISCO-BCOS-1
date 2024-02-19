@@ -385,7 +385,7 @@ public:
         m_mutableStorage.reset();
     }
 
-    task::Task<void> mergeAndPopImmutableBack()
+    task::Task<std::shared_ptr<MutableStorage>> mergeAndPopImmutableBack()
     {
         std::unique_lock mergeLock(m_mergeMutex);
         std::unique_lock immutablesLock(m_listMutex);
@@ -409,6 +409,8 @@ public:
 
         immutablesLock.lock();
         m_immutableStorages.pop_back();
+
+        co_return immutableStorage;
     }
 
     std::shared_ptr<MutableStorageType> frontImmutableStorage()

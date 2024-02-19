@@ -8,6 +8,7 @@
 #include "bcos-framework/ledger/Ledger.h"
 #include "bcos-framework/ledger/LedgerConfig.h"
 #include "bcos-framework/ledger/LedgerInterface.h"
+#include "bcos-framework/protocol/Block.h"
 #include "bcos-framework/protocol/BlockFactory.h"
 #include "bcos-framework/protocol/BlockHeader.h"
 #include "bcos-framework/protocol/BlockHeaderFactory.h"
@@ -140,7 +141,7 @@ task::Task<h256> calculateStateRoot(
 }
 
 task::Task<std::tuple<u256, h256>> calculateReceiptRoot(
-    auto const& receipts, auto& block, crypto::Hash const& hashImpl)
+    RANGES::range auto const& receipts, protocol::Block& block, crypto::Hash const& hashImpl)
 {
     u256 gasUsed;
     h256 receiptRoot;
@@ -452,7 +453,7 @@ private:
                 co_await ledger::prewriteBlock(
                     scheduler.m_ledger, result.m_transactions, result.m_block, false, *lastStorage);
             }
-            co_await scheduler.m_multiLayerStorage.mergeAndPopImmutableBack();
+            auto mergedStorage = co_await scheduler.m_multiLayerStorage.mergeAndPopImmutableBack();
             co_await ledger::storeTransactionsAndReceipts(
                 scheduler.m_ledger, result.m_transactions, result.m_block);
 
