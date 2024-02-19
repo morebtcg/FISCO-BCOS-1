@@ -231,7 +231,7 @@ private:
         std::function<void(Error::Ptr)>)>
         m_transactionNotifier;
     crypto::Hash const& m_hashImpl;
-    ledger::LedgerConfig::Ptr m_ledgerConfig;
+    std::atomic<std::shared_ptr<ledger::LedgerConfig>> m_ledgerConfig;
 
     int64_t m_lastExecutedBlockNumber = -1;
     std::mutex m_executeMutex;
@@ -323,12 +323,13 @@ private:
             auto view = scheduler.m_multiLayerStorage.fork(true);
             auto transactions = co_await getTransactions(scheduler.m_txpool, *block);
 
+            auto ledgerConfig = scheduler.m_ledgerConfig.load();
             auto receipts = co_await transaction_scheduler::executeBlock(scheduler.m_schedulerImpl,
                 view, scheduler.m_executor, *blockHeader,
                 transactions | RANGES::views::transform(
                                    [](protocol::Transaction::ConstPtr const& transactionPtr)
                                        -> protocol::Transaction const& { return *transactionPtr; }),
-                *scheduler.m_ledgerConfig);
+                *ledgerConfig);
 
             auto executedBlockHeader =
                 scheduler.m_blockHeaderFactory.populateBlockHeader(blockHeader);
@@ -566,7 +567,7 @@ public:
             auto view = self->m_multiLayerStorage.fork(false);
             view.newTemporaryMutable();
             auto blockHeader = self->m_blockHeaderFactory.createBlockHeader();
-            auto ledgerConfig = self->m_ledgerConfig;
+            auto ledgerConfig = self->m_ledgerConfig.load();
 
             protocol::TransactionReceipt::Ptr receipt;
             if (ledgerConfig)

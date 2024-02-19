@@ -81,6 +81,7 @@ init()
     cd nodes/127.0.0.1 && wait_and_start
 }
 
+
 expand_node()
 {
     sm_option="${1}"
