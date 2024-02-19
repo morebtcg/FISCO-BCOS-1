@@ -57,6 +57,7 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
+#include <variant>
 
 namespace bcos::transaction_executor
 {
@@ -78,12 +79,13 @@ private:
     using Account = ledger::account::EVMAccount<Storage>;
     struct Executable
     {
-        Executable(storage::Entry code)
+        explicit Executable(storage::Entry code)
           : m_code(std::make_optional(std::move(code))),
             m_vmInstance(VMFactory::create(VMKind::evmone,
                 bytesConstRef((const uint8_t*)m_code->data(), m_code->size()), mode))
         {}
-        Executable(bytesConstRef code) : m_vmInstance(VMFactory::create(VMKind::evmone, code, mode))
+        explicit Executable(bytesConstRef code)
+          : m_vmInstance(VMFactory::create(VMKind::evmone, code, mode))
         {}
 
         std::optional<storage::Entry> m_code;
@@ -105,6 +107,7 @@ private:
     std::vector<protocol::LogEntry> m_logs;
     std::shared_ptr<Executable> m_executable;
     const bcos::transaction_executor::Precompiled* m_preparedPrecompiled{};
+    std::optional<bcos::bytes> m_dynamicPrecompiledInput;
 
     auto buildLegacyExternalCaller()
     {
@@ -169,7 +172,7 @@ private:
 
     auto getMyAccount() { return Account(m_rollbackableStorage, message().recipient); }
 
-    constexpr static struct InnerConstructor
+    inline constexpr static struct InnerConstructor
     {
     } innerConstructor{};
 
@@ -425,6 +428,54 @@ private:
         if (auto const* precompiled = m_precompiledManager.getPrecompiled(message().code_address))
         {
             m_preparedPrecompiled = precompiled;
+            co_return;
+        }
+
+        m_executable = co_await getExecutable(m_rollbackableStorage, message().code_address);
+        if (m_executable && hasPrecompiledPrefix(m_executable->m_code->data()))
+        {
+            if (std::holds_alternative<const evmc_message*>(m_message))
+            {
+                m_message.emplace<evmc_message>(*std::get<const evmc_message*>(m_message));
+            }
+
+            auto& message = std::get<evmc_message>(m_message);
+            auto code = m_executable->m_code->data();
+            auto codec = CodecWrapper(executor::GlobalHashImpl::g_hashImpl, false);
+            std::vector<std::string> codeParameters{};
+            boost::split(codeParameters, code, boost::is_any_of(","));
+            if (codeParameters.size() < 3)
+            {
+                BOOST_THROW_EXCEPTION(BCOS_ERROR(-1, "CallDynamicPrecompiled error code field."));
+            }
+            message.code_address = message.recipient;
+            // precompiled的地址，是不是写到code_address里更合理？考虑delegate call
+            // Is it more reasonable to write the address of precompiled in the code_address?
+            // Consider Delegate Call
+            message.recipient = unhexAddress(codeParameters[1]);
+            codeParameters.erase(codeParameters.begin(), codeParameters.begin() + 2);
+            m_dynamicPrecompiledInput.emplace(codec.encode(codeParameters,
+                bcos::bytes(message.input_data, message.input_data + message.input_size)));
+
+            message.input_data = m_dynamicPrecompiledInput->data();
+            message.input_size = m_dynamicPrecompiledInput->size();
+            if (c_fileLogLevel <= LogLevel::TRACE) [[unlikely]]
+            {
+                HOST_CONTEXT_LOG(TRACE)
+                    << LOG_DESC("callDynamicPrecompiled")
+                    << LOG_KV("codeAddr", address2HexString(message.code_address))
+                    << LOG_KV("recvAddr", address2HexString(message.recipient))
+                    << LOG_KV("code", code);
+            }
+
+            if (auto const* precompiled = m_precompiledManager.getPrecompiled(message.recipient))
+            {
+                m_preparedPrecompiled = precompiled;
+            }
+            else
+            {
+                BOOST_THROW_EXCEPTION(NotFoundCodeError());
+            }
             co_return;
         }
     }
