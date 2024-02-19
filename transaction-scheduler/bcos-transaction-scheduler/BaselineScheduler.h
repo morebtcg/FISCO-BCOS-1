@@ -34,6 +34,7 @@
 #include <oneapi/tbb/parallel_reduce.h>
 #include <oneapi/tbb/task_arena.h>
 #include <oneapi/tbb/task_group.h>
+#include <boost/atomic.hpp>
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/throw_exception.hpp>
 #include <chrono>
@@ -231,7 +232,8 @@ private:
         std::function<void(Error::Ptr)>)>
         m_transactionNotifier;
     crypto::Hash const& m_hashImpl;
-    std::atomic<std::shared_ptr<ledger::LedgerConfig>> m_ledgerConfig;
+    std::shared_ptr<ledger::LedgerConfig> m_ledgerConfig;
+    std::mutex m_ledgerConfigMutex;
 
     int64_t m_lastExecutedBlockNumber = -1;
     std::mutex m_executeMutex;
@@ -323,7 +325,11 @@ private:
             auto view = scheduler.m_multiLayerStorage.fork(true);
             auto transactions = co_await getTransactions(scheduler.m_txpool, *block);
 
-            auto ledgerConfig = scheduler.m_ledgerConfig.load();
+            ledger::LedgerConfig::Ptr ledgerConfig;
+            {
+                std::unique_lock ledgerConfigLock(scheduler.m_ledgerConfigMutex);
+                ledgerConfig = scheduler.m_ledgerConfig;
+            }
             auto receipts = co_await transaction_scheduler::executeBlock(scheduler.m_schedulerImpl,
                 view, scheduler.m_executor, *blockHeader,
                 transactions | RANGES::views::transform(
@@ -452,7 +458,10 @@ private:
 
             auto ledgerConfig = co_await ledger::getLedgerConfig(scheduler.m_ledger);
             ledgerConfig->setHash(header->hash());
-            scheduler.m_ledgerConfig = ledgerConfig;
+            {
+                std::unique_lock ledgerConfigLock(scheduler.m_ledgerConfigMutex);
+                scheduler.m_ledgerConfig = ledgerConfig;
+            }
             BASELINE_SCHEDULER_LOG(INFO) << "Commit block finished: " << header->number()
                                          << " | elapsed: " << (current() - now) << "ms";
             commitLock.unlock();
@@ -567,7 +576,11 @@ public:
             auto view = self->m_multiLayerStorage.fork(false);
             view.newTemporaryMutable();
             auto blockHeader = self->m_blockHeaderFactory.createBlockHeader();
-            auto ledgerConfig = self->m_ledgerConfig.load();
+            ledger::LedgerConfig::Ptr ledgerConfig;
+            {
+                std::unique_lock ledgerConfigLock(self->m_ledgerConfigMutex);
+                ledgerConfig = self->m_ledgerConfig;
+            }
 
             protocol::TransactionReceipt::Ptr receipt;
             if (ledgerConfig)
