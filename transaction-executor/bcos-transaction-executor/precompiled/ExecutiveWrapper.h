@@ -68,8 +68,8 @@ public:
             auto newSeq = seq() + 1;
             input->codeAddress =
                 bcos::newEVMAddress(m_hashImpl, m_blockContext->number(), m_contextID, newSeq);
-            auto [context, response] = create(std::move(input));
-            return response;
+            auto tuple = create(std::move(input));
+            return std::move(std::get<1>(tuple));
         }
 
         evmc_message evmcMessage{.kind = input->create ? EVMC_CREATE : EVMC_CALL,
