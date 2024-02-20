@@ -326,7 +326,7 @@ private:
                 .iterator = {}});
         }
 
-        static tbb::task_arena arena(8, 1, tbb::task_arena::priority::high);
+        static tbb::task_arena arena(8);
         arena.execute([&]() {
             auto retryCount = executeSinglePass(scheduler, storage, executor, blockHeader,
                 ledgerConfig, contexts, scheduler.m_grainSize);

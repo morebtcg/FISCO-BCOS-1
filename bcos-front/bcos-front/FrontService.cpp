@@ -35,8 +35,7 @@ using namespace front;
 using namespace protocol;
 
 FrontService::FrontService()
-  : m_taskArena(tbb::task_arena::automatic, 1, tbb::task_arena::priority::low),
-    m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
+  : m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
 {
     FRONT_LOG(INFO) << LOG_DESC("FrontService") << LOG_KV("this", this)
                     << LOG_KV("minVersion", m_localProtocol->minVersion())
