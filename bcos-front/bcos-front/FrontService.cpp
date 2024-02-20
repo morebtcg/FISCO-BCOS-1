@@ -24,6 +24,7 @@
 #include <bcos-front/FrontService.h>
 #include <bcos-utilities/Common.h>
 #include <bcos-utilities/Exceptions.h>
+#include <oneapi/tbb/task_arena.h>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <random>
@@ -34,7 +35,8 @@ using namespace front;
 using namespace protocol;
 
 FrontService::FrontService()
-  : m_taskArena(24), m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
+  : m_taskArena(tbb::task_arena::automatic, 1, tbb::task_arena::priority::low),
+    m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
 {
     FRONT_LOG(INFO) << LOG_DESC("FrontService") << LOG_KV("this", this)
                     << LOG_KV("minVersion", m_localProtocol->minVersion())
