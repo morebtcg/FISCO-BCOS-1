@@ -34,7 +34,7 @@ using namespace front;
 using namespace protocol;
 
 FrontService::FrontService()
-  : m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
+  : m_taskArena(8), m_localProtocol(g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService))
 {
     FRONT_LOG(INFO) << LOG_DESC("FrontService") << LOG_KV("this", this)
                     << LOG_KV("minVersion", m_localProtocol->minVersion())
@@ -215,7 +215,7 @@ void FrontService::asyncGetGroupNodeInfo(GetGroupNodeInfoFunc _onGetGroupNodeInf
                             (groupNodeInfo ? groupNodeInfo->nodeIDList().size() : 0));
     if (_onGetGroupNodeInfo)
     {
-        m_taskArena.execute([&]() {
+        m_taskArena.enqueue([&]() {
             m_asyncGroup.run([_onGetGroupNodeInfo = std::move(_onGetGroupNodeInfo),
                                  groupNodeInfo = std::move(groupNodeInfo)]() {
                 _onGetGroupNodeInfo(nullptr, groupNodeInfo);
@@ -369,7 +369,7 @@ void FrontService::onReceiveGroupNodeInfo(const std::string& _groupID,
 
     auto self = std::weak_ptr<FrontService>(shared_from_this());
 
-    m_taskArena.execute([&]() {
+    m_taskArena.enqueue([&]() {
         m_asyncGroup.run([this, _groupID, _groupNodeInfo = std::move(_groupNodeInfo)]() {
             notifyGroupNodeInfo(_groupID, _groupNodeInfo);
         });
@@ -472,7 +472,7 @@ void FrontService::handleCallback(bcos::Error::Ptr _error, bytesConstRef _payLoa
     // construct shared_ptr<bytes> from message->payload() first for
     // thead safe
     auto buffer = bytes(_payLoad.begin(), _payLoad.end());
-    m_taskArena.execute([&]() {
+    m_taskArena.enqueue([&]() {
         m_asyncGroup.run([_uuid, _error = std::move(_error), callback = std::move(callback),
                              buffer = std::move(buffer), _nodeID = std::move(_nodeID),
                              respFunc = std::move(respFunc)] {
@@ -526,7 +526,7 @@ void FrontService::onReceiveMessage(const std::string& _groupID,
                 // thead safe
                 bytes buffer(message->payload().begin(), message->payload().end());
 
-                m_taskArena.execute([&]() {
+                m_taskArena.enqueue([&]() {
                     m_asyncGroup.run(
                         [uuid, callback = std::move(callback), buffer = std::move(buffer),
                             message = std::move(message), _nodeID] {
@@ -549,7 +549,7 @@ void FrontService::onReceiveMessage(const std::string& _groupID,
 
     if (_receiveMsgCallback)
     {
-        m_taskArena.execute([&]() {
+        m_taskArena.enqueue([&]() {
             m_asyncGroup.run([_receiveMsgCallback = std::move(_receiveMsgCallback)]() {
                 _receiveMsgCallback(nullptr);
             });
@@ -627,7 +627,7 @@ void FrontService::onMessageTimeout(const boost::system::error_code& _error,
         if (callback)
         {
             auto errorPtr = BCOS_ERROR_PTR(CommonError::TIMEOUT, "timeout");
-            m_taskArena.execute([&]() {
+            m_taskArena.enqueue([&]() {
                 m_asyncGroup.run(
                     [_uuid, _nodeID = std::move(_nodeID), callback = std::move(callback),
                         errorPtr = std::move(errorPtr)]() {
