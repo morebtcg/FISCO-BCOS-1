@@ -39,6 +39,7 @@
 #include "bcos-framework/storage2/MemoryStorage.h"
 #include "bcos-framework/storage2/Storage.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
+#include "bcos-transaction-executor/EVMCResult.h"
 #include "bcos-transaction-executor/vm/VMInstance.h"
 #include "bcos-utilities/Common.h"
 #include <bcos-task/Wait.h>
@@ -315,8 +316,16 @@ public:
                 m_origin, buildLegacyExternalCaller(), m_precompiledManager);
             if (!result)
             {
-                // FIXME: build EVMCResult and return
-            }
+                co_return EVMCResult{
+                    evmc_result{.status_code = static_cast<evmc_status_code>(param->evmStatus),
+                        .gas_left = param->gas,
+                        .gas_refund = 0,
+                        .output_data = nullptr,
+                        .output_size = 0,
+                        .release = nullptr,
+                        .create_address = {},
+                        .padding = {}}};
+            };
         }
 
         if (message().kind == EVMC_CREATE || message().kind == EVMC_CREATE2)
