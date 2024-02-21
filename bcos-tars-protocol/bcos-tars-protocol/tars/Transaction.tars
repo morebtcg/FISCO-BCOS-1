@@ -1,5 +1,3 @@
-#include "TransactionMetaData.tars"
-
 module bcostars {
     struct TransactionData {
         1  optional int          version;

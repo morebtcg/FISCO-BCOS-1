@@ -53,10 +53,6 @@ public:
     bcostars::TransactionMetaData takeInner();
     void setInner(bcostars::TransactionMetaData inner);
 
-    RANGES::any_view<std::tuple<bcos::bytesConstRef, bool>> conflictFields() const override;
-    void setConflictFields(
-        RANGES::any_view<std::tuple<bcos::bytesConstRef, bool>> conflictFields) override;
-
 private:
     std::function<bcostars::TransactionMetaData*()> m_inner;
 };

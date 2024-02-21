@@ -38,12 +38,6 @@ enum BlockType : int32_t
     WithTransactionsHash = 2,
 };
 
-struct ExecutionNode
-{
-    std::vector<int> depends;
-    int count;
-};
-
 class Block
 {
 public:
@@ -120,17 +114,6 @@ public:
                 return transaction->nonce();
             }) |
             RANGES::to<NonceList>());
-    }
-
-    virtual RANGES::any_view<bcos::protocol::ExecutionNode,
-        RANGES::category::input | RANGES::category::sized>
-    executionPlan() const
-    {
-        BOOST_THROW_EXCEPTION(std::runtime_error("Unimplemented!"));
-    }
-    virtual void setExecutionPlan(RANGES::any_view<protocol::ExecutionNode> plan)
-    {
-        BOOST_THROW_EXCEPTION(std::runtime_error("Unimplemented!"));
     }
 };
 using Blocks = std::vector<Block::Ptr>;

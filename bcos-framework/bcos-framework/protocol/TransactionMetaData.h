@@ -51,10 +51,6 @@ public:
 
     virtual std::string_view source() const = 0;
     virtual void setSource(std::string source) = 0;
-
-    virtual RANGES::any_view<std::tuple<bytesConstRef, bool>> conflictFields() const = 0;
-    virtual void setConflictFields(
-        RANGES::any_view<std::tuple<bytesConstRef, bool>> conflictFields) = 0;
 };
 
 using TransactionMetaDataList = std::vector<TransactionMetaData::Ptr>;

@@ -111,7 +111,7 @@ public:
             if (transaction.dataHash.empty())
             {
                 bcos::concepts::hash::calculate(
-                    self->m_hasher.clone(), transaction, transaction.dataHash);
+                    transaction, self->m_hasher.clone(), transaction.dataHash);
             }
 
             bcostars::TransactionReceipt receipt;
@@ -156,7 +156,7 @@ public:
                 if (transaction.dataHash.empty())
                 {
                     bcos::concepts::hash::calculate(
-                        self->m_hasher.clone(), transaction, transaction.dataHash);
+                        transaction, self->m_hasher.clone(), transaction.dataHash);
                 }
                 auto& txHash = transaction.dataHash;
                 std::string txHashStr;
@@ -368,7 +368,7 @@ public:
 
                         std::array<std::byte, Hasher::HASH_SIZE> parentHash;
                         bcos::concepts::hash::calculate(
-                            self->m_hasher.clone(), parentBlock, parentHash);
+                            parentBlock, self->m_hasher.clone(), parentHash);
 
                         if (RANGES::empty(block.blockHeader.data.parentInfo) ||
                             (block.blockHeader.data.parentInfo[0].blockNumber !=

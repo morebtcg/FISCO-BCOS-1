@@ -9,10 +9,9 @@
 namespace bcos::storage2
 {
 
-struct READ_FRONT_TYPE
+inline constexpr struct READ_FRONT_TYPE
 {
-};
-inline constexpr READ_FRONT_TYPE READ_FRONT{};
+} READ_FRONT{};
 
 template <class Invoke>
 using ReturnType = typename task::AwaitableReturnType<Invoke>;
@@ -36,7 +35,7 @@ inline constexpr struct ReadSome
     }
 } readSome{};
 
-struct WriteSome
+inline constexpr struct WriteSome
 {
     auto operator()(auto&& storage, RANGES::input_range auto&& keys,
         RANGES::input_range auto&& values, auto&&... args) const
@@ -48,8 +47,7 @@ struct WriteSome
             std::forward<decltype(keys)>(keys), std::forward<decltype(values)>(values),
             std::forward<decltype(args)>(args)...);
     }
-};
-inline constexpr WriteSome writeSome{};
+} writeSome{};
 
 inline constexpr struct RemoveSome
 {

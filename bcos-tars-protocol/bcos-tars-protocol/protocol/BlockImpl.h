@@ -100,11 +100,6 @@ public:
 
     bcos::crypto::HashType calculateReceiptRoot(const bcos::crypto::Hash& hashImpl) const override;
 
-    RANGES::any_view<bcos::protocol::ExecutionNode,
-        RANGES::category::input | RANGES::category::sized>
-    executionPlan() const override;
-    void setExecutionPlan(RANGES::any_view<bcos::protocol::ExecutionNode> plan) override;
-
 private:
     std::shared_ptr<bcostars::Block> m_inner;
     mutable bcos::SharedMutex x_blockHeader;

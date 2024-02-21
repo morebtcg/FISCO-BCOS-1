@@ -238,25 +238,3 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateReceiptRoot(
 
     return receiptsRoot;
 }
-
-RANGES::any_view<bcos::protocol::ExecutionNode, RANGES::category::input | RANGES::category::sized>
-bcostars::protocol::BlockImpl::executionPlan() const
-{
-    return m_inner->executionPlan | RANGES::views::transform([](const auto& node) {
-        bcos::protocol::ExecutionNode executionNode;
-        executionNode.depends = node.depends;
-        executionNode.count = node.count;
-        return executionNode;
-    });
-}
-
-void bcostars::protocol::BlockImpl::setExecutionPlan(
-    RANGES::any_view<bcos::protocol::ExecutionNode> plan)
-{
-    m_inner->executionPlan = plan | RANGES::views::transform([](const auto& node) {
-        bcostars::ExecutionNode executionNode;
-        executionNode.depends = node.depends;
-        executionNode.count = node.count;
-        return executionNode;
-    }) | RANGES::to<std::vector>();
-}
