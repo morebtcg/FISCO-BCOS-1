@@ -49,7 +49,7 @@ config_console()
     mkdir -p "./src/integration-test/resources/conf"
     cp -r ${node_path}/sdk/* ./src/integration-test/resources/conf
     cp ./src/integration-test/resources/config-example.toml ./src/integration-test/resources/config.toml
-    ${sed_cmd} "s/peers=\[\"127.0.0.1:20200\", \"127.0.0.1:20201\"\]/peers=\[\"127.0.0.1:20201\"\]/g" ./src/integration-test/resources/config.toml
+    ${sed_cmd} "s/peers=\[\"127.0.0.1:20200\", \"127.0.0.1:20201\"\]/peers=\[\"127.0.0.1:20200\"\]/g" ./src/integration-test/resources/config.toml
     cp -r ./src/main/resources/contract ./contracts
 
     local not_use_sm="true"
