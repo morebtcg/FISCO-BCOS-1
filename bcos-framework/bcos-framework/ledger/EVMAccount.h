@@ -73,8 +73,7 @@ private:
                 transaction_executor::StateKey{ledger::SYS_CODE_BINARY, codeHashEntry.get()},
                 storage::Entry{std::move(code)});
         }
-        if (!abi.empty() &&
-            !co_await storage2::existsOne(account.m_storage,
+        if (!co_await storage2::existsOne(account.m_storage,
                 transaction_executor::StateKeyView{ledger::SYS_CONTRACT_ABI, codeHashEntry.get()}))
         {
             co_await storage2::writeOne(account.m_storage,
