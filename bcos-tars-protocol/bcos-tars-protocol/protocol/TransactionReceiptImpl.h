@@ -77,6 +77,8 @@ public:
     std::string const& message() const override;
     void setMessage(std::string message) override;
 
+    std::ostream& operator<<(std::ostream& stream) const override;
+
 private:
     std::function<bcostars::TransactionReceipt*()> m_inner;
     mutable std::vector<bcos::protocol::LogEntry> m_logEntries;

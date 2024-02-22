@@ -87,6 +87,8 @@ public:
     std::string_view extraData() const override;
     void setExtraData(std::string const& _extraData) override;
 
+    std::ostream& operator<<(std::ostream& stream) const override;
+
     const bcostars::Transaction& inner() const;
     bcostars::Transaction& mutableInner();
     void setInner(bcostars::Transaction inner);
@@ -94,4 +96,5 @@ public:
 private:
     std::function<bcostars::Transaction*()> m_inner;
 };
+
 }  // namespace bcostars::protocol

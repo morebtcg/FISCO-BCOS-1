@@ -77,8 +77,7 @@ private:
         {
             if (c_fileLogLevel <= LogLevel::TRACE)
             {
-                TRANSACTION_EXECUTOR_LOG(TRACE)
-                    << "Execte transaction: " << transaction.hash().hex();
+                TRANSACTION_EXECUTOR_LOG(TRACE) << "Execte transaction: " << transaction;
             }
 
             Rollbackable<std::decay_t<decltype(storage)>> rollbackableStorage(storage);
@@ -145,6 +144,11 @@ private:
                 0, {}, {}, EVMC_INTERNAL_ERROR, {}, blockHeader.number());
             receipt->setMessage(boost::diagnostic_information(e));
         }
+        if (c_fileLogLevel <= LogLevel::TRACE)
+        {
+            TRANSACTION_EXECUTOR_LOG(TRACE) << "Execte transaction finished: " << receipt;
+        }
+
         co_yield receipt;  // 完成第三步 Complete the third step
     }
 

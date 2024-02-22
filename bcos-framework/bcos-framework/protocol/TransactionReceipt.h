@@ -53,6 +53,8 @@ public:
     // calculation
     virtual std::string const& message() const = 0;
     virtual void setMessage(std::string message) = 0;
+
+    virtual std::ostream& operator<<(std::ostream& stream) const { return stream; }
 };
 using Receipts = std::vector<TransactionReceipt::Ptr>;
 using ReceiptsPtr = std::shared_ptr<Receipts>;
