@@ -89,10 +89,10 @@ private:
 
     friend task::Task<h256> tag_invoke(tag_t<codeHash> /*unused*/, EVMAccount& account)
     {
-        auto codeHashEntry = co_await storage2::readOne(account.m_storage,
-            transaction_executor::StateKeyView{concepts::bytebuffer::toView(account.m_tableName),
-                ACCOUNT_TABLE_FIELDS::CODE_HASH});
-        if (codeHashEntry)
+        if (auto codeHashEntry = co_await storage2::readOne(
+                account.m_storage, transaction_executor::StateKeyView{
+                                       concepts::bytebuffer::toView(account.m_tableName),
+                                       ACCOUNT_TABLE_FIELDS::CODE_HASH}))
         {
             auto view = codeHashEntry->get();
             h256 codeHash((const bcos::byte*)view.data(), view.size());
@@ -111,11 +111,10 @@ private:
 
     friend task::Task<u256> tag_invoke(tag_t<balance> /*unused*/, EVMAccount& account)
     {
-        auto balanceEntry = co_await storage2::readOne(account.m_storage,
-            transaction_executor::StateKeyView{
-                concepts::bytebuffer::toView(account.m_tableName), ACCOUNT_TABLE_FIELDS::BALANCE});
-
-        if (balanceEntry)
+        if (auto balanceEntry = co_await storage2::readOne(
+                account.m_storage, transaction_executor::StateKeyView{
+                                       concepts::bytebuffer::toView(account.m_tableName),
+                                       ACCOUNT_TABLE_FIELDS::BALANCE}))
         {
             auto view = balanceEntry->get();
             auto balance = boost::lexical_cast<u256>(view);
@@ -137,12 +136,11 @@ private:
     friend task::Task<evmc_bytes32> tag_invoke(
         tag_t<storage> /*unused*/, EVMAccount& account, const evmc_bytes32& key)
     {
-        auto valueEntry = co_await storage2::readOne(account.m_storage,
-            transaction_executor::StateKeyView{concepts::bytebuffer::toView(account.m_tableName),
-                concepts::bytebuffer::toView(key.bytes)});
-
         evmc_bytes32 value;
-        if (valueEntry)
+        if (auto valueEntry = co_await storage2::readOne(
+                account.m_storage, transaction_executor::StateKeyView{
+                                       concepts::bytebuffer::toView(account.m_tableName),
+                                       concepts::bytebuffer::toView(key.bytes)}))
         {
             auto field = valueEntry->get();
             std::uninitialized_copy_n(field.data(), sizeof(value), value.bytes);
