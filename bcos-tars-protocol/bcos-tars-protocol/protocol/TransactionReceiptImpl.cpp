@@ -152,8 +152,3 @@ void bcostars::protocol::TransactionReceiptImpl::setMessage(std::string message)
 {
     m_inner()->message = std::move(message);
 }
-std::ostream& bcostars::protocol::TransactionReceiptImpl::operator<<(std::ostream& stream) const
-{
-    m_inner()->display(stream);
-    return stream;
-}

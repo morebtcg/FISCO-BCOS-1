@@ -180,8 +180,3 @@ void bcostars::protocol::TransactionImpl::setInner(bcostars::Transaction inner)
 {
     *m_inner() = std::move(inner);
 }
-std::ostream& bcostars::protocol::TransactionImpl::operator<<(std::ostream& stream) const
-{
-    m_inner()->displaySimple(stream);
-    return stream;
-}
