@@ -19,6 +19,8 @@
  * @author yujiechen
  */
 #pragma once
+#include "../../interfaces/crypto/Key.h"
+#include "../../interfaces/crypto/KeyPair.h"
 #include <bcos-crypto/interfaces/crypto/Signature.h>
 #include <bcos-crypto/signature/key/KeyPair.h>
 #include <secp256k1.h>
@@ -28,24 +30,61 @@ namespace bcos::crypto
 constexpr static int SECP256K1_PUBLIC_LEN = 64;
 constexpr static int SECP256K1_PRIVATE_LEN = 32;
 
-static const std::unique_ptr<secp256k1_context, decltype(&secp256k1_context_destroy)>
-    g_SECP256K1_CTX{secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY),
-        &secp256k1_context_destroy};
+static const std::unique_ptr<secp256k1_context,
+    decltype([](auto* ptr) { secp256k1_context_destroy(ptr); })>
+    g_SECP256K1_CTX{secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY)};
 
 PublicPtr secp256k1PriToPub(Secret const& _secret);
 class Secp256k1KeyPair : public KeyPair
 {
 public:
     using Ptr = std::shared_ptr<Secp256k1KeyPair>;
-    Secp256k1KeyPair()
-      : KeyPair(SECP256K1_PUBLIC_LEN, SECP256K1_PRIVATE_LEN, KeyPairType::Secp256K1)
-    {}
-    explicit Secp256k1KeyPair(SecretPtr _secretKey) : Secp256k1KeyPair()
-    {
-        m_secretKey = _secretKey;
-        m_publicKey = priToPub(_secretKey);
-        m_type = KeyPairType::Secp256K1;
-    }
-    virtual PublicPtr priToPub(SecretPtr _secret) { return secp256k1PriToPub(*_secret); }
+    Secp256k1KeyPair();
+    explicit Secp256k1KeyPair(SecretPtr _secretKey);
+    static PublicPtr priToPub(Secret const& _secret) { return secp256k1PriToPub(_secret); }
 };
+
+using SECP256K1UncompressPublicKey = std::array<bcos::byte, 65>;
+using SECP256K1CompressPublicKey = std::array<bcos::byte, 33>;
+using SECP256K1SecretKey = std::array<bcos::byte, 32>;
+
+SECP256K1UncompressPublicKey tag_invoke(
+    key::tag_t<key::secretKeyToPublicKey>, SECP256K1SecretKey const& secretKey);
+SECP256K1SecretKey tag_invoke(keypair::tag_t<keypair::secretKey>, const Secp256k1KeyPair& keyPair);
+SECP256K1UncompressPublicKey tag_invoke(
+    keypair::tag_t<keypair::publicKey>, const Secp256k1KeyPair& keyPair);
+
+template <bool compress>
+auto tag_invoke(key::tag_t<key::serializePublicKey> /*unused*/, auto&& publicKey)
+    requires std::same_as<std::decay_t<decltype(publicKey)>, SECP256K1UncompressPublicKey> ||
+             std::same_as<std::decay_t<decltype(publicKey)>, SECP256K1CompressPublicKey>
+{
+    if constexpr ((compress && std::same_as<std::decay_t<decltype(publicKey)>,
+                                   SECP256K1CompressPublicKey>) ||
+                  (!compress && std::same_as<std::decay_t<decltype(publicKey)>,
+                                    SECP256K1UncompressPublicKey>))
+    {
+        return publicKey;
+    }
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_parse(
+            g_SECP256K1_CTX.get(), std::addressof(pubkey), publicKey.data(), publicKey.size()) == 0)
+    {
+        BOOST_THROW_EXCEPTION(
+            PriToPublicKeyException() << errinfo_comment("secp256k1GenerateKeyPair exception"));
+    }
+
+    std::conditional_t<compress, SECP256K1CompressPublicKey, SECP256K1UncompressPublicKey>
+        serializePubkey;
+    size_t outSize = serializePubkey.size();
+    if (secp256k1_ec_pubkey_serialize(g_SECP256K1_CTX.get(), serializePubkey.data(),
+            std::addressof(outSize), std::addressof(pubkey),
+            compress ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED) == 0)
+    {
+        BOOST_THROW_EXCEPTION(
+            PriToPublicKeyException() << errinfo_comment("secp256k1GenerateKeyPair exception"));
+    }
+    return serializePubkey;
+}
 }  // namespace bcos::crypto

@@ -89,8 +89,8 @@ BOOST_AUTO_TEST_CASE(testSecp256k1KeyPair)
     BOOST_CHECK(secp256k1KeyPair1->address(hashImpl) == calculateAddress(hashImpl, pub1));
     BOOST_CHECK(secp256k1KeyPair2->address(hashImpl) == calculateAddress(hashImpl, pub2));
     // test privateKeyToPublicKey
-    auto derivedPub1 = secp256k1KeyPair1->priToPub(secp256k1KeyPair1->secretKey());
-    auto derivedPub2 = secp256k1KeyPair2->priToPub(secp256k1KeyPair2->secretKey());
+    auto derivedPub1 = secp256k1KeyPair1->priToPub(*secp256k1KeyPair1->secretKey());
+    auto derivedPub2 = secp256k1KeyPair2->priToPub(*secp256k1KeyPair2->secretKey());
     BOOST_CHECK(derivedPub1->data() == pub1->data());
     BOOST_CHECK(derivedPub2->data() == pub2->data());
 
