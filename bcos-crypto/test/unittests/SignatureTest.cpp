@@ -54,10 +54,10 @@ BOOST_AUTO_TEST_CASE(testSecp256k1KeyPair)
         "bcec428d5205abe0f0cc8a7340839"
         "08d9eb8563e31f943d760786edf42ad67dd");
     auto sec1 = std::make_shared<bcos::crypto::KeyImpl>(fixedSec1.asBytes());
-    auto pub1 = secp256k1PriToPub(sec1);
+    auto pub1 = secp256k1PriToPub(*sec1);
     for (int i = 0; i < 10; i++)
     {
-        pub1 = secp256k1PriToPub(sec1);
+        pub1 = secp256k1PriToPub(*sec1);
         BOOST_CHECK_EQUAL(*toHexString(pub1->data()),
             "3378c2b7bcdce20357eb3dbb62590b88d4711dae74e1ea47dd4207441734d2fc7cf6df92fd8c0a3368ba5a"
             "1f5f9c3318d19a3f00ba2f2bd9f508b953be299fb5");
@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(testSecp256k1KeyPair)
 
     auto fixedSec2 = h256("bcec428d5205abe0");
     auto sec2 = std::make_shared<bcos::crypto::KeyImpl>(fixedSec2.asBytes());
-    auto pub2 = secp256k1PriToPub(sec2);
+    auto pub2 = secp256k1PriToPub(*sec2);
     auto keyPair2 = signatureImpl->createKeyPair(sec2);
     BOOST_CHECK(pub2->data() == keyPair2->publicKey()->data());
     BOOST_CHECK(sec2->data() == keyPair2->secretKey()->data());
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(testSecp256k1KeyPair)
     auto keyPair = secp256k1GenerateKeyPair();
     BOOST_CHECK(keyPair->secretKey());
     BOOST_CHECK(keyPair->publicKey());
-    auto testPub = secp256k1PriToPub(keyPair->secretKey());
+    auto testPub = secp256k1PriToPub(*keyPair->secretKey());
     BOOST_CHECK(keyPair->publicKey()->data() == testPub->data());
     SecretPtr emptySecret = std::make_shared<KeyImpl>(SECP256K1_PRIVATE_LEN);
     BOOST_CHECK_THROW(Secp256k1KeyPair emptyKeyPair(emptySecret), PriToPublicKeyException);

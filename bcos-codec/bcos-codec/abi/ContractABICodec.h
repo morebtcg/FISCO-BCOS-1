@@ -430,7 +430,7 @@ private:
         return ss.str();
     }
 
-    inline void abiInAux() { return; }
+    inline void abiInAux() {}
 
     template <class T, class... U>
     void abiInAux(T const& _t, U const&... _u)
@@ -451,7 +451,7 @@ private:
         abiInAux(_u...);
     }
 
-    void abiOutAux() { return; }
+    void abiOutAux() {}
 
     template <class T, class... U>
     void abiOutAux(T& _t, U&... _u)

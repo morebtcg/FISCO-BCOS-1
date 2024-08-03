@@ -25,36 +25,17 @@
 #include <bcos-crypto/signature/secp256k1/Secp256k1KeyPair.h>
 #include <secp256k1.h>
 #include <secp256k1_recovery.h>
-#include <wedpr-crypto/WedprCrypto.h>
+#include <algorithm>
 #include <array>
+#include <limits>
 #include <memory>
 
 using namespace bcos;
 using namespace bcos::crypto;
 
-static const std::unique_ptr<secp256k1_context, decltype(&secp256k1_context_destroy)>
-    g_SECP256K1_CTX{secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY),
-        &secp256k1_context_destroy};
-
 std::shared_ptr<bytes> bcos::crypto::secp256k1Sign(
     const KeyPairInterface& _keyPair, const HashType& _hash)
 {
-#if 0
-    FixedBytes<SECP256K1_SIGNATURE_LEN> signatureDataArray;
-    CInputBuffer privateKey{_keyPair.secretKey()->constData(), _keyPair.secretKey()->size()};
-    CInputBuffer msgHash{(const char*)_hash.data(), HashType::SIZE};
-    COutputBuffer secp256k1SignatureResult{
-        (char*)signatureDataArray.data(), SECP256K1_SIGNATURE_LEN};
-    auto retCode = wedpr_secp256k1_sign(&privateKey, &msgHash, &secp256k1SignatureResult);
-    if (retCode != WEDPR_SUCCESS)
-    {
-        BOOST_THROW_EXCEPTION(SignException() << errinfo_comment(
-                                  "secp256k1Sign exception, raw data: " + _hash.hex()));
-    }
-    std::shared_ptr<bytes> signatureData = std::make_shared<bytes>();
-    *signatureData = signatureDataArray.asBytes();
-    return signatureData;
-#endif
     std::shared_ptr<bytes> signatureData = std::make_shared<bytes>(SECP256K1_SIGNATURE_LEN, 0);
     // secp256k1_ecdsa_recoverable_signature rawSig;
     auto* rawSig = (secp256k1_ecdsa_recoverable_signature*)(signatureData->data());
@@ -74,18 +55,6 @@ std::shared_ptr<bytes> bcos::crypto::secp256k1Sign(
 bool bcos::crypto::secp256k1Verify(
     const PublicPtr& _pubKey, const HashType& _hash, bytesConstRef _signatureData)
 {
-#if 0
-    CInputBuffer publicKey{_pubKey->constData(), _pubKey->size()};
-    CInputBuffer msgHash{(const char*)_hash.data(), HashType::SIZE};
-    CInputBuffer signature{(const char*)_signatureData.data(), _signatureData.size()};
-    auto verifyResult = wedpr_secp256k1_verify(&publicKey, &msgHash, &signature);
-    if (verifyResult == WEDPR_SUCCESS)
-    {
-        return true;
-    }
-    return false;
-#endif
-
     if ((uint8_t)_signatureData[SECP256K1_SIGNATURE_V] > 3)
     {
         BOOST_THROW_EXCEPTION(
@@ -115,14 +84,37 @@ bool bcos::crypto::secp256k1Verify(
 KeyPairInterface::UniquePtr bcos::crypto::secp256k1GenerateKeyPair()
 {
     auto keyPair = std::make_unique<Secp256k1KeyPair>();
-    COutputBuffer publicKey{keyPair->publicKey()->mutableData(), keyPair->publicKey()->size()};
-    COutputBuffer privateKey{keyPair->secretKey()->mutableData(), keyPair->secretKey()->size()};
-    auto retCode = wedpr_secp256k1_gen_key_pair(&publicKey, &privateKey);
-    if (retCode != WEDPR_SUCCESS)
+
+    std::random_device device;
+    std::uniform_int_distribution<char> uniformDist(
+        std::numeric_limits<char>::min(), std::numeric_limits<char>::max());
+    do
+    {
+        auto range = std::span(keyPair->secretKey()->mutableData(), keyPair->secretKey()->size());
+        std::generate(range.begin(), range.end(), [&]() { return uniformDist(device); });
+    } while (secp256k1_ec_seckey_verify(g_SECP256K1_CTX.get(),
+                 reinterpret_cast<const unsigned char*>(keyPair->secretKey()->constData())) == 0);
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_create(g_SECP256K1_CTX.get(), std::addressof(pubkey),
+            reinterpret_cast<const unsigned char*>(keyPair->secretKey()->constData())) == 0)
     {
         BOOST_THROW_EXCEPTION(
             GenerateKeyPairException() << errinfo_comment("secp256k1GenerateKeyPair exception"));
     }
+
+    std::array<unsigned char, SECP256K1_UNCOMPRESS_PUBLICKEY_LEN> serializePubkey{};
+    size_t outSize = SECP256K1_UNCOMPRESS_PUBLICKEY_LEN;
+    if (secp256k1_ec_pubkey_serialize(g_SECP256K1_CTX.get(), serializePubkey.data(),
+            std::addressof(outSize), std::addressof(pubkey), SECP256K1_EC_UNCOMPRESSED) == 0)
+    {
+        BOOST_THROW_EXCEPTION(
+            GenerateKeyPairException() << errinfo_comment("secp256k1GenerateKeyPair exception"));
+    }
+    assert(serializePubkey[0] == 0x4);
+    std::copy(
+        serializePubkey.begin() + 1, serializePubkey.end(), keyPair->publicKey()->mutableData());
+
     return keyPair;
 }
 
@@ -149,20 +141,6 @@ void secp256k1RecoverPrimitive(const HashType& _hash, char* _pubKey, bytesConstR
 
 PublicPtr bcos::crypto::secp256k1Recover(const HashType& _hash, bytesConstRef _signatureData)
 {
-#if 0
-    CInputBuffer msgHash{(const char*)_hash.data(), HashType::SIZE};
-    CInputBuffer signature{(const char*)_signatureData.data(), _signatureData.size()};
-    auto pubKey = std::make_shared<KeyImpl>(SECP256K1_PUBLIC_LEN);
-    COutputBuffer publicKeyResult{pubKey->mutableData(), pubKey->size()};
-    auto retCode = wedpr_secp256k1_recover_public_key(&msgHash, &signature, &publicKeyResult);
-    if (retCode != WEDPR_SUCCESS)
-    {
-        BOOST_THROW_EXCEPTION(InvalidSignature() << errinfo_comment(
-                                  "invalid signature: secp256k1Recover failed, msgHash : " +
-                                  _hash.hex() + ", signData:" + *toHexString(_signatureData)));
-    }
-    return pubKey;
-#endif
     if ((uint8_t)_signatureData[SECP256K1_SIGNATURE_V] > 3)
     {
         BOOST_THROW_EXCEPTION(
@@ -188,10 +166,10 @@ std::pair<bool, bytes> bcos::crypto::secp256k1Recover(Hash::Ptr _hashImpl, bytes
     u256 v = (u256)in.v;
     if (v >= 27 && v <= 28)
     {
-        auto signatureData = std::make_shared<SignatureDataWithV>(in.r, in.s, (byte)((int)v - 27));
+        auto signatureData = SignatureDataWithV(in.r, in.s, (byte)((int)v - 27));
         try
         {
-            auto encodedBytes = signatureData->encode();
+            auto encodedBytes = signatureData.encode();
             auto publicKey = secp256k1Recover(
                 in.hash, bytesConstRef(encodedBytes->data(), encodedBytes->size()));
             auto address = calculateAddress(_hashImpl, publicKey);

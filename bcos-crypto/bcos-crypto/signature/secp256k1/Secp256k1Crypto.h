@@ -43,6 +43,7 @@ public:
     using Ptr = std::shared_ptr<Secp256k1Crypto>;
     Secp256k1Crypto() = default;
     ~Secp256k1Crypto() override = default;
+
     std::shared_ptr<bytes> sign(
         const KeyPairInterface& _keyPair, const HashType& _hash, bool) const override
     {

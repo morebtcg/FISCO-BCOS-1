@@ -21,13 +21,18 @@
 #pragma once
 #include <bcos-crypto/interfaces/crypto/Signature.h>
 #include <bcos-crypto/signature/key/KeyPair.h>
+#include <secp256k1.h>
 
 namespace bcos::crypto
 {
-const int SECP256K1_PUBLIC_LEN = 64;
-const int SECP256K1_PRIVATE_LEN = 32;
+constexpr static int SECP256K1_PUBLIC_LEN = 64;
+constexpr static int SECP256K1_PRIVATE_LEN = 32;
 
-PublicPtr secp256k1PriToPub(SecretPtr _secret);
+static const std::unique_ptr<secp256k1_context, decltype(&secp256k1_context_destroy)>
+    g_SECP256K1_CTX{secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY),
+        &secp256k1_context_destroy};
+
+PublicPtr secp256k1PriToPub(Secret const& _secret);
 class Secp256k1KeyPair : public KeyPair
 {
 public:
@@ -41,6 +46,6 @@ public:
         m_publicKey = priToPub(_secretKey);
         m_type = KeyPairType::Secp256K1;
     }
-    virtual PublicPtr priToPub(SecretPtr _secret) { return secp256k1PriToPub(_secret); }
+    virtual PublicPtr priToPub(SecretPtr _secret) { return secp256k1PriToPub(*_secret); }
 };
 }  // namespace bcos::crypto

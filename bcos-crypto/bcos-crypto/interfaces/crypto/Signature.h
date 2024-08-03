@@ -23,7 +23,6 @@
 #include <bcos-crypto/interfaces/crypto/KeyInterface.h>
 #include <bcos-crypto/interfaces/crypto/KeyPairInterface.h>
 #include <memory>
-#include <mutex>
 namespace bcos::crypto
 {
 class SignatureCrypto
