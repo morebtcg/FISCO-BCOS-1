@@ -1,5 +1,8 @@
 #pragma once
 
+#include <concepts>
+#include <memory>
+#include <span>
 #include <type_traits>
 
 namespace bcos::crypto::key
@@ -14,6 +17,11 @@ inline constexpr struct SerializePublicKey
     }
 } serializePublicKey;
 
+inline constexpr struct DeserializePublicKey
+{
+    auto operator()(auto const& buffer) const { return tag_invoke(*this, buffer); }
+} deserializePublicKey;
+
 inline constexpr struct SecretKeyToPublicKey
 {
     auto operator()(auto const& secretKey) const { return tag_invoke(*this, secretKey); }
@@ -25,8 +33,9 @@ concept SecretKey = requires(SecretKeyType&& secretKey) {
 };
 
 template <class PublicKeyType>
-concept PublicKey = requires(PublicKeyType&& publicKey) {
+concept PublicKey = requires(PublicKeyType&& publicKey, std::span<unsigned char> buffer) {
     { serializePublicKey(publicKey) };
+    { deserializePublicKey(buffer) } -> std::convertible_to<bool>;
 };
 
 template <auto& Tag>
