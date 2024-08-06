@@ -1,7 +1,6 @@
 #pragma once
 
 #include <concepts>
-#include <memory>
 #include <span>
 #include <type_traits>
 
@@ -35,7 +34,7 @@ concept SecretKey = requires(SecretKeyType&& secretKey) {
 template <class PublicKeyType>
 concept PublicKey = requires(PublicKeyType&& publicKey, std::span<unsigned char> buffer) {
     { serializePublicKey(publicKey) };
-    { deserializePublicKey(buffer) } -> std::convertible_to<bool>;
+    // { deserializePublicKey(buffer) } -> std::convertible_to<bool>;
 };
 
 template <auto& Tag>
