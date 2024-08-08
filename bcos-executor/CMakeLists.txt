@@ -29,6 +29,12 @@ endif()
 # )
 # set(SKIP_UNITY_BUILD_INCLUSION "src/vm/")
 
+set_source_files_properties(
+    "src/vm/kzgPrecompiled.cpp"
+    "src/vm/VMFactory.cpp"
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+set_target_properties(${EXECUTOR_TARGET} PROPERTIES UNITY_BUILD "ON")
+
 if (TOOLS)
     add_subdirectory(tools)
 endif()
