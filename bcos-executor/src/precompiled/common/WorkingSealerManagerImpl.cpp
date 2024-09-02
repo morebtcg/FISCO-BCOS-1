@@ -361,21 +361,20 @@ struct NodeWeightRange
 static WorkingSealer pickNodeByWeight(
     std::vector<NodeWeightRange>& nodeWeightRanges, size_t& totalWeight, const u256& seed)
 {
-    auto index = (seed % totalWeight).convert_to<size_t>();
+    auto index = (seed % totalWeight).convert_to<uint64_t>();
     auto nodeIt = std::lower_bound(nodeWeightRanges.begin(), nodeWeightRanges.end(), index,
         [](const NodeWeightRange& range, uint64_t index) { return range.offset < index; });
     assert(nodeIt != nodeWeightRanges.end());
     auto weight =
         nodeIt->offset - ((nodeWeightRanges.begin() == nodeIt) ? 0LU : (nodeIt - 1)->offset);
     totalWeight -= weight;
-    for (auto it = nodeIt; it != nodeWeightRanges.end(); ++it)
+    for (auto& it : RANGES::subrange(nodeIt + 1, nodeWeightRanges.end()))
     {
-        it->offset -= weight;
+        it.offset -= weight;
     }
 
     const auto* sealer = nodeIt->sealer;
     nodeWeightRanges.erase(nodeIt);
-
     return *sealer;
 }
 

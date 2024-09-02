@@ -16,7 +16,7 @@ bcos::transaction_scheduler::getTransactions(
     }
 
     co_return co_await txpool.getTransactions(
-        RANGES::iota_view<size_t, size_t>(0LU, block.transactionsMetaDataSize()) |
+        RANGES::views::iota(0LU, block.transactionsMetaDataSize()) |
         RANGES::views::transform(
             [&block](uint64_t index) { return block.transactionHash(index); }));
 }
@@ -29,14 +29,14 @@ bcos::h256 bcos::transaction_scheduler::calcauteTransactionRoot(
     std::vector<bcos::h256> merkleTrie;
     if (block.transactionsSize() > 0)
     {
-        auto hashes = RANGES::iota_view<size_t, size_t>(0LU, block.transactionsSize()) |
+        auto hashes = RANGES::views::iota(0LU, block.transactionsSize()) |
                       RANGES::views::transform(
                           [&block](uint64_t index) { return block.transaction(index)->hash(); });
         merkle.generateMerkle(hashes, merkleTrie);
     }
     else
     {
-        auto hashes = RANGES::iota_view<size_t, size_t>(0LU, block.transactionsMetaDataSize()) |
+        auto hashes = RANGES::views::iota(0LU, block.transactionsMetaDataSize()) |
                       RANGES::views::transform(
                           [&block](uint64_t index) { return block.transactionHash(index); });
         merkle.generateMerkle(hashes, merkleTrie);

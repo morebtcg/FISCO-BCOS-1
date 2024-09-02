@@ -55,6 +55,10 @@ inline std::strong_ordering operator<=>(
     {
         cmp = lhs.voteWeight() <=> rhs.voteWeight();
     }
+    if (std::is_eq(cmp))
+    {
+        cmp = lhs.termWeight() <=> rhs.termWeight();
+    }
     return cmp;
 }
 inline std::strong_ordering operator<=>(

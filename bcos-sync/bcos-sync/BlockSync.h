@@ -24,7 +24,6 @@
 #include "bcos-sync/state/DownloadingQueue.h"
 #include "bcos-sync/state/SyncPeerStatus.h"
 #include "bcos-sync/utilities/SyncTreeTopology.h"
-#include "bcos-tool/NodeTimeMaintenance.h"
 #include <bcos-framework/sync/BlockSyncInterface.h>
 #include <bcos-utilities/ThreadPool.h>
 #include <bcos-utilities/Timer.h>
