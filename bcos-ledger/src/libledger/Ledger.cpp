@@ -1291,12 +1291,16 @@ void Ledger::asyncGetNodeListByType(const std::string_view& _type,
         auto nodeList = decodeConsensusList(nodeListEntry->getField(0));
         auto nodes = std::make_shared<consensus::ConsensusNodeList>();
 
+        auto effectNumber = blockNumber + 1;
+        auto validNodes = RANGES::views::filter(nodeList, [&](auto const& node) {
+            return node.type == type && boost::lexical_cast<bcos::protocol::BlockNumber>(
+                                            node.enableNumber) <= effectNumber;
+        });
         auto entries = co_await storage2::readSome(
-            *self.m_stateStorage, RANGES::views::transform(nodeList, [](auto const& node) {
+            *self.m_stateStorage, validNodes | RANGES::views::transform([](auto const& node) {
                 return transaction_executor::StateKeyView{SYS_CONSENSUS, node.nodeID};
             }));
 
-        auto effectNumber = blockNumber + 1;
         for (auto&& [it, entry] : RANGES::views::zip(nodeList, entries))
         {
             if (it.type == type &&
