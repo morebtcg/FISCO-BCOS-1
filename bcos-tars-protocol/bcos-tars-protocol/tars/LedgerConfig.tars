@@ -1,10 +1,6 @@
+#include "ConsensusNode.tars"
 module bcostars
 {
-    struct ConsensusNode {
-        1 optional vector<byte> nodeID;
-        2 optional long voteWeight;
-        3 optional long termWeight;
-    };
     struct LedgerConfig
     {
         1 optional vector<ConsensusNode> consensusNodeList;

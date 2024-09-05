@@ -64,17 +64,16 @@ public:
 
 struct KeyHasher
 {
-    size_t hash(KeyInterface::Ptr const& _key) const
+    static size_t hash(KeyInterface::Ptr const& _key)
     {
-        size_t seed = hashString({_key->constData(), _key->size()});
+        size_t seed = std::hash<std::string_view>{}({_key->constData(), _key->size()});
         return seed;
     }
 
-    bool equal(const KeyInterface::Ptr& lhs, const KeyInterface::Ptr& rhs) const
+    static bool equal(const KeyInterface::Ptr& lhs, const KeyInterface::Ptr& rhs)
     {
         return lhs->data() == rhs->data();
     }
-    std::hash<std::string_view> hashString;
 };
 using NodeIDSet = std::set<bcos::crypto::NodeIDPtr, KeyCompare>;
 using NodeIDSetPtr = std::shared_ptr<NodeIDSet>;

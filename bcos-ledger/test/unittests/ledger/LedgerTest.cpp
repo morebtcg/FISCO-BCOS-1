@@ -55,7 +55,6 @@
 #include <bcos-utilities/testutils/TestPromptFixture.h>
 #include <boost/algorithm/hex.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/test/tools/old/interface.hpp>
 #include <boost/test/unit_test.hpp>
 #include <memory>
 
@@ -742,7 +741,7 @@ BOOST_AUTO_TEST_CASE(testNodeListByType)
 
             auto list = decodeConsensusList(entry->getField(0));
             list.emplace_back(
-                bcos::crypto::HashType("56789").hex(), 100, std::string{CONSENSUS_SEALER}, "5", 0);
+                bcos::crypto::HashType("56789").hex(), 100, std::string{CONSENSUS_SEALER}, "5");
 
             entry->setField(0, encodeConsensusList(list));
             m_storage->asyncSetRow(

@@ -253,6 +253,7 @@ bool WorkingSealerManagerImpl::shouldRotate(const executor::TransactionExecutive
     return false;
 }
 
+// TODO: 使用独立的取Consensus函数
 bool WorkingSealerManagerImpl::getConsensusNodeListFromStorage(
     const executor::TransactionExecutive::Ptr& _executive)
 {
@@ -279,13 +280,14 @@ bool WorkingSealerManagerImpl::getConsensusNodeListFromStorage(
             continue;
         }
 
+        // TODO: 使用独立的取Consensus函数
         if (node.type == ledger::CONSENSUS_SEALER)
         {
-            m_consensusSealer.emplace_back(WorkingSealer{node.nodeID, node.termWeight});
+            m_consensusSealer.emplace_back(WorkingSealer{node.nodeID, 0});
         }
         else if (node.type == ledger::CONSENSUS_CANDIDATE_SEALER)
         {
-            m_candidateSealer.emplace_back(WorkingSealer{node.nodeID, node.termWeight});
+            m_candidateSealer.emplace_back(WorkingSealer{node.nodeID, 0});
         }
     }
     m_consensusNodes.swap(consensusNodeList);

@@ -27,7 +27,6 @@ void tag_invoke(bcos::concepts::serialize::tag_t<bcos::concepts::serialize::deco
 {
     tars::TarsInputStream<tars::BufferReader> input;
     input.setBuffer((const char*)RANGES::data(buffer), RANGES::size(buffer));
-
     out.readFrom(input);
 }
 

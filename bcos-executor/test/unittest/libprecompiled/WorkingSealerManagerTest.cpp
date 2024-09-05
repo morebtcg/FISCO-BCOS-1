@@ -65,10 +65,10 @@ BOOST_AUTO_TEST_CASE(testRotate)
 
         // Node list
         ledger::ConsensusNodeList nodeList;
-        nodeList.emplace_back(node1, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 70);
-        nodeList.emplace_back(node2, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 20);
-        nodeList.emplace_back(node3, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 7);
-        nodeList.emplace_back(node4, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 3);
+        // nodeList.emplace_back(node1, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 70);
+        // nodeList.emplace_back(node2, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 20);
+        // nodeList.emplace_back(node3, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 7);
+        // nodeList.emplace_back(node4, 1, std::string(ledger::CONSENSUS_CANDIDATE_SEALER), "0"s, 3);
         storage::Entry consensusNodeListEntry;
         consensusNodeListEntry.setObject(nodeList);
         co_await storage2::writeOne(storage,

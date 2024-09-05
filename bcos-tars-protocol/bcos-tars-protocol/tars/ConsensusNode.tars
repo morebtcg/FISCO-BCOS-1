@@ -1,0 +1,7 @@
+module bcostars {
+    struct ConsensusNode {
+        1 optional vector<byte> nodeID;
+        2 optional unsigned int voteWeight;
+        3 optional unsigned int termWeight;
+    };
+};

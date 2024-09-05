@@ -190,7 +190,7 @@ static int addSealerImpl(bool isConsensus,
                 return CODE_ADD_SEALER_SHOULD_IN_OBSERVER;
             }
             consensusList.emplace_back(nodeID, voteWeight, std::string{ledger::CONSENSUS_SEALER},
-                boost::lexical_cast<std::string>(blockContext.number() + 1), termWeight);
+                boost::lexical_cast<std::string>(blockContext.number() + 1));
         }
         node->enableNumber = boost::lexical_cast<std::string>(blockContext.number() + 1);
     }
@@ -208,14 +208,15 @@ static int addSealerImpl(bool isConsensus,
                 return CODE_LAST_SEALER;
             }
             node->voteWeight = 0;
-            node->termWeight = 0;
+            // TODO: 使用的独立的setConsensusNode函数
+            // node->termWeight = 0;
             node->type = ledger::CONSENSUS_OBSERVER;
             node->enableNumber = boost::lexical_cast<std::string>(blockContext.number() + 1);
         }
         else
         {
             consensusList.emplace_back(nodeID, 0, std::string{ledger::CONSENSUS_OBSERVER},
-                boost::lexical_cast<std::string>(blockContext.number() + 1), 0);
+                boost::lexical_cast<std::string>(blockContext.number() + 1));
         }
     }
 
@@ -369,14 +370,14 @@ int ConsensusPrecompiled::setWeight(
         {
             BOOST_THROW_EXCEPTION(protocol::PrecompiledError("Cannot set weight to observer."));
         }
-        if (setTermWeight)
-        {
-            node->termWeight = weight.convert_to<uint64_t>();
-        }
-        else
-        {
-            node->voteWeight = weight;
-        }
+        // if (setTermWeight)
+        // {
+        //     node->termWeight = weight.convert_to<uint64_t>();
+        // }
+        // else
+        // {
+        node->voteWeight = weight;
+        // }
         node->enableNumber = boost::lexical_cast<std::string>(blockContext.number() + 1);
     }
     else
@@ -453,7 +454,7 @@ void ConsensusPrecompiled::showConsensusTable(
     consensusTable << "ConsensusPrecompiled show table:\n";
     for (auto& node : consensusList)
     {
-        auto& [nodeID, voteWeight, type, enableNumber, termWeight] = node;
+        auto& [nodeID, voteWeight, type, enableNumber] = node;
 
         consensusTable << "ConsensusPrecompiled: " << nodeID << "," << type << "," << enableNumber
                        << "," << voteWeight << "\n";

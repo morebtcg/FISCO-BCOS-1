@@ -22,6 +22,7 @@
  */
 
 #include "Ledger.h"
+#include "bcos-concepts/Serialize.h"
 #include "bcos-framework/ledger/EVMAccount.h"
 #include "bcos-framework/ledger/Features.h"
 #include "bcos-framework/ledger/Ledger.h"
@@ -30,6 +31,7 @@
 #include "bcos-tool/NodeConfig.h"
 #include "bcos-tool/VersionConverter.h"
 #include "bcos-utilities/Common.h"
+#include "generated/bcos-tars-protocol/tars/LedgerConfig.h"
 #include <bcos-codec/scale/Scale.h>
 #include <bcos-concepts/Basic.h>
 #include <bcos-concepts/ByteBuffer.h>
@@ -59,11 +61,10 @@
 #include <boost/throw_exception.hpp>
 #include <array>
 #include <cstddef>
+#include <exception>
 #include <future>
 #include <iterator>
 #include <memory>
-#include <range/v3/view/take.hpp>
-#include <range/v3/view/transform.hpp>
 #include <utility>
 
 using namespace bcos;
@@ -757,34 +758,21 @@ void Ledger::asyncGetBlockDataByNumber(bcos::protocol::BlockNumber _blockNumber,
 void Ledger::asyncGetBlockNumber(
     std::function<void(Error::Ptr, bcos::protocol::BlockNumber)> _onGetBlock)
 {
-    asyncGetSystemTableEntry(SYS_CURRENT_STATE, SYS_KEY_CURRENT_NUMBER,
-        [callback = std::move(_onGetBlock)](
-            Error::Ptr&& error, std::optional<bcos::storage::Entry>&& entry) {
-            if (error)
-            {
-                LEDGER_LOG(DEBUG) << "GetBlockNumber failed"
-                                  << boost::diagnostic_information(error);
-                callback(BCOS_ERROR_WITH_PREV_PTR(LedgerError::GetStorageError,
-                             "Get block number storage failed", *error),
-                    -1);
-                return;
-            }
-
-            bcos::protocol::BlockNumber blockNumber = -1;
-            try
-            {
-                blockNumber = boost::lexical_cast<bcos::protocol::BlockNumber>(entry->getField(0));
-            }
-            catch (boost::bad_lexical_cast& e)
-            {
-                // Ignore the exception
-                LEDGER_LOG(INFO) << "Cast blockNumber failed, may be empty, set to default value -1"
-                                 << LOG_KV("blockNumber str", entry->getField(0));
-            }
-
-            LEDGER_LOG(TRACE) << "GetBlockNumber success" << LOG_KV("blockNumber", blockNumber);
+    task::wait([](decltype(*this)& self, decltype(_onGetBlock) callback) -> task::Task<void> {
+        try
+        {
+            auto blockNumber =
+                co_await ledger::getCurrentBlockNumber(*self.m_stateStorage, fromStorage);
             callback(nullptr, blockNumber);
-        });
+        }
+        catch (std::exception& error)
+        {
+            LEDGER_LOG(DEBUG) << "GetBlockNumber failed" << boost::diagnostic_information(error);
+            callback(BCOS_ERROR_WITH_PREV_PTR(
+                         LedgerError::GetStorageError, "Get block number storage failed", error),
+                -1);
+        }
+    }(*this, std::move(_onGetBlock)));
 }
 
 void Ledger::asyncGetBlockHashByNumber(bcos::protocol::BlockNumber _blockNumber,
@@ -875,6 +863,51 @@ void Ledger::asyncGetBlockNumberByHash(const crypto::HashType& _blockHash,
                     -1);
             }
         });
+}
+
+static Error::Ptr checkTableValid(Error::UniquePtr&& error,
+    const std::optional<bcos::storage::Table>& table, const std::string_view& tableName)
+{
+    if (error)
+    {
+        std::stringstream ss;
+        ss << "Open table: " << tableName << " failed!";
+        LEDGER_LOG(DEBUG) << ss.str() << boost::diagnostic_information(*error);
+
+        return BCOS_ERROR_WITH_PREV_PTR(LedgerError::OpenTableFailed, ss.str(), *error);
+    }
+
+    if (!table)
+    {
+        std::stringstream ss;
+        ss << "Table: " << tableName << " does not exists!";
+        LEDGER_LOG(DEBUG) << ss.str();
+        return BCOS_ERROR_PTR(LedgerError::OpenTableFailed, ss.str());
+    }
+
+    return nullptr;
+}
+
+static Error::Ptr checkEntryValid(Error::UniquePtr&& error,
+    const std::optional<bcos::storage::Entry>& entry, const std::string_view& key)
+{
+    if (error)
+    {
+        std::stringstream ss;
+        ss << "Get row: " << key << " failed!";
+        LEDGER_LOG(DEBUG) << ss.str() << boost::diagnostic_information(*error);
+
+        return BCOS_ERROR_WITH_PREV_PTR(LedgerError::GetStorageError, ss.str(), *error);
+    }
+
+    if (!entry)
+    {
+        std::stringstream ss;
+        ss << "Entry: " << key << " does not exists!";
+        return BCOS_ERROR_PTR(LedgerError::GetStorageError, ss.str());
+    }
+
+    return nullptr;
 }
 
 void Ledger::asyncGetBatchTxsByHashList(crypto::HashListPtr _txHashList, bool _withProof,
@@ -1020,7 +1053,7 @@ void Ledger::asyncGetTotalTransactionCount(
         SYS_KEY_TOTAL_TRANSACTION_COUNT, SYS_KEY_TOTAL_FAILED_TRANSACTION, SYS_KEY_CURRENT_NUMBER};
 
     m_stateStorage->asyncOpenTable(SYS_CURRENT_STATE,
-        [this, callback = std::move(_callback)](auto&& error, std::optional<Table>&& table) {
+        [callback = std::move(_callback)](auto&& error, std::optional<Table>&& table) {
             auto tableError =
                 checkTableValid(std::forward<decltype(error)>(error), table, SYS_CURRENT_STATE);
             if (tableError)
@@ -1292,78 +1325,33 @@ void Ledger::asyncGetNodeListByType(const std::string_view& _type,
         auto nodes = std::make_shared<consensus::ConsensusNodeList>();
 
         auto effectNumber = blockNumber + 1;
-        auto validNodes = RANGES::views::filter(nodeList, [&](auto const& node) {
-            return node.type == type && boost::lexical_cast<bcos::protocol::BlockNumber>(
-                                            node.enableNumber) <= effectNumber;
-        });
-        auto entries = co_await storage2::readSome(
-            *self.m_stateStorage, validNodes | RANGES::views::transform([](auto const& node) {
-                return transaction_executor::StateKeyView{SYS_CONSENSUS, node.nodeID};
-            }));
-
-        for (auto&& [it, entry] : RANGES::views::zip(nodeList, entries))
+        for (auto&& node : RANGES::views::filter(nodeList, [&](auto const& node) {
+                 return node.type == type && boost::lexical_cast<bcos::protocol::BlockNumber>(
+                                                 node.enableNumber) <= effectNumber;
+             }))
         {
-            if (it.type == type &&
-                boost::lexical_cast<bcos::protocol::BlockNumber>(it.enableNumber) <= effectNumber)
-            {
-                crypto::NodeIDPtr nodeID =
-                    self.m_blockFactory->cryptoSuite()->keyFactory()->createKey(fromHex(it.nodeID));
-                uint64_t termWeight = entry ? boost::lexical_cast<uint64_t>(entry->get()) : 0;
-                // Note: use try-catch to handle the exception case
-                nodes->emplace_back(std::make_shared<consensus::ConsensusNode>(
-                    nodeID, it.voteWeight.convert_to<uint64_t>(), termWeight));
-            }
+            crypto::NodeIDPtr nodeID =
+                self.m_blockFactory->cryptoSuite()->keyFactory()->createKey(fromHex(node.nodeID));
+
+            uint64_t termWeight = 0;
+            std::string_view extraKey{nodeID->constData(), nodeID->size()};
+            // if (auto extraEntry = co_await storage2::readOne(*self.m_stateStorage,
+            //         transaction_executor::StateKeyView{SYS_CONSENSUS, extraKey}))
+            // {
+            //     bcostars::ConsensusNode tarsConsensusNode;
+            //     concepts::serialize::decode(extraEntry->get(), tarsConsensusNode);
+            //     termWeight = tarsConsensusNode.termWeight;
+            // }
+
+            // Note: use try-catch to handle the exception case
+            nodes->emplace_back(std::make_shared<consensus::ConsensusNode>(
+                nodeID, 0, node.voteWeight.convert_to<uint64_t>(), termWeight));
         }
 
         LEDGER_LOG(DEBUG) << "GetNodeListByType success" << LOG_KV("type", type)
                           << LOG_KV("nodes size", nodes->size());
         callback(nullptr, std::move(nodes));
     }(*this, _type, std::move(_onGetConfig)));
-}
-
-Error::Ptr Ledger::checkTableValid(Error::UniquePtr&& error,
-    const std::optional<bcos::storage::Table>& table, const std::string_view& tableName)
-{
-    if (error)
-    {
-        std::stringstream ss;
-        ss << "Open table: " << tableName << " failed!";
-        LEDGER_LOG(DEBUG) << ss.str() << boost::diagnostic_information(*error);
-
-        return BCOS_ERROR_WITH_PREV_PTR(LedgerError::OpenTableFailed, ss.str(), *error);
-    }
-
-    if (!table)
-    {
-        std::stringstream ss;
-        ss << "Table: " << tableName << " does not exists!";
-        LEDGER_LOG(DEBUG) << ss.str();
-        return BCOS_ERROR_PTR(LedgerError::OpenTableFailed, ss.str());
-    }
-
-    return nullptr;
-}
-
-Error::Ptr Ledger::checkEntryValid(Error::UniquePtr&& error,
-    const std::optional<bcos::storage::Entry>& entry, const std::string_view& key)
-{
-    if (error)
-    {
-        std::stringstream ss;
-        ss << "Get row: " << key << " failed!";
-        LEDGER_LOG(DEBUG) << ss.str() << boost::diagnostic_information(*error);
-
-        return BCOS_ERROR_WITH_PREV_PTR(LedgerError::GetStorageError, ss.str(), *error);
-    }
-
-    if (!entry)
-    {
-        std::stringstream ss;
-        ss << "Entry: " << key << " does not exists!";
-        return BCOS_ERROR_PTR(LedgerError::GetStorageError, ss.str());
-    }
-
-    return nullptr;
 }
 
 void Ledger::asyncGetBlockHeader(bcos::protocol::Block::Ptr block,
@@ -1613,19 +1601,18 @@ void Ledger::asyncBatchGetReceipts(std::shared_ptr<std::vector<std::string>> has
 void Ledger::asyncGetSystemTableEntry(const std::string_view& table, const std::string_view& key,
     std::function<void(Error::Ptr&&, std::optional<bcos::storage::Entry>&&)> callback)
 {
-    m_stateStorage->asyncOpenTable(
-        table, [this, key = std::string(key), callback = std::move(callback)](
-                   auto&& error, std::optional<Table>&& table) {
-            auto tableError =
-                checkTableValid(std::forward<decltype(error)>(error), table, SYS_CURRENT_STATE);
-            if (tableError)
-            {
-                callback(std::move(tableError), {});
-                return;
-            }
+    m_stateStorage->asyncOpenTable(table, [key = std::string(key), callback = std::move(callback)](
+                                              auto&& error, std::optional<Table>&& table) {
+        auto tableError =
+            checkTableValid(std::forward<decltype(error)>(error), table, SYS_CURRENT_STATE);
+        if (tableError)
+        {
+            callback(std::move(tableError), {});
+            return;
+        }
 
-            table->asyncGetRow(key, [this, key, callback = std::move(callback)](
-                                        auto&& error, std::optional<Entry>&& entry) {
+        table->asyncGetRow(
+            key, [key, callback = std::move(callback)](auto&& error, std::optional<Entry>&& entry) {
                 auto entryError = checkEntryValid(std::forward<decltype(error)>(error), entry, key);
                 if (entryError)
                 {
@@ -1635,7 +1622,7 @@ void Ledger::asyncGetSystemTableEntry(const std::string_view& table, const std::
 
                 callback(nullptr, std::move(entry));
             });
-        });
+    });
 }
 
 template <typename MerkleType, typename HashRangeType>
@@ -2171,11 +2158,10 @@ bool Ledger::buildGenesisBlock(
     }
 
     ConsensusNodeList consensusNodeList;
-
     for (const auto& node : ledgerConfig.consensusNodeList())
     {
-        consensusNodeList.emplace_back(node->nodeID()->hex(), node->voteWeight(),
-            std::string{CONSENSUS_SEALER}, "0", node->termWeight());
+        consensusNodeList.emplace_back(
+            node->nodeID()->hex(), node->voteWeight(), std::string{CONSENSUS_SEALER}, "0");
     }
 
     // update some node type to CONSENSUS_CANDIDATE_SEALER
@@ -2198,8 +2184,8 @@ bool Ledger::buildGenesisBlock(
 
     for (const auto& node : ledgerConfig.observerNodeList())
     {
-        consensusNodeList.emplace_back(node->nodeID()->hex(), node->voteWeight(),
-            std::string{CONSENSUS_OBSERVER}, "0", node->termWeight());
+        consensusNodeList.emplace_back(
+            node->nodeID()->hex(), node->voteWeight(), std::string{CONSENSUS_OBSERVER}, "0");
     }
 
     Entry consensusNodeListEntry;
@@ -2391,7 +2377,7 @@ void Ledger::asyncGetCurrentStateByKey(std::string_view const& _key,
     std::function<void(Error::Ptr&&, std::optional<bcos::storage::Entry>&&)> _callback)
 {
     m_stateStorage->asyncOpenTable(SYS_CURRENT_STATE,
-        [this, callback = std::move(_callback), _key](auto&& error, std::optional<Table>&& table) {
+        [callback = std::move(_callback), _key](auto&& error, std::optional<Table>&& table) {
             auto tableError =
                 checkTableValid(std::forward<decltype(error)>(error), table, SYS_CURRENT_STATE);
             if (tableError)
@@ -2424,4 +2410,33 @@ Error::Ptr Ledger::setCurrentStateByKey(std::string_view const& _key, bcos::stor
     m_stateStorage->asyncSetRow(ledger::SYS_CURRENT_STATE, _key, std::move(entry),
         [&](Error::UniquePtr err) { setPromise.set_value(std::move(err)); });
     return setPromise.get_future().get();
+}
+
+bcos::storage::StateStorageInterface::Ptr bcos::ledger::Ledger::getStateStorage()
+{
+    if (m_keyPageSize > 0)
+    {
+        // create keyPageStorage
+        storage::StateStorageFactory stateStorageFactory(m_keyPageSize);
+        // getABI function begin in version 320
+        auto keyPageIgnoreTables = std::make_shared<std::set<std::string, std::less<>>>(
+            storage::IGNORED_ARRAY_310.begin(), storage::IGNORED_ARRAY_310.end());
+        auto [error, entry] =
+            m_stateStorage->getRow(ledger::SYS_CONFIG, ledger::SYSTEM_KEY_COMPATIBILITY_VERSION);
+        if (!entry || error)
+        {
+            BOOST_THROW_EXCEPTION(BCOS_ERROR(GetStorageError, "Not found compatibilityVersion."));
+        }
+        auto [compatibilityVersionStr, _] = entry->template getObject<SystemConfigEntry>();
+        auto const version = bcos::tool::toVersionNumber(compatibilityVersionStr);
+        auto stateStorage = stateStorageFactory.createStateStorage(
+            m_stateStorage, version, true, false, keyPageIgnoreTables);
+        return stateStorage;
+    }
+    return std::make_shared<bcos::storage::StateStorage>(m_stateStorage, true);
+}
+
+std::string bcos::ledger::Ledger::getSysBaseName(const std::string& _s)
+{
+    return _s.substr(_s.find_last_of('/') + 1);
 }

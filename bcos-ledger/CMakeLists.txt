@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 3.10)
 find_package(Boost REQUIRED serialization)
 
 add_library(${LEDGER_TARGET} src/libledger/Ledger.cpp src/libledger/LedgerMethods.cpp)
-target_link_libraries(${LEDGER_TARGET} PUBLIC ${TOOL_TARGET} ${CODEC_TARGET} ${TABLE_TARGET} bcos-concepts Boost::serialization)
+target_link_libraries(${LEDGER_TARGET} PUBLIC ${TOOL_TARGET} ${CODEC_TARGET} ${TABLE_TARGET} ${TARS_PROTOCOL_TARGET} bcos-concepts Boost::serialization)
 set_target_properties(${LEDGER_TARGET} PROPERTIES UNITY_BUILD "ON")
 
 # test related

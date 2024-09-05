@@ -39,9 +39,8 @@
         }                                                                                    \
     } while (0);
 
-namespace bcos
-{
-namespace gateway
+
+namespace bcos::gateway
 {
 /// Options format definition
 ///   options(default version):
@@ -77,12 +76,11 @@ public:
     bool encode(bytes& _buffer);
     int32_t decode(const bytesConstRef& _buffer);
 
-public:
     uint16_t moduleID() const { return m_moduleID; }
     void setModuleID(uint16_t _moduleID) { m_moduleID = _moduleID; }
 
     std::string groupID() const { return m_groupID; }
-    void setGroupID(const std::string& _groupID) { m_groupID = _groupID; }
+    void setGroupID(std::string _groupID) { m_groupID = std::move(_groupID); }
 
     std::shared_ptr<bytes> srcNodeID() const { return m_srcNodeID; }
     void setSrcNodeID(std::shared_ptr<bytes> _srcNodeID) { m_srcNodeID = _srcNodeID; }
@@ -132,18 +130,14 @@ public:
     constexpr static size_t RSA_PUBLIC_KEY_TRUNC = 8;
     constexpr static size_t RSA_PUBLIC_KEY_TRUNC_LENGTH = 26;
 
-public:
     P2PMessage()
     {
         m_payload = std::make_shared<bytes>();
         m_options = std::make_shared<P2PMessageOptions>();
-        m_srcP2PNodeID.reserve(512);
-        m_dstP2PNodeID.reserve(512);
     }
 
-    // ~P2PMessage() override = default;
+    ~P2PMessage() override = default;
 
-public:
     uint32_t lengthDirect() const override { return m_length; }
     uint32_t length() const override
     {
@@ -237,7 +231,6 @@ protected:
     virtual int32_t decodeHeader(const bytesConstRef& _buffer);
     virtual bool encodeHeader(bytes& _buffer);
 
-protected:
     uint32_t m_length = 0;
     uint16_t m_version = (uint16_t)(bcos::protocol::ProtocolVersion::V0);
     uint16_t m_packetType = 0;
@@ -249,10 +242,8 @@ protected:
     // the dst p2pNodeID, for message forward, only encode into the P2PMessageV2
     std::string m_dstP2PNodeID;
 
-    P2PMessageOptions::Ptr m_options;  ///< options fields
-
-    std::shared_ptr<bytes> m_payload;  ///< payload data
-
+    P2PMessageOptions::Ptr m_options;               ///< options fields
+    std::shared_ptr<bytes> m_payload;               ///< payload data
     MessageExtAttributes::Ptr m_extAttr = nullptr;  ///< message additional attributes
 };
 
@@ -262,7 +253,6 @@ public:
     using Ptr = std::shared_ptr<P2PMessageFactory>;
     // virtual ~P2PMessageFactory() = default;
 
-public:
     Message::Ptr buildMessage() override
     {
         auto message = std::make_shared<P2PMessage>();
@@ -272,10 +262,9 @@ public:
 
 inline std::ostream& operator<<(std::ostream& _out, const P2PMessage& _p2pMessage)
 {
-    _out << "P2PMessage {"
-         << " length: " << _p2pMessage.length() << " version: " << _p2pMessage.version()
-         << " packetType: " << _p2pMessage.packetType() << " seq: " << _p2pMessage.seq()
-         << " ext: " << _p2pMessage.ext() << " }";
+    _out << "P2PMessage {" << " length: " << _p2pMessage.length()
+         << " version: " << _p2pMessage.version() << " packetType: " << _p2pMessage.packetType()
+         << " seq: " << _p2pMessage.seq() << " ext: " << _p2pMessage.ext() << " }";
     return _out;
 }
 
@@ -285,5 +274,4 @@ inline std::ostream& operator<<(std::ostream& _out, P2PMessage::Ptr& _p2pMessage
     return _out;
 }
 
-}  // namespace gateway
-}  // namespace bcos
+}  // namespace bcos::gateway

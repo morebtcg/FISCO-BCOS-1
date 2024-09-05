@@ -22,66 +22,54 @@
 #include <bcos-crypto/interfaces/crypto/KeyInterface.h>
 #include <bcos-crypto/signature/Exceptions.h>
 #include <bcos-utilities/DataConvertUtility.h>
-namespace bcos
-{
-namespace crypto
+
+namespace bcos::crypto
 {
 class KeyImpl : public KeyInterface
 {
 public:
     using Ptr = std::shared_ptr<KeyImpl>;
-    explicit KeyImpl(size_t _keySize) : m_keyData(std::make_shared<bytes>(_keySize)) {}
-    explicit KeyImpl(bytesConstRef _data) : m_keyData(std::make_shared<bytes>()) { decode(_data); }
+    explicit KeyImpl(size_t _keySize) : m_keyData(_keySize) {}
+    explicit KeyImpl(bytesConstRef _data) { decode(_data); }
     explicit KeyImpl(bytes const& _data) : KeyImpl(ref(_data)) {}
-    explicit KeyImpl(size_t _keySize, std::shared_ptr<const bytes> _data)
-      : m_keyData(std::make_shared<bytes>())
+    explicit KeyImpl(size_t _keySize, bytes _data)
     {
-        if (_data->size() < _keySize)
+        if (_data.size() < _keySize)
         {
             BOOST_THROW_EXCEPTION(InvalidKey() << errinfo_comment(
-                                      "invalidKey, the key size: " + std::to_string(_data->size()) +
+                                      "invalidKey, the key size: " + std::to_string(_data.size()) +
                                       ", expected size:" + std::to_string(_keySize)));
         }
-        *m_keyData = *_data;
+        m_keyData = std::move(_data);
     }
 
-    bool operator==(KeyImpl const& _comparedKey) { return (*m_keyData == _comparedKey.data()); }
+    bool operator==(KeyImpl const& _comparedKey) { return m_keyData == _comparedKey.data(); }
     bool operator!=(KeyImpl const& _comparedKey) { return !operator==(_comparedKey); }
 
     ~KeyImpl() override {}
 
-    const bytes& data() const override { return *m_keyData; }
-    size_t size() const override { return m_keyData->size(); }
-    char* mutableData() override { return (char*)m_keyData->data(); }
-    const char* constData() const override { return (const char*)m_keyData->data(); }
-    std::shared_ptr<bytes> encode() const override { return m_keyData; }
-    void decode(bytesConstRef _data) override { *m_keyData = _data.toBytes(); }
-
-    void decode(bytes&& _data) override { *m_keyData = std::move(_data); }
+    const bytes& data() const override { return m_keyData; }
+    size_t size() const override { return m_keyData.size(); }
+    char* mutableData() override { return (char*)m_keyData.data(); }
+    const char* constData() const override { return (const char*)m_keyData.data(); }
+    std::shared_ptr<bytes> encode() const override { return std::make_shared<bytes>(m_keyData); }
+    void decode(bytesConstRef _data) override { m_keyData = _data.toBytes(); }
+    void decode(bytes&& _data) override { m_keyData = std::move(_data); }
 
     std::string shortHex() override
     {
-        auto startIt = m_keyData->begin();
-        auto endIt = m_keyData->end();
-        if (m_keyData->size() > 4)
+        auto startIt = m_keyData.begin();
+        auto endIt = m_keyData.end();
+        if (m_keyData.size() > 4)
         {
             endIt = startIt + 4 * sizeof(byte);
         }
         return *toHexString(startIt, endIt) + "...";
     }
 
-    std::string hex() override
-    {
-        if (m_hex.empty())
-        {
-            m_hex = toHex(*m_keyData);
-        }
-        return m_hex;
-    }
+    std::string hex() override { return toHex(m_keyData); }
 
 private:
-    std::shared_ptr<bytes> m_keyData;
-    std::string m_hex = {};
+    bytes m_keyData;
 };
-}  // namespace crypto
-}  // namespace bcos
+}  // namespace bcos::crypto
