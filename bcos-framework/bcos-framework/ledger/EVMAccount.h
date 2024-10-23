@@ -120,7 +120,7 @@ private:
 
         // 在s_code_binary里没找到，可能是老版本部署的合约或internal
         // precompiled，代码在合约表的code字段里
-        // I can't find it in the s_code_binary, it may be a contract deployed in the old version or
+        // Can't find it in the s_code_binary, it may be a contract deployed in the old version or
         // internal precompiled, and the code is in the code field of the contract table
         if (auto abiEntry = co_await storage2::readOne(account.m_storage.get(),
                 transaction_executor::StateKeyView{account.m_tableName, ACCOUNT_TABLE_FIELDS::ABI}))

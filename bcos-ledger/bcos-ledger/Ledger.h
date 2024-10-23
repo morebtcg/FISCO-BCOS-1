@@ -123,6 +123,8 @@ public:
         std::function<void(Error::Ptr&&, std::vector<std::string>&&)> callback);
     void setKeyPageSize(size_t keyPageSize) { m_keyPageSize = keyPageSize; }
 
+    storage::StorageInterface::Ptr stateStorage() override;
+
 protected:
     storage::StateStorageInterface::Ptr getStateStorage()
     {

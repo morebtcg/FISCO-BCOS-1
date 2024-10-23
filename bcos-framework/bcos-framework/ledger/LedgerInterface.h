@@ -208,6 +208,8 @@ public:
     {
         co_return std::nullopt;
     }
+
+    virtual storage::StorageInterface::Ptr stateStorage() = 0;
 };
 
 }  // namespace bcos::ledger

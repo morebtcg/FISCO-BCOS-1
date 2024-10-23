@@ -1,6 +1,6 @@
 #include "LedgerMethods.h"
+#include "bcos-framework/ledger/Features.h"
 #include "bcos-framework/ledger/LedgerConfig.h"
-#include "bcos-tool/VersionConverter.h"
 #include <bcos-executor/src/Common.h>
 #include <boost/exception/diagnostic_information.hpp>
 #include <exception>
@@ -360,41 +360,6 @@ bcos::task::Task<bcos::consensus::ConsensusNodeList> bcos::ledger::tag_invoke(
     co_return co_await awaitable;
 }
 
-static bcos::task::Task<std::tuple<std::string, bcos::protocol::BlockNumber>>
-getSystemConfigOrDefault(
-    bcos::ledger::LedgerInterface& ledger, std::string_view key, std::string defaultValue)
-{
-    try
-    {
-        auto config = co_await bcos::ledger::getSystemConfig(ledger, key);
-        if (!config)
-        {
-            LEDGER2_LOG(DEBUG) << "Get " << key << " failed, use default value"
-                               << LOG_KV("defaultValue", defaultValue);
-            co_return std::tuple<std::string, bcos::protocol::BlockNumber>{defaultValue, 0};
-        }
-        auto [value, blockNumber] = *config;
-        co_return std::tuple<std::string, bcos::protocol::BlockNumber>{value, blockNumber};
-    }
-    catch (std::exception& e)
-    {
-        LEDGER2_LOG(DEBUG) << "Get " << key << " failed, use default value"
-                           << LOG_KV("defaultValue", defaultValue);
-        co_return std::tuple<std::string, bcos::protocol::BlockNumber>{defaultValue, 0};
-    }
-}
-
-static bcos::task::Task<std::tuple<int64_t, bcos::protocol::BlockNumber>> getSystemConfigOrDefault(
-    bcos::ledger::LedgerInterface& ledger, std::string_view key, int64_t defaultValue)
-{
-    auto [value, blockNumber] = co_await getSystemConfigOrDefault(ledger, key, "");
-    if (value.empty())
-    {
-        co_return std::make_tuple(defaultValue, 0);
-    }
-    co_return std::make_tuple(boost::lexical_cast<int64_t>(value), blockNumber);
-}
-
 bcos::task::Task<void> bcos::ledger::tag_invoke(
     ledger::tag_t<getLedgerConfig> /*unused*/, LedgerInterface& ledger, LedgerConfig& ledgerConfig)
 {
@@ -406,50 +371,12 @@ bcos::task::Task<void> bcos::ledger::tag_invoke(
         return node.type == consensus::Type::consensus_observer;
     }) | ::ranges::to<std::vector>());
 
-    if (auto txLimitConfig = co_await getSystemConfig(ledger, SYSTEM_KEY_TX_COUNT_LIMIT))
-    {
-        ledgerConfig.setBlockTxCountLimit(
-            boost::lexical_cast<uint64_t>(std::get<0>(*txLimitConfig)));
-    }
-    if (auto ledgerSwitchPeriodConfig =
-            co_await getSystemConfig(ledger, SYSTEM_KEY_CONSENSUS_LEADER_PERIOD))
-    {
-        ledgerConfig.setLeaderSwitchPeriod(
-            boost::lexical_cast<uint64_t>(std::get<0>(*ledgerSwitchPeriodConfig)));
-    }
-    ledgerConfig.setGasLimit(co_await getSystemConfigOrDefault(ledger, SYSTEM_KEY_TX_GAS_LIMIT, 0));
-    if (auto versionConfig = co_await getSystemConfig(ledger, SYSTEM_KEY_COMPATIBILITY_VERSION))
-    {
-        ledgerConfig.setCompatibilityVersion(tool::toVersionNumber(std::get<0>(*versionConfig)));
-    }
-    ledgerConfig.setGasPrice(
-        co_await getSystemConfigOrDefault(ledger, SYSTEM_KEY_TX_GAS_PRICE, "0x0"));
-
     auto blockNumber = co_await getCurrentBlockNumber(ledger);
     ledgerConfig.setBlockNumber(blockNumber);
     ledgerConfig.setHash(co_await getBlockHash(ledger, blockNumber));
     ledgerConfig.setFeatures(co_await getFeatures(ledger));
-
-    auto enableRPBFT =
-        (std::get<0>(co_await getSystemConfigOrDefault(ledger, SYSTEM_KEY_RPBFT_SWITCH, 0)) == 1);
-    ledgerConfig.setConsensusType(
-        std::string(enableRPBFT ? ledger::RPBFT_CONSENSUS_TYPE : ledger::PBFT_CONSENSUS_TYPE));
-    if (enableRPBFT)
-    {
-        ledgerConfig.setCandidateSealerNodeList(::ranges::views::filter(nodeList, [](auto& node) {
-            return node.type == consensus::Type::consensus_candidate_sealer;
-        }) | ::ranges::to<std::vector>());
-        ledgerConfig.setEpochSealerNum(co_await getSystemConfigOrDefault(
-            ledger, SYSTEM_KEY_RPBFT_EPOCH_SEALER_NUM, DEFAULT_EPOCH_SEALER_NUM));
-        ledgerConfig.setEpochBlockNum(co_await getSystemConfigOrDefault(
-            ledger, SYSTEM_KEY_RPBFT_EPOCH_BLOCK_NUM, DEFAULT_EPOCH_BLOCK_NUM));
-        ledgerConfig.setNotifyRotateFlagInfo(std::get<0>(co_await getSystemConfigOrDefault(
-            ledger, INTERNAL_SYSTEM_KEY_NOTIFY_ROTATE, DEFAULT_INTERNAL_NOTIFY_FLAG)));
-    }
-    ledgerConfig.setAuthCheckStatus(
-        std::get<0>(co_await getSystemConfigOrDefault(ledger, SYSTEM_KEY_AUTH_CHECK_STATUS, 0)));
-    auto [chainId, _] = co_await getSystemConfigOrDefault(ledger, SYSTEM_KEY_WEB3_CHAIN_ID, "0");
-    ledgerConfig.setChainId(bcos::toEvmC(boost::lexical_cast<u256>(chainId)));
+    co_await ledger::readFromStorage(
+        ledgerConfig.m_systemConfigs, *ledger.stateStorage(), blockNumber);
 }
 
 bcos::task::Task<bcos::ledger::Features> bcos::ledger::tag_invoke(

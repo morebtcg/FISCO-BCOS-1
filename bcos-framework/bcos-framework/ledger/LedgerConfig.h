@@ -22,16 +22,18 @@
 #include "../consensus/ConsensusNode.h"
 #include "../protocol/ProtocolTypeDef.h"
 #include "Features.h"
+#include "SystemConfigs.h"
 #include <evmc/evmc.hpp>
+#include <string>
 #include <utility>
 
 namespace bcos::ledger
 {
 
-constexpr static uint64_t DEFAULT_GAS_LIMIT = 3000000000;
-constexpr static std::uint64_t DEFAULT_EPOCH_SEALER_NUM = 4;
-constexpr static std::uint64_t DEFAULT_EPOCH_BLOCK_NUM = 1000;
-constexpr static std::uint64_t DEFAULT_INTERNAL_NOTIFY_FLAG = 0;
+// constexpr static uint64_t DEFAULT_GAS_LIMIT = 3000000000;
+// constexpr static std::uint64_t DEFAULT_EPOCH_SEALER_NUM = 4;
+// constexpr static std::uint64_t DEFAULT_EPOCH_BLOCK_NUM = 1000;
+// constexpr static std::uint64_t DEFAULT_INTERNAL_NOTIFY_FLAG = 0;
 
 class LedgerConfig
 {
@@ -39,10 +41,10 @@ public:
     using Ptr = std::shared_ptr<LedgerConfig>;
     LedgerConfig() = default;
     LedgerConfig(const LedgerConfig&) = default;
-    LedgerConfig(LedgerConfig&&) = default;
+    LedgerConfig(LedgerConfig&&) noexcept = default;
     LedgerConfig& operator=(const LedgerConfig&) = default;
-    LedgerConfig& operator=(LedgerConfig&&) = default;
-    virtual ~LedgerConfig() = default;
+    LedgerConfig& operator=(LedgerConfig&&) noexcept = default;
+    virtual ~LedgerConfig() noexcept = default;
 
     virtual void setConsensusNodeList(bcos::consensus::ConsensusNodeList _consensusNodeList)
     {
@@ -62,9 +64,10 @@ public:
     {
         m_blockNumber = _blockNumber;
     }
+
     virtual void setBlockTxCountLimit(uint64_t _blockTxCountLimit)
     {
-        m_blockTxCountLimit = _blockTxCountLimit;
+        m_systemConfigs.set(SystemConfig::tx_count_limit, std::to_string(_blockTxCountLimit));
     }
 
     virtual bcos::consensus::ConsensusNodeList const& consensusNodeList() const
@@ -88,10 +91,27 @@ public:
     bcos::crypto::HashType const& hash() const { return m_hash; }
     bcos::protocol::BlockNumber blockNumber() const { return m_blockNumber; }
 
-    void setConsensusType(const std::string& _consensusType) { m_consensusType = _consensusType; }
-    std::string consensusType() const { return m_consensusType; }
+    void setConsensusType(const std::string& _consensusType)
+    {
+        m_systemConfigs.set(SystemConfig::feature_rpbft, _consensusType);
+    }
+    std::string consensusType() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::feature_rpbft))
+        {
+            return *value;
+        }
+        return {"pbft"};
+    }
 
-    uint64_t blockTxCountLimit() const { return m_blockTxCountLimit; }
+    uint64_t blockTxCountLimit() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::tx_count_limit))
+        {
+            return boost::lexical_cast<uint64_t>(*value);
+        }
+        return 0;
+    }
 
     bcos::consensus::ConsensusNodeList& mutableConsensusList() { return m_consensusNodeList; }
     bcos::consensus::ConsensusNodeList& mutableObserverList() { return m_observerNodeList; }
@@ -100,22 +120,44 @@ public:
         return m_candidateSealerNodeList;
     }
 
-    uint64_t leaderSwitchPeriod() const { return m_leaderSwitchPeriod; }
+    uint64_t leaderSwitchPeriod() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::consensus_leader_period))
+        {
+            return boost::lexical_cast<uint64_t>(*value);
+        }
+        return 0;
+    }
     void setLeaderSwitchPeriod(uint64_t _leaderSwitchPeriod)
     {
-        m_leaderSwitchPeriod = _leaderSwitchPeriod;
+        m_systemConfigs.set(
+            SystemConfig::consensus_leader_period, std::to_string(_leaderSwitchPeriod));
     }
 
-    std::tuple<uint64_t, protocol::BlockNumber> const& gasLimit() const { return m_gasLimit; }
-    void setGasLimit(std::tuple<uint64_t, protocol::BlockNumber> mGasLimit)
+    uint64_t gasLimit() const
     {
-        m_gasLimit = std::move(mGasLimit);
+        if (auto value = m_systemConfigs.get(SystemConfig::tx_gas_limit))
+        {
+            return boost::lexical_cast<uint64_t>(*value);
+        }
+        return 0;
+    }
+    void setGasLimit(uint64_t gasLimit)
+    {
+        m_systemConfigs.set(SystemConfig::tx_gas_limit, std::to_string(gasLimit));
     }
 
-    std::tuple<std::string, protocol::BlockNumber> const& gasPrice() const { return m_gasPrice; }
-    void setGasPrice(std::tuple<std::string, protocol::BlockNumber> mGasPrice)
+    std::string gasPrice() const
     {
-        m_gasPrice = std::move(mGasPrice);
+        if (auto value = m_systemConfigs.get(SystemConfig::tx_gas_price))
+        {
+            return *value;
+        }
+        return {};
+    }
+    void setGasPrice(std::string gasPrice)
+    {
+        m_systemConfigs.set(SystemConfig::tx_gas_price, std::move(gasPrice));
     }
 
     // Not enforce to set this field, in memory data
@@ -126,28 +168,58 @@ public:
     void setTxsSize(int64_t _txsSize) { m_txsSize = _txsSize; }
     int64_t txsSize() const { return m_txsSize; }
 
-    void setCompatibilityVersion(uint32_t _version) { m_compatibilityVersion = _version; }
-    uint32_t compatibilityVersion() const { return m_compatibilityVersion; }
-
-    void setAuthCheckStatus(uint32_t _authStatus) { m_authCheckStatus = _authStatus; }
-    uint32_t authCheckStatus() const { return m_authCheckStatus; }
-
-    void setEpochSealerNum(std::tuple<uint64_t, protocol::BlockNumber> _epochSealerNum)
+    void setCompatibilityVersion(uint32_t _version)
     {
-        m_epochSealerNum = _epochSealerNum;
+        m_systemConfigs.set(SystemConfig::compatibility_version, std::to_string(_version));
     }
-    std::tuple<uint64_t, protocol::BlockNumber> const& epochSealerNum() const
+    uint32_t compatibilityVersion() const
     {
-        return m_epochSealerNum;
+        if (auto value = m_systemConfigs.get(SystemConfig::compatibility_version))
+        {
+            return boost::lexical_cast<uint32_t>(*value);
+        }
+        return 0;
     }
 
-    void setEpochBlockNum(std::tuple<uint64_t, protocol::BlockNumber> _epochBlockNum)
+    void setAuthCheckStatus(uint32_t _authStatus)
     {
-        m_epochBlockNum = _epochBlockNum;
+        m_systemConfigs.set(SystemConfig::auth_check_status, std::to_string(_authStatus));
     }
-    std::tuple<uint64_t, protocol::BlockNumber> const& epochBlockNum() const
+    uint32_t authCheckStatus() const
     {
-        return m_epochBlockNum;
+        if (auto value = m_systemConfigs.get(SystemConfig::auth_check_status))
+        {
+            return boost::lexical_cast<uint32_t>(*value);
+        }
+        return 0;
+    }
+
+    void setEpochSealerNum(uint64_t epochSealerNum)
+    {
+        m_systemConfigs.set(
+            SystemConfig::feature_rpbft_epoch_sealer_num, std::to_string(epochSealerNum));
+    }
+    uint64_t epochSealerNum() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::feature_rpbft_epoch_sealer_num))
+        {
+            return boost::lexical_cast<uint64_t>(*value);
+        }
+        return 0;
+    }
+
+    void setEpochBlockNum(uint64_t epochBlockNum)
+    {
+        m_systemConfigs.set(
+            SystemConfig::feature_rpbft_epoch_block_num, std::to_string(epochBlockNum));
+    }
+    uint64_t epochBlockNum() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::feature_rpbft_epoch_block_num))
+        {
+            return boost::lexical_cast<uint64_t>(*value);
+        }
+        return 0;
     }
 
     void setNotifyRotateFlagInfo(const uint64_t _notifyRotateFlagInfo)
@@ -159,31 +231,29 @@ public:
     Features const& features() const { return m_features; }
     void setFeatures(Features features) { m_features = features; }
 
-    std::optional<evmc_uint256be> const& chainId() const { return m_chainId; }
-    void setChainId(evmc_uint256be _chainId) { m_chainId = _chainId; }
+    std::optional<std::string> chainId() const
+    {
+        if (auto value = m_systemConfigs.get(SystemConfig::web3_chain_id))
+        {
+            return *value;
+        }
+        return {};
+    }
+    void setChainId(std::string chainId)
+    {
+        m_systemConfigs.set(SystemConfig::web3_chain_id, std::move(chainId));
+    }
 
-private:
     bcos::consensus::ConsensusNodeList m_consensusNodeList;
     bcos::consensus::ConsensusNodeList m_observerNodeList;
     bcos::consensus::ConsensusNodeList m_candidateSealerNodeList;
+
+    SystemConfigs m_systemConfigs;
+    Features m_features;
     bcos::crypto::HashType m_hash;
     bcos::protocol::BlockNumber m_blockNumber = 0;
-    std::string m_consensusType;
-    uint64_t m_blockTxCountLimit = 0;
-    uint64_t m_leaderSwitchPeriod = 1;
-    std::tuple<uint64_t, protocol::BlockNumber> m_gasLimit = {DEFAULT_GAS_LIMIT, 0};
-    std::tuple<std::string, protocol::BlockNumber> m_gasPrice = {"0x0", 0};
-    std::tuple<uint64_t, protocol::BlockNumber> m_epochSealerNum = {DEFAULT_EPOCH_SEALER_NUM, 0};
-    std::tuple<uint64_t, protocol::BlockNumber> m_epochBlockNum = {DEFAULT_EPOCH_BLOCK_NUM, 0};
     uint64_t m_notifyRotateFlagInfo{0};
-    // the compatibilityVersion
-    // the system version, can only be upgraded manually
-    uint32_t m_compatibilityVersion = 0;
-    // no need to store, in memory data
     int64_t m_sealerId = -1;
     int64_t m_txsSize = -1;
-    uint32_t m_authCheckStatus = 0;
-    Features m_features;
-    std::optional<evmc_uint256be> m_chainId;
 };
 }  // namespace bcos::ledger

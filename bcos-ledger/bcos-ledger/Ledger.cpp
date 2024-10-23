@@ -2372,3 +2372,8 @@ Error::Ptr Ledger::setCurrentStateByKey(std::string_view const& _key, bcos::stor
         [&](Error::UniquePtr err) { setPromise.set_value(std::move(err)); });
     return setPromise.get_future().get();
 }
+
+bcos::storage::StorageInterface::Ptr bcos::ledger::Ledger::stateStorage()
+{
+    return m_stateStorage;
+}
