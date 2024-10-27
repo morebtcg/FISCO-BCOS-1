@@ -28,6 +28,7 @@
 #include <boost/throw_exception.hpp>
 #include <algorithm>
 #include <array>
+#include <compare>
 #include <cstdint>
 #include <random>
 #include <stdexcept>
@@ -193,41 +194,9 @@ public:
     {
         return std::any_of(m_data.begin(), m_data.end(), [](byte _b) { return _b != 0; });
     }
-    bool operator==(FixedBytes const& _comparedFixedBytes) const
-    {
-        return m_data == _comparedFixedBytes.m_data;
-    }
-    bool operator!=(FixedBytes const& _comparedFixedBytes) const
-    {
-        return m_data != _comparedFixedBytes.m_data;
-    }
-    bool operator<(FixedBytes const& _comparedFixedBytes) const
-    {
-        for (unsigned index = 0; index < N; index++)
-        {
-            if (m_data[index] < _comparedFixedBytes[index])
-            {
-                return true;
-            }
-            else if (m_data[index] > _comparedFixedBytes[index])
-            {
-                return false;
-            }
-        }
-        return false;
-    }
-    bool operator>=(FixedBytes const& _comparedFixedBytes) const
-    {
-        return !operator<(_comparedFixedBytes);
-    }
-    bool operator<=(FixedBytes const& _comparedFixedBytes) const
-    {
-        return operator==(_comparedFixedBytes) || operator<(_comparedFixedBytes);
-    }
-    bool operator>(FixedBytes const& _comparedFixedBytes) const
-    {
-        return !operator<=(_comparedFixedBytes);
-    }
+    friend std::strong_ordering operator<=>(
+        const FixedBytes& lhs, const FixedBytes& rhs) noexcept = default;
+    friend bool operator==(const FixedBytes& lhs, const FixedBytes& rhs) noexcept = default;
     FixedBytes& operator^=(FixedBytes const& _rightFixedBytes)
     {
         for (unsigned index = 0; index < N; index++)
@@ -427,7 +396,6 @@ private:
         }
     }
 
-private:
     std::array<byte, N> m_data;  ///< The binary data.
 };
 
@@ -602,16 +570,6 @@ public:
     void clear() { ref().cleanMemory(); }
 };
 
-/// Fast equality operator for h256.
-template <>
-inline bool FixedBytes<32>::operator==(FixedBytes<32> const& _other) const
-{
-    const uint64_t* hash1 = (const uint64_t*)data();
-    const uint64_t* hash2 = (const uint64_t*)_other.data();
-    return (hash1[0] == hash2[0]) && (hash1[1] == hash2[1]) && (hash1[2] == hash2[2]) &&
-           (hash1[3] == hash2[3]);
-}
-
 /// Fast std::hash compatible hash function object for h256.
 template <>
 inline size_t FixedBytes<32>::hash::operator()(FixedBytes<32> const& value) const
@@ -624,7 +582,7 @@ inline size_t FixedBytes<32>::hash::operator()(FixedBytes<32> const& value) cons
 template <unsigned N>
 inline std::ostream& operator<<(std::ostream& _out, FixedBytes<N> const& _h)
 {
-    _out << *toHexString(_h);
+    _out << toHex(_h);
     return _out;
 }
 

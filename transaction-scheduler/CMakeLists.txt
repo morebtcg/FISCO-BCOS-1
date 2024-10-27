@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 find_package(fmt REQUIRED)
 
-add_library(transaction-scheduler bcos-transaction-scheduler/BaselineScheduler.cpp)
+add_library(transaction-scheduler bcos-transaction-scheduler/BaselineScheduler.cpp bcos-transaction-scheduler/SchedulerParallelImpl.cpp)
 target_include_directories(transaction-scheduler PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include/bcos-transaction-scheduler>)
