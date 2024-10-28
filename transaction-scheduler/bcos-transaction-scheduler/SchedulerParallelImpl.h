@@ -19,8 +19,10 @@
 #include <atomic>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <range/v3/algorithm/is_sorted.hpp>
+#include <range/v3/algorithm/set_algorithm.hpp>
 #include <range/v3/view/enumerate.hpp>
 #include <type_traits>
 
@@ -152,9 +154,26 @@ constexpr static auto DEFAULT_GRAIN_SIZE = 16UL;
 constexpr static auto DEFAULT_MAX_CONCURRENCY = 8UL;
 
 bool compareConflictKeys(const protocol::Transaction& lhs, const protocol::Transaction& rhs);
+bool hasConflict(const protocol::Transaction& lhs, const protocol::Transaction& rhs)
+{
+    std::vector<h256> transactions;
+    ::ranges::set_intersection(
+        lhs.conflictKeys(), rhs.conflictKeys(), std::back_inserter(transactions));
+}
 auto partition(::ranges::random_access_range auto const& transactions)
 {
-    // ::ranges::is_sorted(transactions, ) return ::ranges::views::single(transactions);
+    if (!::ranges::is_sorted(transactions, compareConflictKeys))
+    {
+        return ::ranges::views::single(transactions);
+    }
+
+    for (auto&& [lhs, rhs] : ::ranges::views::sliding(transactions, 2))
+    {
+        if (!compareConflictKeys(lhs, rhs))
+        {
+            return ::ranges::views::single(transactions);
+        }
+    }
 }
 
 template <class MutableStorageType>
