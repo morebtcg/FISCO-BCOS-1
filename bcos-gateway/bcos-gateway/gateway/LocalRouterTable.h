@@ -19,22 +19,23 @@
  */
 #pragma once
 #include "FrontServiceInfo.h"
-#include "bcos-gateway/libp2p/P2PSession.h"
 #include <bcos-crypto/interfaces/crypto/KeyFactory.h>
 #include <bcos-crypto/interfaces/crypto/KeyInterface.h>
 #include <bcos-framework/gateway/GatewayInterface.h>
 #include <bcos-framework/multigroup/GroupInfo.h>
 #include <memory>
-namespace bcos
-{
-namespace gateway
+#include <utility>
+
+namespace bcos::gateway
 {
 class LocalRouterTable
 {
 public:
     using Ptr = std::shared_ptr<LocalRouterTable>;
     using GroupNodeListType = std::map<std::string, std::map<std::string, FrontServiceInfo::Ptr>>;
-    LocalRouterTable(bcos::crypto::KeyFactory::Ptr _keyFactory) : m_keyFactory(_keyFactory) {}
+    LocalRouterTable(bcos::crypto::KeyFactory::Ptr _keyFactory)
+      : m_keyFactory(std::move(_keyFactory))
+    {}
     virtual ~LocalRouterTable() {}
 
     FrontServiceInfo::Ptr getFrontService(
@@ -72,5 +73,4 @@ private:
     GroupNodeListType m_nodeList;
     mutable SharedMutex x_nodeList;
 };
-}  // namespace gateway
-}  // namespace bcos
+}  // namespace bcos::gateway

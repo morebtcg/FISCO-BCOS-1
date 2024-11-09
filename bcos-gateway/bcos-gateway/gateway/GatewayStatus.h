@@ -22,15 +22,15 @@
 #include "bcos-utilities/ObjectCounter.h"
 #include <bcos-gateway/protocol/GatewayNodeStatus.h>
 #include <mutex>
-namespace bcos
-{
-namespace gateway
+#include <utility>
+
+namespace bcos::gateway
 {
 class GatewayStatus : public ObjectCounter<GatewayStatus>
 {
 public:
     using Ptr = std::shared_ptr<GatewayStatus>;
-    GatewayStatus(std::string const& _uuid) : m_uuid(_uuid) {}
+    GatewayStatus(std::string _uuid) : m_uuid(std::move(_uuid)) {}
     virtual ~GatewayStatus() {}
 
     std::string const& uuid() const { return m_uuid; }
@@ -70,5 +70,4 @@ public:
         return std::make_shared<GatewayStatus>(_uuid);
     }
 };
-}  // namespace gateway
-}  // namespace bcos
+}  // namespace bcos::gateway
