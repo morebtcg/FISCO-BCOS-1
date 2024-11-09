@@ -12,20 +12,86 @@
 #include <boost/throw_exception.hpp>
 #include <algorithm>
 #include <cstdint>
-#include <initializer_list>
-#include <type_traits>
-#include <variant>
+#include <tuple>
+#include <utility>
 
 namespace bcos::storage
 {
 
-template <class Input>
-concept EntryBufferInput =
-    std::same_as<Input, std::string_view> || std::same_as<Input, std::string> ||
-    std::same_as<Input, std::vector<char>> || std::same_as<Input, std::vector<unsigned char>>;
+template <class BufferType>
+concept IsBuffer = requires(BufferType buffer) {
+    { buffer.data() };
+    { buffer.size() } -> std::integral;
+};
+template <class BufferType>
+concept IsBufferPointer = requires(BufferType buffer) {
+    { buffer->data() };
+    { buffer->size() } -> std::integral;
+};
 
+constexpr static size_t IMPL_SIZE = 32;
 constexpr static int32_t ARCHIVE_FLAG =
     boost::archive::no_header | boost::archive::no_codecvt | boost::archive::no_tracking;
+
+struct EntryInterface
+{
+    EntryInterface() = default;
+    EntryInterface(const EntryInterface&) = default;
+    EntryInterface(EntryInterface&&) noexcept = default;
+    EntryInterface& operator=(const EntryInterface&) = default;
+    EntryInterface& operator=(EntryInterface&&) noexcept = default;
+    virtual ~EntryInterface() noexcept = default;
+    virtual const char* data() const { return nullptr; }
+    virtual size_t size() const { return 0; }
+    virtual void copy(void* target) const { new (target) EntryInterface{}; }
+    virtual void move(void* target) { new (target) EntryInterface{}; }
+};
+
+template <class Buffer>
+    requires((IsBuffer<Buffer> || IsBufferPointer<Buffer>) && (sizeof(Buffer) <= IMPL_SIZE))
+struct EntryImpl : public EntryInterface
+{
+    Buffer m_buffer;
+
+    explicit EntryImpl(std::in_place_t /*unused*/, auto&&... args)
+      : m_buffer{std::forward<decltype(args)>(args)...}
+    {}
+    explicit EntryImpl(Buffer buffer) : m_buffer(std::move(buffer)) {}
+    EntryImpl(const EntryImpl&) = delete;
+    EntryImpl(EntryImpl&&) = delete;
+    EntryImpl& operator=(const EntryImpl&) = delete;
+    EntryImpl& operator=(EntryImpl&&) = delete;
+    ~EntryImpl() noexcept override = default;
+
+    const char* data() const override
+    {
+        if constexpr (IsBuffer<Buffer>)
+        {
+            return reinterpret_cast<const char*>(m_buffer.data());
+        }
+        else
+        {
+            return reinterpret_cast<const char*>(m_buffer->data());
+        }
+    }
+    size_t size() const override
+    {
+        if constexpr (IsBuffer<Buffer>)
+        {
+            return m_buffer.size();
+        }
+        else
+        {
+            return m_buffer->size();
+        }
+    }
+    static void init(void* target, auto&&... args)
+    {
+        new (target) EntryImpl{std::forward<decltype(args)>(args)...};
+    }
+    void copy(void* target) const override { new (target) EntryImpl{m_buffer}; }
+    void move(void* target) override { new (target) EntryImpl{std::move(m_buffer)}; }
+};
 
 class Entry
 {
@@ -38,34 +104,96 @@ public:
         MODIFIED = 3,  // dirty() can use status
     };
 
-    constexpr static int32_t SMALL_SIZE = 32;
-    constexpr static int32_t MEDIUM_SIZE = 64;
-    constexpr static int32_t LARGE_SIZE = INT32_MAX;
+private:
+    std::array<std::byte, IMPL_SIZE + sizeof(EntryInterface)> m_impl;
+    Status m_status = Status::EMPTY;  // should serialization
 
-    using SBOBuffer = std::array<char, SMALL_SIZE>;
+    const EntryInterface* impl() const
+    {
+        return reinterpret_cast<const EntryInterface*>(m_impl.data());
+    }
+    EntryInterface* mutableImpl() { return reinterpret_cast<EntryInterface*>(m_impl.data()); }
+    void reset() noexcept { mutableImpl()->~EntryInterface(); }
 
-    using ValueType = std::variant<SBOBuffer, std::string, std::vector<unsigned char>,
-        std::vector<char>, std::shared_ptr<std::string>,
-        std::shared_ptr<std::vector<unsigned char>>, std::shared_ptr<std::vector<char>>>;
+public:
+    Entry() { new (m_impl.data()) EntryInterface{}; }
+    template <class Buffer>
+    explicit Entry(Buffer buffer) : m_status(MODIFIED)
+    {
+        EntryImpl<Buffer>::init(m_impl.data(), std::move(buffer));
+    }
+    template <class Buffer>
+    explicit Entry(auto&&... args) : m_status(MODIFIED)
+    {
+        EntryImpl<Buffer>::init(
+            m_impl.data(), std::in_place, std::forward<decltype(args)>(args)...);
+    }
+    explicit Entry(const char* str) : Entry(std::string_view(str)) {}
+    explicit Entry(std::string_view view) : m_status(MODIFIED)
+    {
+        EntryImpl<std::string>::init(m_impl.data(), std::in_place, view);
+    }
 
-    Entry() = default;
-    explicit Entry(auto input) { set(std::move(input)); }
+    Entry(const Entry& from) : m_status(from.m_status) { from.impl()->copy(m_impl.data()); }
+    Entry(Entry&& from) noexcept : m_status(from.m_status)
+    {
+        from.mutableImpl()->move(m_impl.data());
+    }
+    Entry& operator=(const Entry& from)
+    {
+        if (this != &from)
+        {
+            reset();
+            from.impl()->copy(m_impl.data());
+            m_status = from.m_status;
+        }
+        return *this;
+    }
+    Entry& operator=(Entry&& from) noexcept
+    {
+        if (this != &from)
+        {
+            reset();
+            from.mutableImpl()->move(m_impl.data());
+            m_status = from.m_status;
+        }
+        return *this;
+    }
+    ~Entry() noexcept { reset(); }
 
-    Entry(const Entry&) = default;
-    Entry(Entry&&) noexcept = default;
-    bcos::storage::Entry& operator=(const Entry&) = default;
-    bcos::storage::Entry& operator=(Entry&&) noexcept = default;
-    ~Entry() noexcept = default;
+    std::string_view get() const&
+    {
+        const auto* ptr = impl();
+        return {ptr->data(), ptr->size()};
+    }
+    template <class Buffer>
+    void set(Buffer buffer)
+    {
+        reset();
+        EntryImpl<Buffer>::init(m_impl.data(), std::move(buffer));
+        m_status = MODIFIED;
+    }
+    template <class Buffer>
+    void emplace(auto&&... args)
+    {
+        reset();
+        EntryImpl<Buffer>::init(
+            m_impl.data(), std::in_place, std::forward<decltype(args)>(args)...);
+        m_status = MODIFIED;
+    }
+
+    void set(std::string_view view) { emplace<std::string>(view); }
+    void set(const char* buffer) { set<std::string_view>(buffer); }
+    const char* data() const& { return get().data(); }
+    size_t size() const { return get().size(); }
 
     template <typename Out, typename InputArchive = boost::archive::binary_iarchive,
         int flag = ARCHIVE_FLAG>
     void getObject(Out& out) const
     {
-        auto view = get();
         boost::iostreams::stream<boost::iostreams::array_source> inputStream(
-            view.data(), view.size());
+            this->data(), this->size());
         InputArchive archive(inputStream, flag);
-
         archive >> out;
     }
 
@@ -75,7 +203,6 @@ public:
     {
         Out out;
         getObject<Out, InputArchive, flag>(out);
-
         return out;
     }
 
@@ -93,8 +220,6 @@ public:
 
         setField(0, std::move(value));
     }
-
-    std::string_view get() const& { return outputValueView(m_value); }
 
     std::string_view getField(size_t index) const&
     {
@@ -121,74 +246,23 @@ public:
         set(std::forward<T>(input));
     }
 
-    void set(const char* pointer)
-    {
-        auto view = std::string_view(pointer, strlen(pointer));
-        set(view);
-    }
-
-    void set(EntryBufferInput auto value)
-    {
-        auto view = inputValueView(value);
-        m_size = view.size();
-        if (m_size <= SMALL_SIZE)
-        {
-            if (m_value.index() != 0)
-            {
-                m_value = SBOBuffer();
-            }
-
-            std::copy_n(view.data(), view.size(), std::get<0>(m_value).data());
-        }
-        else
-        {
-            using ValueType = std::remove_cvref_t<decltype(value)>;
-            if constexpr (std::same_as<ValueType, std::string_view>)
-            {
-                set(std::string(view));
-            }
-            else
-            {
-                if (m_size <= MEDIUM_SIZE)
-                {
-                    m_value = std::move(value);
-                }
-                else
-                {
-                    m_value = std::make_shared<ValueType>(std::move(value));
-                }
-            }
-        }
-
-        m_status = MODIFIED;
-    }
-    template <EntryBufferInput T>
-    void set(std::shared_ptr<T> value)
-    {
-        m_size = value->size();
-        m_value = std::move(value);
-        m_status = MODIFIED;
-    }
-
     template <typename T>
-    void setPointer(std::shared_ptr<T>&& value)
+    void setPointer(std::shared_ptr<T> value)
     {
-        m_size = value->size();
-        m_value = value;
+        reset();
+        EntryImpl<std::shared_ptr<T>>::init(m_impl.data(), std::move(value));
     }
 
     Status status() const { return m_status; }
-
     void setStatus(Status status)
     {
         m_status = status;
         if (m_status == DELETED)
         {
-            m_size = 0;
-            m_value = std::string();
+            reset();
+            new (m_impl.data()) EntryInterface{};
         }
     }
-
     bool dirty() const { return (m_status == MODIFIED || m_status == DELETED); }
 
     template <typename Input>
@@ -203,20 +277,6 @@ public:
         setField(0, std::move(*values.begin()));
     }
 
-    auto&& exportFields()
-    {
-        m_size = 0;
-        return std::move(m_value);
-    }
-
-    const char* data() const&
-    {
-        auto view = outputValueView(m_value);
-        return view.data();
-    }
-    int32_t size() const { return m_size; }
-
-    bool valid() const { return m_status == Status::NORMAL; }
     crypto::HashType hash(std::string_view table, std::string_view key,
         const bcos::crypto::Hash& hashImpl, uint32_t blockVersion) const
     {
@@ -286,37 +346,6 @@ public:
         }
         return entryHash;
     }
-
-private:
-    [[nodiscard]] auto outputValueView(const ValueType& value) const& -> std::string_view
-    {
-        std::string_view view;
-        std::visit(
-            [this, &view](auto&& valueInside) {
-                auto viewRaw = inputValueView(valueInside);
-                view = std::string_view(viewRaw.data(), m_size);
-            },
-            value);
-        return view;
-    }
-
-    template <typename T>
-    [[nodiscard]] auto inputValueView(const T& value) const -> std::string_view
-    {
-        std::string_view view((const char*)value.data(), value.size());
-        return view;
-    }
-
-    template <typename T>
-    [[nodiscard]] auto inputValueView(const std::shared_ptr<T>& value) const -> std::string_view
-    {
-        std::string_view view((const char*)value->data(), value->size());
-        return view;
-    }
-
-    ValueType m_value;                // should serialization
-    int32_t m_size = 0;               // no need to serialization
-    Status m_status = Status::EMPTY;  // should serialization
 };
 
 }  // namespace bcos::storage
