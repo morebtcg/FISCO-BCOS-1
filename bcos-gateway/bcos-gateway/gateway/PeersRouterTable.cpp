@@ -18,6 +18,7 @@
  * @date 2021-12-29
  */
 #include "PeersRouterTable.h"
+#include "bcos-task/Wait.h"
 #include "bcos-utilities/BoostLog.h"
 
 using namespace bcos;
