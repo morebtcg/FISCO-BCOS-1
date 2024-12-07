@@ -239,12 +239,15 @@ GatewayStatus::Ptr PeersRouterTable::gatewayInfo(std::string const& _uuid)
 
 void PeersRouterTable::updateGatewayInfo(P2pID const& _p2pNodeID, GatewayNodeStatus::Ptr _status)
 {
+    GatewayStatus::Ptr gatewayStatus;
     decltype(m_gatewayInfos)::accessor accessor;
     if (m_gatewayInfos.insert(accessor, _status->uuid()))
     {
         accessor->second = m_gatewayStatusFactory->createGatewayInfo(_status->uuid());
     }
-    accessor->second->update(_p2pNodeID, _status);
+    gatewayStatus = accessor->second;
+    accessor.release();
+    gatewayStatus->update(_p2pNodeID, _status);
 }
 
 void PeersRouterTable::removeNodeFromGatewayInfo(P2pID const& _p2pID)

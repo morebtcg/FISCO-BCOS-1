@@ -121,12 +121,11 @@ void GatewayNodeManager::onReceiveStatusSeq(
 
 bool GatewayNodeManager::statusChanged(std::string const& _p2pNodeID, uint32_t _seq)
 {
-    bool ret = true;
     if (decltype(m_p2pID2Seq)::const_accessor accessor; m_p2pID2Seq.find(accessor, _p2pNodeID))
     {
-        ret = (_seq > accessor->second);
+        return (_seq > accessor->second);
     }
-    return ret;
+    return true;
 }
 
 void GatewayNodeManager::onReceiveNodeStatus(
