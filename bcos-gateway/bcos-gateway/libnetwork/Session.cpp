@@ -31,11 +31,13 @@ using namespace bcos;
 using namespace bcos::gateway;
 
 
-Session::Session(std::shared_ptr<SocketFace> socket, size_t _recvBufferSize, bool _forceSize)
+Session::Session(
+    std::shared_ptr<SocketFace> socket, Host& server, size_t _recvBufferSize, bool _forceSize)
   : m_maxRecvBufferSize(_recvBufferSize < MIN_SESSION_RECV_BUFFER_SIZE ?
                             MIN_SESSION_RECV_BUFFER_SIZE :
                             _recvBufferSize),
     m_recvBuffer(_forceSize ? _recvBufferSize : MIN_SESSION_RECV_BUFFER_SIZE),
+    m_server(server),
     m_socket(std::move(socket)),
     m_idleCheckTimer(
         std::make_shared<Timer>(m_socket->ioService(), m_idleTimeInterval, "idleChecker"))
@@ -72,28 +74,22 @@ NodeIPEndpoint Session::nodeIPEndpoint() const
 
 bool Session::active() const
 {
-    auto server = m_server.lock();
-    return active(server);
+    return active(m_server);
 }
 
-bool Session::active(std::shared_ptr<bcos::gateway::Host>& server) const
+bool Session::active(Host& server) const
 {
-    return m_active && server && server->haveNetwork() && m_socket && m_socket->isConnected();
+    return m_active && server.haveNetwork() && m_socket && m_socket->isConnected();
 }
 
 void Session::asyncSendMessage(Message::Ptr message, Options options, SessionCallbackFunc callback)
 {
-    auto server = m_server.lock();
-    if (!server)
-    {
-        return;
-    }
-    if (!active(server))
+    if (!active(m_server))
     {
         SESSION_LOG(WARNING) << "Session inactive";
         if (callback)
         {
-            server->asyncTo([callback = std::move(callback)] {
+            m_server.get().asyncTo([callback = std::move(callback)] {
                 callback(NetworkException(-1, "Session inactive"), Message::Ptr());
             });
         }
@@ -108,7 +104,7 @@ void Session::asyncSendMessage(Message::Ptr message, Options options, SessionCal
                              << LOG_KV("allowMaxMsgSize", allowMaxMsgSize());
         if (callback)
         {
-            server->asyncTo([callback = std::move(callback)] {
+            m_server.get().asyncTo([callback = std::move(callback)] {
                 callback(NetworkException(-1, "Msg size overflow"), Message::Ptr());
             });
         }
@@ -125,8 +121,8 @@ void Session::asyncSendMessage(Message::Ptr message, Options options, SessionCal
             auto error = result.value();
             auto errorCode = error.errorCode();
             auto errorMessage = error.errorMessage();
-            server->asyncTo([callback = std::move(callback), errorCode,
-                                errorMessage = std::move(errorMessage)] {
+            m_server.get().asyncTo([callback = std::move(callback), errorCode,
+                                       errorMessage = std::move(errorMessage)] {
                 callback(NetworkException((int64_t)errorCode, errorMessage), Message::Ptr());
             });
         }
@@ -139,7 +135,8 @@ void Session::asyncSendMessage(Message::Ptr message, Options options, SessionCal
         handler->callback = callback;
         if (options.timeout > 0)
         {
-            handler->timeoutHandler.emplace(server->asioInterface()->newTimer(options.timeout));
+            handler->timeoutHandler.emplace(
+                m_server.get().asioInterface()->newTimer(options.timeout));
             auto session = std::weak_ptr<Session>(shared_from_this());
             auto seq = message->seq();
             handler->timeoutHandler->async_wait(
@@ -262,13 +259,7 @@ bool Session::tryPopSomeEncodedMsgs(
 
 void Session::write()
 {
-    // TODO: use reference instead of weak_ptr
-    auto server = m_server.lock();
-    if (!active(server))
-    {
-        return;
-    }
-    if (!server->haveNetwork())
+    if (!m_server.get().haveNetwork())
     {
         SESSION_LOG(WARNING) << "Host has gone";
         drop(TCPError);
@@ -304,7 +295,7 @@ void Session::write()
             payload.toConstBuffer(outputIt);
         }
         defer.release();  // NOLINT
-        server->asioInterface()->asyncWrite(m_socket, buffers,
+        m_server.get().asioInterface()->asyncWrite(m_socket, buffers,
             [self = std::weak_ptr<Session>(shared_from_this())](
                 const boost::system::error_code _error, std::size_t _size) mutable {
                 if (auto session = self.lock())
@@ -335,11 +326,6 @@ void Session::write()
 
 void Session::drop(DisconnectReason _reason)
 {
-    auto server = m_server.lock();
-    if (!m_active)
-    {
-        return;
-    }
     m_active = false;
 
     int errorCode = P2PExceptionType::Disconnect;
@@ -353,17 +339,18 @@ void Session::drop(DisconnectReason _reason)
     SESSION_LOG(INFO) << "drop, call and erase all callback in this session!"
                       << LOG_KV("this", this) << LOG_KV("endpoint", nodeIPEndpoint());
 
-    if (server && m_messageHandler)
+    if (m_messageHandler)
     {
-        server->asyncTo([self = weak_from_this(), errorCode, errorMsg = std::move(errorMsg)]() {
-            auto session = self.lock();
-            if (!session)
-            {
-                return;
-            }
-            session->m_messageHandler(
-                NetworkException(errorCode, errorMsg), session, Message::Ptr());
-        });
+        m_server.get().asyncTo(
+            [self = weak_from_this(), errorCode, errorMsg = std::move(errorMsg)]() {
+                auto session = self.lock();
+                if (!session)
+                {
+                    return;
+                }
+                session->m_messageHandler(
+                    NetworkException(errorCode, errorMsg), session, Message::Ptr());
+            });
     }
 
     if (m_socket->isConnected())
@@ -386,8 +373,7 @@ void Session::drop(DisconnectReason _reason)
 
             /// if get Host object failed, close the socket directly
             auto socket = m_socket;
-            auto server = m_server.lock();
-            if (server && socket->isConnected())
+            if (socket->isConnected())
             {
                 socket->close();
             }
@@ -452,17 +438,13 @@ void Session::disconnect(DisconnectReason _reason)
 
 void Session::start()
 {
-    if (!m_active)
+    if (!m_active && m_server.get().haveNetwork())
     {
-        auto server = m_server.lock();
-        if (server && server->haveNetwork())
-        {
-            m_active = true;
-            m_lastWriteTime.store(utcSteadyTime());
-            m_lastReadTime.store(utcSteadyTime());
-            server->asioInterface()->strandPost(
-                [session = shared_from_this()] { session->doRead(); });
-        }
+        m_active = true;
+        m_lastWriteTime.store(utcSteadyTime());
+        m_lastReadTime.store(utcSteadyTime());
+        m_server.get().asioInterface()->strandPost(
+            [session = shared_from_this()] { session->doRead(); });
     }
 
     auto self = weak_from_this();
@@ -480,8 +462,7 @@ void Session::start()
 
 void Session::doRead()
 {
-    auto server = m_server.lock();
-    if (m_active && server && server->haveNetwork())
+    if (m_active && m_server.get().haveNetwork())
     {
         auto self = std::weak_ptr<Session>(shared_from_this());
         auto asyncRead = [self](boost::system::error_code ec, std::size_t bytesTransferred) {
@@ -595,7 +576,7 @@ void Session::doRead()
             auto writeBuffer = m_recvBuffer.asWriteBuffer();
             std::size_t readSize =
                 (writeBuffer.size() > m_maxReadDataSize ? m_maxReadDataSize : writeBuffer.size());
-            server->asioInterface()->asyncReadSome(
+            m_server.get().asioInterface()->asyncReadSome(
                 m_socket, boost::asio::buffer((void*)writeBuffer.data(), readSize), asyncRead);
         }
         else
@@ -609,7 +590,7 @@ void Session::doRead()
     {
         SESSION_LOG(ERROR) << LOG_DESC("callback doRead failed for session inactive")
                            << LOG_KV("active", m_active)
-                           << LOG_KV("haveNetwork", server->haveNetwork());
+                           << LOG_KV("haveNetwork", m_server.get().haveNetwork());
     }
 }
 
@@ -630,12 +611,7 @@ bool Session::checkRead(boost::system::error_code _ec)
 
 void Session::onMessage(NetworkException const& e, Message::Ptr message)
 {
-    auto server = m_server.lock();
-    if (!server)
-    {
-        return;
-    }
-    server->asyncTo([self = weak_from_this(), e, message]() {
+    m_server.get().asyncTo([self = weak_from_this(), e, message]() {
         try
         {
             auto session = self.lock();
@@ -650,9 +626,8 @@ void Session::onMessage(NetworkException const& e, Message::Ptr message)
                 session->m_messageHandler(e, session, message);
                 return;
             }
-            auto server = session->m_server.lock();
             // in-activate session
-            if (!session->m_active || !server || !server->haveNetwork())
+            if (!session->m_active || session->m_server.get().haveNetwork())
             {
                 return;
             }
@@ -704,17 +679,12 @@ void Session::onTimeout(const boost::system::error_code& error, uint32_t seq)
         return;
     }
 
-    auto server = m_server.lock();
-    if (!server)
-    {
-        return;
-    }
     ResponseCallback::Ptr callback = m_sessionCallbackManager->getCallback(seq, true);
     if (!callback)
     {
         return;
     }
-    server->asyncTo([callback = std::move(callback)]() {
+    m_server.get().asyncTo([callback = std::move(callback)]() {
         NetworkException e(P2PExceptionType::NetworkTimeout, "NetworkTimeout");
         callback->callback(e, Message::Ptr());
     });
@@ -757,8 +727,7 @@ void Session::checkNetworkStatus()
 bcos::task::Task<Message::Ptr> bcos::gateway::Session::sendMessage(
     const Message& message, ::ranges::any_view<bytesConstRef> payloads, Options options)
 {
-    auto server = m_server.lock();
-    if (!active() || !server)
+    if (!active())
     {
         SESSION_LOG(WARNING) << "Session inactive";
         co_return {};
@@ -852,7 +821,7 @@ bcos::task::Task<Message::Ptr> bcos::gateway::Session::sendMessage(
         };
 
         Awaitable awaitable{.m_options = options,
-            .m_host = *server,
+            .m_host = m_server,
             .m_message = message,
             .m_self = shared_from_this(),
             .m_sessionCallbackManager = *m_sessionCallbackManager,

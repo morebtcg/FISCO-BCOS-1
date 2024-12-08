@@ -21,6 +21,7 @@
 #include <boost/container/small_vector.hpp>
 #include <boost/heap/priority_queue.hpp>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <range/v3/numeric/accumulate.hpp>
 #include <utility>
@@ -157,7 +158,7 @@ public:
     constexpr static const std::size_t MIN_SESSION_RECV_BUFFER_SIZE =
         static_cast<std::size_t>(512 * 1024);
 
-    Session(std::shared_ptr<SocketFace> socket,
+    Session(std::shared_ptr<SocketFace> socket, Host& server,
         size_t _recvBufferSize = MIN_SESSION_RECV_BUFFER_SIZE, bool _forceSize = false);
 
     Session(const Session&) = delete;
@@ -182,12 +183,11 @@ public:
 
     bool active() const override;
 
-    bool active(std::shared_ptr<bcos::gateway::Host>&) const;
+    bool active(Host& server) const;
 
     std::size_t writeQueueSize() override;
 
-    virtual std::weak_ptr<Host> host() { return m_server; }
-    virtual void setHost(std::weak_ptr<Host> host) { m_server = std::move(host); }
+    virtual Host& host() { return m_server; }
 
     std::shared_ptr<SocketFace> socket() override { return m_socket; }
     virtual void setSocket(const std::shared_ptr<SocketFace>& socket) { m_socket = socket; }
@@ -297,8 +297,8 @@ public:
     /// call by doRead() to deal with message
     void onMessage(NetworkException const& e, Message::Ptr message);
 
-    std::weak_ptr<Host> m_server;          ///< The host that owns us. Never null.
-    std::shared_ptr<SocketFace> m_socket;  ///< Socket of peer's connection.
+    std::reference_wrapper<Host> m_server;  ///< The host that owns us. Never null.
+    std::shared_ptr<SocketFace> m_socket;   ///< Socket of peer's connection.
 
     MessageFactory::Ptr m_messageFactory;
 
@@ -349,14 +349,13 @@ public:
     SessionFactory& operator=(const SessionFactory&) = delete;
     virtual ~SessionFactory() = default;
 
-    virtual std::shared_ptr<SessionFace> create_session(std::weak_ptr<Host>& _server,
+    virtual std::shared_ptr<SessionFace> createSession(Host& _server,
         std::shared_ptr<SocketFace> const& _socket, MessageFactory::Ptr& _messageFactory,
         SessionCallbackManagerInterface::Ptr& _sessionCallbackManager)
     {
         std::shared_ptr<Session> session =
-            std::make_shared<Session>(_socket, m_sessionRecvBufferSize);
+            std::make_shared<Session>(_socket, _server, m_sessionRecvBufferSize);
         session->setHostNodeID(m_hostNodeID);
-        session->setHost(_server);
         session->setMessageFactory(_messageFactory);
         session->setSessionCallbackManager(_sessionCallbackManager);
         session->setAllowMaxMsgSize(m_allowMaxMsgSize);
