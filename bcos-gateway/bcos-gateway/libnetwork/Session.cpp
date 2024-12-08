@@ -627,7 +627,7 @@ void Session::onMessage(NetworkException const& e, Message::Ptr message)
                 return;
             }
             // in-activate session
-            if (!session->m_active || session->m_server.get().haveNetwork())
+            if (!session->m_active || !session->m_server.get().haveNetwork())
             {
                 return;
             }
