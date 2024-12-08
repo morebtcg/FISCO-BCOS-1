@@ -505,12 +505,10 @@ void Service::asyncSendMessageByNodeID(
         }
 
         P2PSession::Ptr session;
+        if (decltype(m_sessions)::const_accessor accessor;
+            m_sessions.find(accessor, nodeID) && accessor->second->active())
         {
-            if (decltype(m_sessions)::const_accessor accessor;
-                m_sessions.find(accessor, nodeID) && accessor->second->active())
-            {
-                session = accessor->second;
-            }
+            session = accessor->second;
         }
 
         if (session)
