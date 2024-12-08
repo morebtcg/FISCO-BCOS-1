@@ -222,7 +222,7 @@ public:
     // handle before sending message, if the check fails, meaning false is returned, the message
     // is not sent, and the SessionCallbackFunc will be performed
     void setBeforeMessageHandler(
-        std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)> handler) override
+        std::function<std::optional<bcos::Error>(SessionFace&, Message&)> handler) override
     {
         m_beforeMessageHandler = handler;
     }
@@ -310,11 +310,8 @@ public:
     bool m_active = false;
 
     SessionCallbackManagerInterface::Ptr m_sessionCallbackManager;
-
     std::function<void(NetworkException, SessionFace::Ptr, Message::Ptr)> m_messageHandler;
-
-    std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)>
-        m_beforeMessageHandler;
+    std::function<std::optional<bcos::Error>(SessionFace&, Message&)> m_beforeMessageHandler;
 
     uint64_t m_shutDownTimeThres = 50000;
     // 1min

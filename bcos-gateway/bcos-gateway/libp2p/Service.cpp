@@ -216,10 +216,15 @@ void Service::onConnect(
     p2pSession->setProtocolInfo(m_localProtocol);
 
     auto p2pSessionWeakPtr = std::weak_ptr<P2PSession>(p2pSession);
-    p2pSession->session()->setMessageHandler(std::bind(&Service::onMessage, shared_from_this(),
-        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, p2pSessionWeakPtr));
-    p2pSession->session()->setBeforeMessageHandler(std::bind(&Service::onBeforeMessage,
-        shared_from_this(), std::placeholders::_1, std::placeholders::_2));
+    p2pSession->session()->setMessageHandler([self = shared_from_this(), p2pSessionWeakPtr](
+                                                 auto&& exception, auto&& session, auto&& message) {
+        self->onMessage(std::forward<decltype(exception)>(exception),
+            std::forward<decltype(session)>(session), std::forward<decltype(message)>(message),
+            p2pSessionWeakPtr);
+    });
+    p2pSession->session()->setBeforeMessageHandler([this](SessionFace& session, Message& message) {
+        return onBeforeMessage(session, message);
+    });
 
     decltype(m_sessions)::accessor accessor;
     if (m_sessions.find(accessor, p2pID) && accessor->second->active())
@@ -324,12 +329,11 @@ void Service::sendRespMessageBySession(
                        << LOG_KV("payload size", _payload.size());
 }
 
-std::optional<bcos::Error> Service::onBeforeMessage(
-    SessionFace::Ptr _session, Message::Ptr _message)
+std::optional<bcos::Error> Service::onBeforeMessage(SessionFace& _session, Message& _message)
 {
     if (m_beforeMessageHandler)
     {
-        return m_beforeMessageHandler(std::move(_session), std::move(_message));
+        return m_beforeMessageHandler(_session, _message);
     }
 
     return std::nullopt;

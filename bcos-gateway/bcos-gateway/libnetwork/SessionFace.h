@@ -53,7 +53,7 @@ public:
         std::function<void(NetworkException, SessionFace::Ptr, Message::Ptr)> messageHandler) = 0;
 
     virtual void setBeforeMessageHandler(
-        std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)> handler) = 0;
+        std::function<std::optional<bcos::Error>(SessionFace&, Message&)> handler) = 0;
 
     virtual NodeIPEndpoint nodeIPEndpoint() const = 0;
 

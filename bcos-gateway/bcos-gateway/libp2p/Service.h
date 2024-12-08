@@ -46,8 +46,7 @@ public:
     virtual void onMessage(NetworkException e, SessionFace::Ptr session, Message::Ptr message,
         std::weak_ptr<P2PSession> p2pSessionWeakPtr);
 
-    virtual std::optional<bcos::Error> onBeforeMessage(
-        SessionFace::Ptr _session, Message::Ptr _message);
+    virtual std::optional<bcos::Error> onBeforeMessage(SessionFace& _session, Message& _message);
 
     // handlers called when the node is unreachable
     virtual void registerUnreachableHandler(std::function<void(std::string)> /*unused*/)
@@ -149,7 +148,7 @@ public:
         CallbackFuncWithSession callback, Options options = Options());
 
     void setBeforeMessageHandler(
-        std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)> _handler)
+        std::function<std::optional<bcos::Error>(SessionFace&, Message&)> _handler)
     {
         m_beforeMessageHandler = std::move(_handler);
     }
@@ -248,8 +247,7 @@ private:
     // handlers called when delete-session
     std::vector<std::function<void(P2PSession::Ptr)>> m_deleteSessionHandlers;
 
-    std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)>
-        m_beforeMessageHandler;
+    std::function<std::optional<bcos::Error>(SessionFace&, Message&)> m_beforeMessageHandler;
 
     std::function<std::optional<bcos::Error>(SessionFace::Ptr, Message::Ptr)> m_onMessageHandler;
     // bcos::LogLevel m_connectionLogLevel = bcos::LogLevel::WARNING;

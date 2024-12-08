@@ -55,6 +55,7 @@ private:
     std::map<std::string, std::map<GroupType, std::set<std::string>>, std::less<>>
         m_groupP2PNodeList;
     mutable std::mutex x_groupP2PNodeList;
+    mutable std::atomic_size_t m_chooseIndex = 0;
 };
 
 class GatewayStatusFactory

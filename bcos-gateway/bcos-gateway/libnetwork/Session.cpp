@@ -114,7 +114,7 @@ void Session::asyncSendMessage(Message::Ptr message, Options options, SessionCal
     auto session = shared_from_this();
 
     if (auto result =
-            (m_beforeMessageHandler ? m_beforeMessageHandler(session, message) : std::nullopt))
+            (m_beforeMessageHandler ? m_beforeMessageHandler(*session, *message) : std::nullopt))
     {
         if (callback && result.has_value())
         {

@@ -102,9 +102,7 @@ bool GatewayStatus::randomChooseNode(
     {
         return false;
     }
-    // srand(utcTime());
-    // TODO: if rand() can be replaced by a faster random function?
-    auto selectedP2PNode = rand() % p2pNodeList->size();
+    auto selectedP2PNode = m_chooseIndex.fetch_add(1) % p2pNodeList->size();
     auto iterator = p2pNodeList->begin();
     if (selectedP2PNode > 0)
     {
