@@ -19,6 +19,7 @@
  */
 #include "GatewayStatus.h"
 #include <mutex>
+#include <random>
 
 using namespace bcos;
 using namespace bcos::gateway;
@@ -102,11 +103,14 @@ bool GatewayStatus::randomChooseNode(
     {
         return false;
     }
-    auto selectedP2PNode = m_chooseIndex.fetch_add(1) % p2pNodeList->size();
+
+    static thread_local std::minstd_rand0 random(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, p2pNodeList->size() - 1);
+    auto selectedP2PNodeIndex = dist(random);
     auto iterator = p2pNodeList->begin();
-    if (selectedP2PNode > 0)
+    if (selectedP2PNodeIndex > 0)
     {
-        std::advance(iterator, selectedP2PNode);
+        std::advance(iterator, selectedP2PNodeIndex);
     }
     _choosedNode = *iterator;
     return true;
