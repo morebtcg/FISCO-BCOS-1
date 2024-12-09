@@ -60,7 +60,7 @@ std::vector<std::atomic_long> query(bcos::sdk::RPCClient& rpcClient,
     boost::latch latch(userCount);
     std::vector<std::optional<bcos::sdk::Call>> handles(userCount);
 
-    bcos::sample::Collector collector(userCount, "Query");
+    bcos::sample::Collector collector(userCount, "查询账户余额");
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
@@ -87,8 +87,8 @@ std::vector<std::atomic_long> query(bcos::sdk::RPCClient& rpcClient,
         }
     });
     collector.finishSend();
-    latch.wait();
     collector.report();
+    latch.wait();
 
     std::vector<std::atomic_long> balances(userCount);
     // Check result
@@ -123,7 +123,7 @@ int issue(bcos::sdk::RPCClient& rpcClient, std::shared_ptr<bcos::crypto::CryptoS
     std::vector<std::optional<bcos::sdk::SendTransaction>> handles(userCount);
 
     bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
-    bcos::sample::Collector collector(userCount, "Issue");
+    bcos::sample::Collector collector(userCount, "智能合约交易");
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
@@ -156,8 +156,8 @@ int issue(bcos::sdk::RPCClient& rpcClient, std::shared_ptr<bcos::crypto::CryptoS
         }
     });
     collector.finishSend();
-    latch.wait();
     collector.report();
+    latch.wait();
 
     // Check result
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
@@ -314,25 +314,14 @@ int main(int argc, char* argv[])
         contractAddress = receipt->contractAddress();
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    std::cout << "Contract address is:" << contractAddress << std::endl;
+    std::cout << "合约地址：" << contractAddress << "\n";
     auto balances = query(rpcClient, cryptoSuite, std::string(contractAddress), userCount, qps);
 
-    auto start = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch())
-                     .count();
-    std::cout << "转账交易开始时间戳：" << start << "\n";
     issue(rpcClient, cryptoSuite, keyPair, std::string(contractAddress), userCount, qps, balances,
         nonce);
-    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch())
-                   .count();
-    std::cout << "转账交易结束时间戳：" << end << "\n";
-    std::cout << "转账交易数量：" << userCount << "\n";
-    std::cout << "转账交易用时：" << end - start << "\n";
-
     nonce += userCount;
-    transfer(rpcClient, cryptoSuite, std::string(contractAddress), keyPair, userCount,
-        transactionCount, qps, balances, nonce);
+    // transfer(rpcClient, cryptoSuite, std::string(contractAddress), keyPair, userCount,
+    //     transactionCount, qps, balances, nonce);
     auto resultBalances =
         query(rpcClient, cryptoSuite, std::string(contractAddress), userCount, qps);
 
@@ -348,6 +337,6 @@ int main(int argc, char* argv[])
     stopFlag.test_and_set();
     getBlockNumber.join();
 
-    std::cout << "Test finished, last nonce: " << nonce + transactionCount << "\n";
+    std::cout << "测试完成, 最终nonce: " << nonce + transactionCount << "\n";
     return 0;
 }

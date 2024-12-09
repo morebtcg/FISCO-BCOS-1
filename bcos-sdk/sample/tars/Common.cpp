@@ -187,12 +187,16 @@ std::string_view bcos::sample::getContractABI()
 long bcos::sample::currentTime()
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch())
+        std::chrono::system_clock::now().time_since_epoch())
         .count();
+    // return std::chrono::duration_cast<std::chrono::milliseconds>(
+    //     std::chrono::steady_clock::now().time_since_epoch())
+    //     .count();
 }
 
 bcos::sample::Collector::Collector(int count, std::string title)
   : m_startTime(currentTime()),
+    m_endTime(0),
     m_count(count),
     m_title(std::move(title)),
     m_sendProgressBar{indicators::option::BarWidth{70}, indicators::option::ShowElapsedTime{true},
@@ -201,20 +205,14 @@ bcos::sample::Collector::Collector(int count, std::string title)
         indicators::option::PostfixText{"Send   "},
         indicators::option::FontStyles{
             std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}},
-    m_receiveProgressBar{indicators::option::BarWidth{70},
-        indicators::option::ShowElapsedTime{true}, indicators::option::ShowRemainingTime{true},
-        indicators::option::Start{"["}, indicators::option::End{"]"},
-        indicators::option::ForegroundColor{indicators::Color::white},
-        indicators::option::PostfixText{"Receive"},
-        indicators::option::FontStyles{
-            std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}},
-    m_progressBar{m_sendProgressBar, m_receiveProgressBar}
+    m_progressBar{m_sendProgressBar}
 {
     indicators::show_console_cursor(false);
 }
 void bcos::sample::Collector::finishSend()
 {
-    sendElapsed = bcos::sample::currentTime() - m_startTime;
+    m_endTime = bcos::sample::currentTime();
+    m_sendElapsed = m_endTime - m_startTime;
 }
 void bcos::sample::Collector::send(bool success, long elapsed)
 {
@@ -227,10 +225,10 @@ void bcos::sample::Collector::send(bool success, long elapsed)
 void bcos::sample::Collector::receive(bool success, long elapsed)
 {
     ++m_finished;
-    while (m_receiveProgressBar.current() < (size_t)(((double)m_finished / m_count) * 100.0))
-    {
-        m_progressBar.tick<1>();
-    }
+    // while (m_receiveProgressBar.current() < (size_t)(((double)m_finished / m_count) * 100.0))
+    // {
+    // m_progressBar.tick<1>();
+    // }
     if (!success)
     {
         ++m_failed;
@@ -244,24 +242,11 @@ void bcos::sample::Collector::report()
 
     long receiveElapsed = bcos::sample::currentTime() - m_startTime;
 
-    std::cout << std::endl << m_title << " done!" << std::endl;
-    std::cout << "=======================================" << std::endl;
-    std::cout << "Total received: " << m_finished << std::endl;
-    std::cout << "Total failed: " << m_failed << std::endl;
-    std::cout << "Receive elapsed: " << receiveElapsed << "ms" << std::endl;
-    std::cout << "Avg time cost: " << ((double)m_allTimeCost.load() / (double)m_count) << "ms"
-              << std::endl;
-    std::cout << "Send TPS: " << ((double)m_count / (double)sendElapsed) * 1000.0 << std::endl;
-    std::cout << "Receive TPS: " << ((double)m_count / (double)receiveElapsed) * 1000.0
-              << std::endl;
-}
-std::string bcos::sample::parseRevertMessage(
-    bcos::bytesConstRef output, bcos::crypto::Hash::Ptr hashImpl)
-{
-    auto data = output.getCroppedData(4);
-    bcos::codec::abi::ContractABICodec abiCodec(*hashImpl);
-
-    std::string message;
-    abiCodec.abiOut(data, message);
-    return message;
+    std::cout << "\n" << m_title << "完成!\n";
+    std::cout << "=======================================\n";
+    std::cout << m_title << "开始时间戳：" << m_startTime << " ms\n";
+    std::cout << m_title << "结束时间戳：" << m_endTime << " ms\n";
+    std::cout << "总交易数: " << m_sended << "\n";
+    std::cout << "总失败数: " << m_failed << "\n";
+    std::cout << "总交易用时：" << m_sendElapsed << " ms\n";
 }
