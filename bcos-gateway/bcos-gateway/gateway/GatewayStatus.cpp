@@ -104,7 +104,7 @@ bool GatewayStatus::randomChooseNode(
         return false;
     }
 
-    static thread_local std::minstd_rand0 random(std::random_device{}());
+    static thread_local std::mt19937 random(std::random_device{}());
     std::uniform_int_distribution<size_t> dist(0, p2pNodeList->size() - 1);
     auto selectedP2PNodeIndex = dist(random);
     auto iterator = p2pNodeList->begin();
