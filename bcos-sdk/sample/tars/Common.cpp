@@ -1,5 +1,4 @@
 #include "Common.h"
-#include "bcos-codec/abi/ContractABICodec.h"
 #include <chrono>
 
 constexpr static std::string_view HELLOWORLD_BYTECODE =
@@ -194,15 +193,15 @@ long bcos::sample::currentTime()
     //     .count();
 }
 
-bcos::sample::Collector::Collector(int count, std::string title)
+bcos::sample::Collector::Collector(int count, std::string title, bool showProgress)
   : m_startTime(currentTime()),
     m_endTime(0),
     m_count(count),
     m_title(std::move(title)),
+    m_showProgressBar(showProgress),
     m_sendProgressBar{indicators::option::BarWidth{70}, indicators::option::ShowElapsedTime{true},
         indicators::option::ShowRemainingTime{true}, indicators::option::Start{"["},
-        indicators::option::End{"]"}, indicators::option::ForegroundColor{indicators::Color::white},
-        indicators::option::PostfixText{"Send   "},
+        indicators::option::End{"]"}, indicators::option::PostfixText{"Send   "},
         indicators::option::FontStyles{
             std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}},
     m_progressBar{m_sendProgressBar}
@@ -217,9 +216,12 @@ void bcos::sample::Collector::finishSend()
 void bcos::sample::Collector::send(bool success, long elapsed)
 {
     ++m_sended;
-    while (m_sendProgressBar.current() < (size_t)(((double)m_sended / m_count) * 100.0))
+    if (m_showProgressBar)
     {
-        m_progressBar.tick<0>();
+        while (m_sendProgressBar.current() < (size_t)(((double)m_sended / m_count) * 100.0))
+        {
+            m_progressBar.tick<0>();
+        }
     }
 }
 void bcos::sample::Collector::receive(bool success, long elapsed)
@@ -244,8 +246,8 @@ void bcos::sample::Collector::report()
 
     std::cout << "\n" << m_title << "完成!\n";
     std::cout << "=======================================\n";
-    std::cout << m_title << "开始时间戳：" << m_startTime << " ms\n";
-    std::cout << m_title << "结束时间戳：" << m_endTime << " ms\n";
+    std::cout << m_title << "开始时间戳：" << m_startTime << "\n";
+    std::cout << m_title << "结束时间戳：" << m_endTime << "\n";
     std::cout << "总交易数: " << m_sended << "\n";
     std::cout << "总失败数: " << m_failed << "\n";
     std::cout << "总交易用时：" << m_sendElapsed << " ms\n";

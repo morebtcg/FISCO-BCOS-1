@@ -60,7 +60,7 @@ std::vector<std::atomic_long> query(bcos::sdk::RPCClient& rpcClient,
     boost::latch latch(userCount);
     std::vector<std::optional<bcos::sdk::Call>> handles(userCount);
 
-    bcos::sample::Collector collector(userCount, "查询账户余额");
+    bcos::sample::Collector collector(userCount, "查询账户余额", false);
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
@@ -87,7 +87,7 @@ std::vector<std::atomic_long> query(bcos::sdk::RPCClient& rpcClient,
         }
     });
     collector.finishSend();
-    collector.report();
+    // collector.report();
     latch.wait();
 
     std::vector<std::atomic_long> balances(userCount);
@@ -123,7 +123,7 @@ int issue(bcos::sdk::RPCClient& rpcClient, std::shared_ptr<bcos::crypto::CryptoS
     std::vector<std::optional<bcos::sdk::SendTransaction>> handles(userCount);
 
     bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
-    bcos::sample::Collector collector(userCount, "智能合约交易");
+    bcos::sample::Collector collector(userCount, "智能合约交易", true);
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
@@ -185,7 +185,7 @@ int transfer(bcos::sdk::RPCClient& rpcClient,
     std::vector<std::optional<bcos::sdk::SendTransaction>> handles(transactionCount);
 
     bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
-    bcos::sample::Collector collector(transactionCount, "Transfer");
+    bcos::sample::Collector collector(transactionCount, "Transfer", false);
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)transactionCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {

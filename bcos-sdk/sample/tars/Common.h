@@ -19,6 +19,8 @@ private:
     long m_endTime;
     int m_count;
     std::string m_title;
+    bool m_showProgressBar;
+
     indicators::BlockProgressBar m_sendProgressBar;
     indicators::BlockProgressBar m_receiveProgressBar;
     indicators::MultiProgress<indicators::BlockProgressBar, 1> m_progressBar;
@@ -30,7 +32,7 @@ private:
     std::atomic_int m_failed = 0;
 
 public:
-    Collector(int count, std::string title);
+    Collector(int count, std::string title, bool showProgress = true);
 
     void finishSend();
     void send(bool success, long elapsed);
