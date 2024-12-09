@@ -15,6 +15,7 @@
 #include <boost/throw_exception.hpp>
 #include <atomic>
 #include <chrono>
+#include <ctime>
 #include <exception>
 #include <string>
 #include <thread>
@@ -59,7 +60,6 @@ std::vector<std::atomic_long> query(bcos::sdk::RPCClient& rpcClient,
     boost::latch latch(userCount);
     std::vector<std::optional<bcos::sdk::Call>> handles(userCount);
 
-    bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
     bcos::sample::Collector collector(userCount, "Query");
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
@@ -316,8 +316,20 @@ int main(int argc, char* argv[])
     }
     std::cout << "Contract address is:" << contractAddress << std::endl;
     auto balances = query(rpcClient, cryptoSuite, std::string(contractAddress), userCount, qps);
+
+    auto start = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch())
+                     .count();
+    std::cout << "转账交易开始时间戳：" << start << "\n";
     issue(rpcClient, cryptoSuite, keyPair, std::string(contractAddress), userCount, qps, balances,
         nonce);
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch())
+                   .count();
+    std::cout << "转账交易结束时间戳：" << end << "\n";
+    std::cout << "转账交易数量：" << userCount << "\n";
+    std::cout << "转账交易用时：" << end - start << "\n";
+
     nonce += userCount;
     transfer(rpcClient, cryptoSuite, std::string(contractAddress), keyPair, userCount,
         transactionCount, qps, balances, nonce);
