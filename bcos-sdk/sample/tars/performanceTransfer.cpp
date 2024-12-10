@@ -123,7 +123,7 @@ int issue(bcos::sdk::RPCClient& rpcClient, std::shared_ptr<bcos::crypto::CryptoS
     std::vector<std::optional<bcos::sdk::SendTransaction>> handles(userCount);
 
     bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
-    bcos::sample::Collector collector(userCount, "智能合约交易", false);
+    bcos::sample::Collector collector(userCount, "智能合约处理", false);
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
