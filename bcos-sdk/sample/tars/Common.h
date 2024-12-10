@@ -21,9 +21,9 @@ private:
     std::string m_title;
     bool m_showProgressBar;
 
-    indicators::BlockProgressBar m_sendProgressBar;
-    indicators::BlockProgressBar m_receiveProgressBar;
-    indicators::MultiProgress<indicators::BlockProgressBar, 1> m_progressBar;
+    // indicators::BlockProgressBar m_sendProgressBar;
+    // indicators::BlockProgressBar m_receiveProgressBar;
+    // indicators::MultiProgress<indicators::BlockProgressBar, 1> m_progressBar;
 
     long m_sendElapsed = std::numeric_limits<long>::max();
     std::atomic_long m_allTimeCost = 0;

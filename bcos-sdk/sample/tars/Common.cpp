@@ -188,9 +188,6 @@ long bcos::sample::currentTime()
     return std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch())
         .count();
-    // return std::chrono::duration_cast<std::chrono::milliseconds>(
-    //     std::chrono::steady_clock::now().time_since_epoch())
-    //     .count();
 }
 
 bcos::sample::Collector::Collector(int count, std::string title, bool showProgress)
@@ -198,13 +195,15 @@ bcos::sample::Collector::Collector(int count, std::string title, bool showProgre
     m_endTime(0),
     m_count(count),
     m_title(std::move(title)),
-    m_showProgressBar(showProgress),
-    m_sendProgressBar{indicators::option::BarWidth{70}, indicators::option::ShowElapsedTime{true},
-        indicators::option::ShowRemainingTime{true}, indicators::option::Start{"["},
-        indicators::option::End{"]"}, indicators::option::PostfixText{"Send   "},
-        indicators::option::FontStyles{
-            std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}},
-    m_progressBar{m_sendProgressBar}
+    m_showProgressBar(showProgress)
+
+// m_sendProgressBar{indicators::option::BarWidth{70},
+// indicators::option::ShowElapsedTime{true},
+//     indicators::option::ShowRemainingTime{true}, indicators::option::Start{"["},
+//     indicators::option::End{"]"}, indicators::option::PostfixText{"Send   "},
+//     indicators::option::FontStyles{
+//         std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}},
+// m_progressBar{m_sendProgressBar}
 {
     indicators::show_console_cursor(false);
 }
@@ -216,13 +215,13 @@ void bcos::sample::Collector::finishSend()
 void bcos::sample::Collector::send(bool success, long elapsed)
 {
     ++m_sended;
-    if (m_showProgressBar)
-    {
-        while (m_sendProgressBar.current() < (size_t)(((double)m_sended / m_count) * 100.0))
-        {
-            m_progressBar.tick<0>();
-        }
-    }
+    // if (m_showProgressBar)
+    // {
+    // while (m_sendProgressBar.current() < (size_t)(((double)m_sended / m_count) * 100.0))
+    // {
+    //     m_progressBar.tick<0>();
+    // }
+    // }
 }
 void bcos::sample::Collector::receive(bool success, long elapsed)
 {
@@ -239,7 +238,7 @@ void bcos::sample::Collector::receive(bool success, long elapsed)
 }
 void bcos::sample::Collector::report()
 {
-    m_progressBar.print_progress();
+    // m_progressBar.print_progress();
     indicators::show_console_cursor(true);
 
     long receiveElapsed = bcos::sample::currentTime() - m_startTime;
