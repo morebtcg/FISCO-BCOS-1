@@ -123,7 +123,7 @@ int issue(bcos::sdk::RPCClient& rpcClient, std::shared_ptr<bcos::crypto::CryptoS
     std::vector<std::optional<bcos::sdk::SendTransaction>> handles(userCount);
 
     bcos::ratelimiter::TimeWindowRateLimiter limiter(qps);
-    bcos::sample::Collector collector(userCount, "智能合约交易", true);
+    bcos::sample::Collector collector(userCount, "智能合约交易", false);
     tbb::parallel_for(tbb::blocked_range(0LU, (size_t)userCount), [&](const auto& range) {
         for (auto it = range.begin(); it != range.end(); ++it)
         {
@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
         contractAddress = receipt->contractAddress();
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    std::cout << "合约地址：" << contractAddress << "\n";
+    // std::cout << "合约地址：" << contractAddress << "\n";
     auto balances = query(rpcClient, cryptoSuite, std::string(contractAddress), userCount, qps);
 
     issue(rpcClient, cryptoSuite, keyPair, std::string(contractAddress), userCount, qps, balances,
@@ -336,7 +336,5 @@ int main(int argc, char* argv[])
     }
     stopFlag.test_and_set();
     getBlockNumber.join();
-
-    std::cout << "测试完成, 最终nonce: " << nonce + transactionCount << "\n";
     return 0;
 }
