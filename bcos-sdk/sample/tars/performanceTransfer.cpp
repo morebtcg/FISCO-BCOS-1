@@ -261,7 +261,7 @@ void loopFetchBlockNumber(bcos::sdk::RPCClient& rpcClient, boost::atomic_flag co
 
 int main(int argc, char* argv[])
 {
-    if (argc < 5)
+    if (argc < 4)
     {
         std::cout
             << "Usage: " << argv[0]
@@ -276,7 +276,7 @@ int main(int argc, char* argv[])
     std::string connectionString = argv[1];
     std::string type = argv[2];
     int userCount = boost::lexical_cast<int>(argv[3]);
-    int transactionCount = argc >= 5 ? 0 : boost::lexical_cast<int>(argv[4]);
+    int transactionCount = argc >= 5 ? boost::lexical_cast<int>(argv[4]) : 0;
     int qps = argc >= 6 ? boost::lexical_cast<int>(argv[5]) : 20000;
     int64_t nonce = argc >= 7 ? boost::lexical_cast<int64_t>(argv[6]) : 0;
 
