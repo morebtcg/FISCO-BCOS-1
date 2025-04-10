@@ -21,10 +21,7 @@
 
 #pragma once
 #include "VMInstance.h"
-#include "bcos-utilities/Error.h"
 #include <evmone/evmone.h>
-#include <boost/throw_exception.hpp>
-#include <memory>
 
 namespace bcos::executor_v1
 {
@@ -40,19 +37,6 @@ struct UnknownVMError : public bcos::Error {};
 class VMFactory
 {
 public:
-    static VMInstance create(VMKind kind, bytesConstRef code, evmc_revision mode)
-    {
-        switch (kind)
-        {
-        case VMKind::evmone:
-        {
-            return VMInstance{
-                std::make_shared<evmone::baseline::CodeAnalysis>(evmone::baseline::analyze(
-                    mode, evmone::bytes_view((const uint8_t*)code.data(), code.size())))};
-        }
-        default:
-            BOOST_THROW_EXCEPTION(UnknownVMError{});
-        }
-    }
+    static VMInstance create(VMKind kind, bytesConstRef code, evmc_revision mode);
 };
 }  // namespace bcos::executor_v1

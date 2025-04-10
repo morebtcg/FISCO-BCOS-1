@@ -362,9 +362,6 @@ public:
     task::Task<void> prepare()
     {
         auto const& ref = message();
-        // assert(
-        //     !concepts::bytebuffer::equalTo(ref.recipient.bytes,
-        //     executor::EMPTY_EVM_ADDRESS.bytes));
         if (ref.kind == EVMC_CREATE || ref.kind == EVMC_CREATE2)
         {
             prepareCreate();

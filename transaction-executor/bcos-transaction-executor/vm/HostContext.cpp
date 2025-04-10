@@ -17,8 +17,7 @@ evmc_message bcos::executor_v1::hostcontext::getMessage(bool web3Tx,
     {
     case EVMC_CREATE:
     {
-        if (concepts::bytebuffer::equalTo(
-                message.code_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
+        if (::ranges::equal(message.code_address.bytes, executor::EMPTY_EVM_ADDRESS.bytes))
         {
             if (!web3Tx)
             {
@@ -29,8 +28,8 @@ evmc_message bcos::executor_v1::hostcontext::getMessage(bool web3Tx,
             }
             else
             {
-                message.code_address = newLegacyEVMAddress(
-                    bytesConstRef(message.sender.bytes, sizeof(message.sender.bytes)), nonce);
+                message.code_address =
+                    newLegacyEVMAddress(bytesConstRef(message.sender.bytes), nonce);
             }
         }
         message.recipient = message.code_address;

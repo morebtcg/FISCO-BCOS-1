@@ -463,8 +463,7 @@ task::Task<void> EthEndpoint::sendRawTransaction(const Json::Value& request, Jso
     }
     else
     {
-        protocol::TransactionStatus status =
-            static_cast<protocol::TransactionStatus>(txResult->status());
+        auto status = static_cast<protocol::TransactionStatus>(txResult->status());
         Json::Value errorData = Json::objectValue;
         errorData["txHash"] = encodeTxHash.hexPrefixed();
         auto output = toHex(txResult->transactionReceipt()->output(), "0x");

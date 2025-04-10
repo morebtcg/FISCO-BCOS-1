@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include "bcos-concepts/ByteBuffer.h"
 #include "bcos-executor/src/Common.h"
 #include "bcos-framework/protocol/Exceptions.h"
 #include <evmc/evmc.h>
@@ -62,11 +61,11 @@ struct EVMHostInterface
         [[maybe_unused]] const evmc_address* addr, const evmc_bytes32* key,
         const evmc_bytes32* value) noexcept
     {
-        assert(!concepts::bytebuffer::equalTo(addr->bytes, executor::EMPTY_EVM_ADDRESS.bytes));
+        assert(!::ranges::equal(addr->bytes, executor::EMPTY_EVM_ADDRESS.bytes));
         auto& hostContext = static_cast<HostContextType&>(*context);
 
         auto status = EVMC_STORAGE_MODIFIED;
-        if (concepts::bytebuffer::equalTo(value->bytes, executor::EMPTY_EVM_BYTES32.bytes))
+        if (::ranges::equal(value->bytes, executor::EMPTY_EVM_BYTES32.bytes))
         {
             status = EVMC_STORAGE_DELETED;
         }
