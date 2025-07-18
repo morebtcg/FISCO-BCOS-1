@@ -516,6 +516,8 @@ bcos::task::Task<void> bcos::gateway::Gateway::broadcastMessage(uint16_t type,
     std::string_view groupID, int moduleID, const bcos::crypto::NodeID& srcNodeID,
     ::ranges::any_view<bytesConstRef> payloads)
 {
+    // TODO: add missing local router table broadcast
+
     auto message =
         std::dynamic_pointer_cast<P2PMessage>(m_p2pInterface->messageFactory()->buildMessage());
     message->setPacketType(GatewayMessageType::BroadcastMessage);
