@@ -18,7 +18,6 @@
  * @date 2021-10-26
  */
 #pragma once
-#include "Common.h"
 #include <bcos-crypto/interfaces/crypto/KeyFactory.h>
 #include <bcos-framework/protocol/AMOPRequest.h>
 #include <bcos-gateway/libamop/AMOPMessage.h>
@@ -29,9 +28,8 @@
 #include <bcos-utilities/ThreadPool.h>
 #include <bcos-utilities/Timer.h>
 #include <boost/asio.hpp>
-namespace bcos
-{
-namespace amop
+
+namespace bcos::amop
 {
 class AMOPImpl : public std::enable_shared_from_this<AMOPImpl>
 {
@@ -153,5 +151,4 @@ private:
 
     unsigned const TOPIC_SYNC_PERIOD = 2000;
 };
-}  // namespace amop
-}  // namespace bcos
+}  // namespace bcos::amop

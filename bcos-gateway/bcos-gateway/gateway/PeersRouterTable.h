@@ -57,9 +57,6 @@ public:
     using Group2NodeIDListType = std::map<std::string, std::map<std::string, uint32_t>>;
     Group2NodeIDListType peersNodeIDList(P2pID const& _p2pNodeID) const;
 
-    void asyncBroadcastMsg(
-        uint16_t _type, std::string const& _group, uint16_t _moduleID, P2PMessage::Ptr _msg);
-
     task::Task<void> broadcastMessage(uint16_t type, std::string_view group, uint16_t moduleID,
         const P2PMessage& message, ::ranges::any_view<bytesConstRef> payloads);
 

@@ -73,11 +73,9 @@ protected:
     SealingManager::Ptr m_sealingManager;
     std::atomic_bool m_running = {false};
 
-    boost::condition_variable m_signalled;
     // mutex to access m_signalled
     std::atomic<std::chrono::steady_clock::time_point> m_lastFetchTimepoint;
     int m_fetchTimeout = 5;  // Default timeout 5s
-    boost::mutex x_signalled;
     bcos::crypto::Hash::Ptr m_hashImpl;
 
     std::chrono::steady_clock::time_point increaseLastFetchTimepoint();

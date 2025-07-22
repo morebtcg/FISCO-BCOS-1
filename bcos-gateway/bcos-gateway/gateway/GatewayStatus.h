@@ -20,7 +20,8 @@
 #pragma once
 #include "bcos-gateway/Common.h"
 #include <bcos-gateway/protocol/GatewayNodeStatus.h>
-#include <mutex>
+
+#include <utility>
 
 namespace bcos::gateway
 {
@@ -28,7 +29,7 @@ class GatewayStatus
 {
 public:
     using Ptr = std::shared_ptr<GatewayStatus>;
-    GatewayStatus(std::string const& _uuid) : m_uuid(_uuid) {}
+    GatewayStatus(std::string _uuid) : m_uuid(std::move(_uuid)) {}
     virtual ~GatewayStatus() {}
 
     std::string const& uuid() const { return m_uuid; }

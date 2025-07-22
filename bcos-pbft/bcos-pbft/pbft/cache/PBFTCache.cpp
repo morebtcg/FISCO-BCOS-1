@@ -82,7 +82,7 @@ void PBFTCache::addCache(CollectionCacheType& _cachedReq, QuorumRecoderType& _we
     {
         return;
     }
-    auto nodeInfo = m_config->getConsensusNodeByIndex(generatedFrom);
+    auto* nodeInfo = m_config->getConsensusNodeByIndex(generatedFrom);
     if (!nodeInfo)
     {
         return;
@@ -135,11 +135,11 @@ bool PBFTCache::checkPrePrepareProposalStatus()
 bool PBFTCache::collectEnoughQuorum(
     bcos::crypto::HashType const& _hash, QuorumRecoderType& _weightInfo)
 {
-    if (!_weightInfo.count(_hash))
+    if (auto it = _weightInfo.find(_hash); it != _weightInfo.end())
     {
-        return false;
+        return it->second >= m_config->minRequiredQuorum();
     }
-    return (_weightInfo[_hash] >= m_config->minRequiredQuorum());
+    return false;
 }
 
 bool PBFTCache::collectEnoughPrepareReq()

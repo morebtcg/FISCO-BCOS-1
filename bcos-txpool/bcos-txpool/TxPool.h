@@ -158,7 +158,6 @@ private:
     TxPoolStorageInterface::Ptr m_txpoolStorage;
     bcos::sync::TransactionSyncInterface::Ptr m_transactionSync;
     bcos::protocol::TransactionFactory::Ptr m_transactionFactory;
-    bcos::ledger::LedgerInterface::Ptr m_ledger;
 
     std::function<void(std::string const&, int, bcos::crypto::NodeIDPtr, bytesConstRef)>
         m_sendResponseHandler;

@@ -208,7 +208,6 @@ protected:
         }
     }
 
-protected:
     PBFTConfig::Ptr m_config;
     // avoid submitting the same committed proposal multiple times
     std::atomic_bool m_submitted = {false};

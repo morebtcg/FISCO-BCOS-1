@@ -22,11 +22,41 @@
 #include "bcos-framework/protocol/TransactionMetaData.h"
 #include <bcos-utilities/CallbackCollectionHandler.h>
 #include <bcos-utilities/ThreadPool.h>
-#include <atomic>
+#include <condition_variable>
 
 namespace bcos::sealer
 {
 using TxsMetaDataQueue = std::deque<bcos::protocol::TransactionMetaData::Ptr>;
+
+struct SealingVars
+{
+    mutable std::mutex m_mutex;
+    std::condition_variable m_condition;
+
+    void get(std::invocable<const SealingVars&> auto getter) const
+    {
+        std::unique_lock lock(m_mutex);
+        getter(*this);
+    }
+    void set(std::invocable<SealingVars&> auto setter)
+    {
+        std::unique_lock lock(m_mutex);
+        setter(*this);
+        m_condition.notify_one();
+    }
+    bool waitForShouldGenerateProposal();
+    bool shouldGenerateProposal();
+
+    // the invalid sealingNumber is -1
+    ssize_t m_latestNumber{0};
+    ssize_t m_sealingNumber{-1};
+    ssize_t m_startSealingNumber{0};
+    ssize_t m_endSealingNumber{0};
+    uint64_t m_lastSealTime{0};
+    // for sys block
+    int64_t m_waitUntil{0};
+};
+
 class SealingManager : public std::enable_shared_from_this<SealingManager>
 {
 public:
@@ -87,21 +117,11 @@ private:
     TxsMetaDataQueue m_pendingSysTxs;
     SharedMutex x_pendingTxs;
 
-    std::atomic<uint64_t> m_lastSealTime = {0};
-    // the invalid sealingNumber is -1
-    std::atomic<ssize_t> m_sealingNumber = {-1};
-
-    std::atomic<ssize_t> m_startSealingNumber = {0};
-    std::atomic<ssize_t> m_endSealingNumber = {0};
-    std::atomic<size_t> m_maxTxsPerBlock = {0};
-
-    // for sys block
-    std::atomic<int64_t> m_waitUntil = {0};
+    SealingVars m_sealingVars;
+    size_t m_maxTxsPerBlock = {0};
 
     bcos::CallbackCollectionHandler<> m_onReady;
     std::mutex m_fetchingTxsMutex;
-
-    std::atomic<ssize_t> m_latestNumber = {0};
     bcos::crypto::HashType m_latestHash;
 };
 }  // namespace bcos::sealer

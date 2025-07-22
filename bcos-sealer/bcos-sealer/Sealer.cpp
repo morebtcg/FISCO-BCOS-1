@@ -125,16 +125,11 @@ void Sealer::executeWorker()
     // try to generateProposal
     if (m_sealingManager->shouldGenerateProposal())
     {
-        auto ret = m_sealingManager->generateProposal(
+        auto [withSystemTx, block] = m_sealingManager->generateProposal(
             [this](bcos::protocol::Block::Ptr _block) -> uint16_t {
                 return hookWhenSealBlock(std::move(_block));
             });
-        submitProposal(ret.first, std::move(ret.second));
-    }
-    else
-    {
-        boost::unique_lock<boost::mutex> lock(x_signalled);
-        m_signalled.wait_for(lock, boost::chrono::seconds(1));
+        submitProposal(withSystemTx, std::move(block));
     }
 }
 
@@ -242,7 +237,4 @@ bcos::sealer::SealingManager::Ptr bcos::sealer::Sealer::sealingManager() const
 {
     return m_sealingManager;
 }
-void bcos::sealer::Sealer::noteGenerateProposal()
-{
-    m_signalled.notify_one();
-}
+void bcos::sealer::Sealer::noteGenerateProposal() {}

@@ -33,6 +33,7 @@
 #include <bcos-framework/protocol/Protocol.h>
 #include <bcos-utilities/ThreadPool.h>
 #include <boost/bind/bind.hpp>
+#include <algorithm>
 #include <utility>
 
 using namespace bcos;
@@ -1445,10 +1446,7 @@ void PBFTEngine::reHandlePrePrepareProposals(NewViewMsgInterface::Ptr _newViewRe
             handlePrePrepareMsg(prePrepare, true, true, false);
             continue;
         }
-        if (prePrepare->index() > maxProposalIndex)
-        {
-            maxProposalIndex = prePrepare->index();
-        }
+        maxProposalIndex = std::max(prePrepare->index(), maxProposalIndex);
         // hit the cache
         if (m_cacheProcessor->tryToFillProposal(prePrepare))
         {

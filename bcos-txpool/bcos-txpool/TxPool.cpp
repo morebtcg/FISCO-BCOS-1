@@ -44,8 +44,7 @@ bcos::txpool::TxPool::TxPool(TxPoolConfig::Ptr config, TxPoolStorageInterface::P
   : m_config(std::move(config)),
     m_txpoolStorage(std::move(txpoolStorage)),
     m_transactionSync(std::move(transactionSync)),
-    m_transactionFactory(m_config->blockFactory()->transactionFactory()),
-    m_ledger(m_config->ledger())
+    m_transactionFactory(m_config->blockFactory()->transactionFactory())
 {
     m_verifier = std::make_shared<ThreadPool>("verifier", 2);
     // worker to pre-store-txs

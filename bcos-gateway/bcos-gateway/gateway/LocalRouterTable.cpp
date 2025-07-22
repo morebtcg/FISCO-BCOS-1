@@ -21,6 +21,8 @@
 #include "fisco-bcos-tars-service/Common/TarsUtils.h"
 #include <bcos-framework/protocol/ServiceDesc.h>
 #include <bcos-gateway/Common.h>
+
+#include <utility>
 using namespace bcos;
 using namespace bcos::protocol;
 using namespace bcos::gateway;
@@ -306,4 +308,14 @@ bool LocalRouterTable::sendMessage(const std::string& _groupID, NodeIDPtr _srcNo
             }
         });
     return true;
+}
+
+bcos::gateway::LocalRouterTable::LocalRouterTable(bcos::crypto::KeyFactory::Ptr _keyFactory)
+  : m_keyFactory(std::move(_keyFactory))
+{}
+
+bcos::gateway::LocalRouterTable::GroupNodeListType bcos::gateway::LocalRouterTable::nodeList() const
+{
+    ReadGuard l(x_nodeList);
+    return m_nodeList;
 }
