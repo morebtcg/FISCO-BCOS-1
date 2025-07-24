@@ -124,3 +124,28 @@ bcos::protocol::TransactionStatus TxValidator::checkWeb3Nonce(
     }
     return task::syncWait(m_web3NonceChecker->checkWeb3Nonce(_tx, onlyCheckLedgerNonce));
 }
+bool bcos::txpool::TxValidator::isSystemTransaction(const bcos::protocol::Transaction& _tx)
+{
+    return precompiled::contains(bcos::precompiled::c_systemTxsAddress, _tx.to());
+}
+bcos::txpool::TxValidator::TxValidator(NonceCheckerInterface::Ptr _txPoolNonceChecker,
+    Web3NonceChecker::Ptr _web3NonceChecker, bcos::crypto::CryptoSuite::Ptr _cryptoSuite,
+    std::string _groupId, std::string _chainId)
+  : m_txPoolNonceChecker(std::move(_txPoolNonceChecker)),
+    m_web3NonceChecker(std::move(_web3NonceChecker)),
+    m_cryptoSuite(std::move(_cryptoSuite)),
+    m_groupId(std::move(_groupId)),
+    m_chainId(std::move(_chainId))
+{}
+bcos::txpool::Web3NonceChecker::Ptr bcos::txpool::TxValidator::web3NonceChecker()
+{
+    return m_web3NonceChecker;
+}
+bcos::txpool::LedgerNonceChecker::Ptr bcos::txpool::TxValidator::ledgerNonceChecker()
+{
+    return m_ledgerNonceChecker;
+}
+void bcos::txpool::TxValidator::setLedgerNonceChecker(LedgerNonceChecker::Ptr _ledgerNonceChecker)
+{
+    m_ledgerNonceChecker = std::move(_ledgerNonceChecker);
+}

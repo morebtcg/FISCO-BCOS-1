@@ -65,7 +65,7 @@ public:
         size_t _txsLimit, TxsHashSetPtr _avoidTxs, bool _avoidDuplicate = true) override;
 
     bool exist(bcos::crypto::HashType const& _txHash) override;
-    size_t size() const override { return m_txsTable.size(); }
+    size_t size() const override { return m_queuedTransactions.size(); }
     void clear() override;
 
     // FIXME: deprecated, after using txpool::broadcastTransaction
@@ -125,10 +125,12 @@ protected:
 
     void printPendingTxs() override;
 
+private:
     TxPoolConfig::Ptr m_config;
 
     using TxsMap = BucketMap<bcos::crypto::HashType, bcos::protocol::Transaction::Ptr>;
-    TxsMap m_txsTable;
+    TxsMap m_queuedTransactions;
+    TxsMap m_pendingTransactions;
     TxsMap m_invalidTxs;
 
     using HashSet = BucketSet<bcos::crypto::HashType, std::hash<bcos::crypto::HashType>>;

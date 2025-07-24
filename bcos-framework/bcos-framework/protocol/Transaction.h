@@ -133,7 +133,6 @@ public:
     virtual int64_t gasLimit() const = 0;
     virtual std::string_view maxFeePerGas() const = 0;
     virtual std::string_view maxPriorityFeePerGas() const = 0;
-
     // v2
     virtual bcos::bytesConstRef extension() const = 0;
 
@@ -165,8 +164,6 @@ public:
     {
         m_submitCallback = std::move(_submitCallback);
     }
-    bool synced() const { return m_synced; }
-    void setSynced(bool _synced) const { m_synced = _synced; }
 
     bool sealed() const { return m_sealed; }
     void setSealed(bool _sealed) const { m_sealed = _sealed; }
@@ -198,7 +195,6 @@ private:
     // the number of proposal that the tx batched into
     mutable bcos::protocol::BlockNumber m_batchId = {-1};
 
-    mutable std::atomic_bool m_synced = {false};
     // the tx has been sealed by the leader of not
     mutable std::atomic_bool m_sealed = {false};
     // the tx is invalid for verify failed

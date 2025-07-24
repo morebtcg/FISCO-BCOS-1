@@ -33,13 +33,7 @@ public:
     using Ptr = std::shared_ptr<TxValidator>;
     TxValidator(NonceCheckerInterface::Ptr _txPoolNonceChecker,
         Web3NonceChecker::Ptr _web3NonceChecker, bcos::crypto::CryptoSuite::Ptr _cryptoSuite,
-        std::string _groupId, std::string _chainId)
-      : m_txPoolNonceChecker(std::move(_txPoolNonceChecker)),
-        m_web3NonceChecker(std::move(_web3NonceChecker)),
-        m_cryptoSuite(std::move(_cryptoSuite)),
-        m_groupId(std::move(_groupId)),
-        m_chainId(std::move(_chainId))
-    {}
+        std::string _groupId, std::string _chainId);
     ~TxValidator() override = default;
 
     bcos::protocol::TransactionStatus verify(const bcos::protocol::Transaction& _tx) override;
@@ -52,19 +46,12 @@ public:
     bcos::protocol::TransactionStatus checkWeb3Nonce(
         const bcos::protocol::Transaction& _tx, bool onlyCheckLedgerNonce = false) override;
 
-    Web3NonceChecker::Ptr web3NonceChecker() override { return m_web3NonceChecker; }
+    Web3NonceChecker::Ptr web3NonceChecker() override;
 
-    LedgerNonceChecker::Ptr ledgerNonceChecker() override { return m_ledgerNonceChecker; }
-    void setLedgerNonceChecker(LedgerNonceChecker::Ptr _ledgerNonceChecker) override
-    {
-        m_ledgerNonceChecker = std::move(_ledgerNonceChecker);
-    }
+    LedgerNonceChecker::Ptr ledgerNonceChecker() override;
+    void setLedgerNonceChecker(LedgerNonceChecker::Ptr _ledgerNonceChecker) override;
 
-protected:
-    virtual inline bool isSystemTransaction(const bcos::protocol::Transaction& _tx)
-    {
-        return precompiled::contains(bcos::precompiled::c_systemTxsAddress, _tx.to());
-    }
+    virtual bool isSystemTransaction(const bcos::protocol::Transaction& _tx);
 
 private:
     // check the transaction nonce in txpool
