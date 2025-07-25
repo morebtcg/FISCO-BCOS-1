@@ -250,10 +250,10 @@ public:
         }
     }
 
-    template <class Keys>
-        requires ::ranges::random_access_range<Keys> && ::ranges::sized_range<Keys> &&
-                 std::is_lvalue_reference_v<::ranges::range_reference_t<Keys>>
-    void batchInsert(const Keys& kvs)
+    template <class KeyValues>
+        requires ::ranges::random_access_range<KeyValues> && ::ranges::sized_range<KeyValues> &&
+                 std::is_lvalue_reference_v<::ranges::range_reference_t<KeyValues>>
+    void batchInsert(const KeyValues& kvs)
     {
         traverse<WriteAccessor, true>(::ranges::views::keys(kvs),
             [&](WriteAccessor& accessor, const auto& range, BucketType& bucket) {

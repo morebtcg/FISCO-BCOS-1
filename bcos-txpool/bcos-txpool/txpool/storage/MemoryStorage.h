@@ -115,7 +115,7 @@ protected:
     virtual void notifyTxResult(bcos::protocol::Transaction& transaction,
         bcos::protocol::TransactionSubmitResult::Ptr txSubmitResult);
 
-    virtual void removeInvalidTxs(bool lock);
+    virtual void removeInvalidTxs(std::span<protocol::Transaction::Ptr> invalidTxs);
     virtual void cleanUpExpiredTransactions();
 
     // return true if all txs have been marked
@@ -131,7 +131,6 @@ private:
     using TxsMap = BucketMap<bcos::crypto::HashType, bcos::protocol::Transaction::Ptr>;
     TxsMap m_queuedTransactions;
     TxsMap m_pendingTransactions;
-    TxsMap m_invalidTxs;
 
     using HashSet = BucketSet<bcos::crypto::HashType, std::hash<bcos::crypto::HashType>>;
     HashSet m_missedTxs;

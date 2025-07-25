@@ -159,8 +159,8 @@ void testAsyncSealTxs(TxPoolFixture::Ptr _faker, TxPoolInterface::Ptr _txpool,
     // seal again to fetch all unsealed txs
     {
         auto [_txsMetaDataList, _] = _txpool->sealTxs(100000, nullptr);
-        BOOST_CHECK(_txsMetaDataList->transactionsMetaDataSize() == (originTxsSize - txsLimit));
-        BOOST_CHECK(_txpoolStorage->size() == originTxsSize);
+        BOOST_CHECK_EQUAL(_txsMetaDataList->transactionsMetaDataSize(), (originTxsSize - txsLimit));
+        BOOST_CHECK_EQUAL(_txpoolStorage->size(), originTxsSize);
         std::set<HashType> txsSet(sealedTxs->begin(), sealedTxs->end());
         for (size_t i = 0; i < _txsMetaDataList->transactionsMetaDataSize(); i++)
         {
@@ -183,8 +183,8 @@ void testAsyncSealTxs(TxPoolFixture::Ptr _faker, TxPoolInterface::Ptr _txpool,
     // seal again
     {
         auto [_txsMetaDataList, _] = _txpool->sealTxs(100000, nullptr);
-        BOOST_CHECK(_txsMetaDataList->transactionsMetaDataSize() == sealedTxs->size());
-        BOOST_CHECK(_txsMetaDataList->transactionsHashSize() == sealedTxs->size());
+        BOOST_CHECK_EQUAL(_txsMetaDataList->transactionsMetaDataSize(), sealedTxs->size());
+        BOOST_CHECK_EQUAL(_txsMetaDataList->transactionsHashSize(), sealedTxs->size());
     }
     auto blockHash = _cryptoSuite->hashImpl()->hash("blockHash"sv);
     auto blockNumber = 10;
