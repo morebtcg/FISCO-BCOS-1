@@ -8,10 +8,7 @@ bcos::scheduler_v1::getTransactions(txpool::TxPoolInterface& txpool, protocol::B
 
     if (block.transactionsSize() > 0)
     {
-        co_return ::ranges::views::iota(0LU, block.transactionsSize()) |
-            ::ranges::views::transform(
-                [&block](uint64_t index) { return block.transaction(index); }) |
-            ::ranges::to<std::vector>();
+        co_return ::ranges::to<std::vector>(block.transactions());
     }
 
     co_return co_await txpool.getTransactions(block.transactionHashes());
@@ -31,13 +28,13 @@ bcos::h256 bcos::scheduler_v1::calculateTransactionRoot(
     std::vector<bcos::h256> merkleTrie;
     if (block.transactionsSize() > 0)
     {
-        auto hashes = block.transactionHashes();
+        auto hashes = ::ranges::views::transform(
+            block.transactions(), [&](const auto& transaction) { return transaction->hash(); });
         merkle.generateMerkle(hashes, merkleTrie);
     }
     else
     {
-        auto hashes = block.transactionHashes();
-        merkle.generateMerkle(hashes, merkleTrie);
+        merkle.generateMerkle(block.transactionHashes(), merkleTrie);
     }
 
     return *::ranges::rbegin(merkleTrie);

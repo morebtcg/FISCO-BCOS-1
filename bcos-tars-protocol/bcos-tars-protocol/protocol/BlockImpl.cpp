@@ -27,6 +27,8 @@
 #include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionReceiptImpl.h"
 #include <boost/throw_exception.hpp>
+#include <memory>
+#include <memory_resource>
 #include <stdexcept>
 
 using namespace bcostars;
@@ -101,7 +103,7 @@ void BlockImpl::setNonceList(::ranges::any_view<std::string> nonces)
 
 ::ranges::any_view<std::string> BlockImpl::nonceList() const
 {
-    return m_inner.nonceList;
+    return ::ranges::views::all(m_inner.nonceList);
 }
 
 bcos::protocol::TransactionMetaData::ConstPtr BlockImpl::transactionMetaData(uint64_t _index) const
@@ -247,37 +249,46 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateReceiptRoot(
     return receiptsRoot;
 }
 
-bcos::protocol::ViewResult<bcos::crypto::HashType>
-bcostars::protocol::BlockImpl::transactionHashes() const
+bcos::protocol::ListView<bcos::crypto::HashType> bcostars::protocol::BlockImpl::transactionHashes()
+    const
 {
     return ::ranges::views::transform(m_inner.transactionsMetaData, [](auto& txMetaData) {
         return bcos::crypto::HashType{
             bcos::bytesConstRef((const bcos::byte*)txMetaData.hash.data(), txMetaData.hash.size())};
     });
 }
-bcos::protocol::ViewResult<std::unique_ptr<bcos::protocol::TransactionMetaData>>
+bcos::protocol::ListView<bcos::protocol::TransactionMetaData::ConstPtr>
 bcostars::protocol::BlockImpl::transactionMetaDatas() const
 {
-    return ::ranges::views::transform(m_inner.transactionsMetaData, [](auto& inner) {
-        return std::make_unique<bcostars::protocol::TransactionMetaDataImpl>(
-            [&]() mutable { return &inner; });
-    });
+    static std::pmr::synchronized_pool_resource resource;
+    static std::pmr::polymorphic_allocator alloc(&resource);
+    return ::ranges::views::transform(m_inner.transactionsMetaData,
+        [&](auto& inner) -> bcos::protocol::TransactionMetaData::ConstPtr {
+            return std::allocate_shared<bcostars::protocol::TransactionMetaDataImpl>(
+                alloc, [&]() mutable { return &inner; });
+        });
 }
-bcos::protocol::ViewResult<std::unique_ptr<bcos::protocol::Transaction>>
+bcos::protocol::ListView<bcos::protocol::Transaction::ConstPtr>
 bcostars::protocol::BlockImpl::transactions() const
 {
-    return ::ranges::views::transform(m_inner.transactions, [](auto& inner) {
-        return std::make_unique<bcostars::protocol::TransactionImpl>(
-            [&]() mutable { return &inner; });
-    });
+    static std::pmr::synchronized_pool_resource resource;
+    static std::pmr::polymorphic_allocator alloc(&resource);
+    return ::ranges::views::transform(
+        m_inner.transactions, [&](auto& inner) -> bcos::protocol::Transaction::ConstPtr {
+            return std::allocate_shared<bcostars::protocol::TransactionImpl>(
+                alloc, [&]() mutable { return std::addressof(inner); });
+        });
 }
-bcos::protocol::ViewResult<std::unique_ptr<bcos::protocol::TransactionReceipt>>
+bcos::protocol::ListView<bcos::protocol::TransactionReceipt::ConstPtr>
 bcostars::protocol::BlockImpl::receipts() const
 {
-    return ::ranges::views::transform(m_inner.receipts, [](auto& receipt) {
-        return std::make_unique<TransactionReceiptImpl>(
-            [&]() mutable { return std::addressof(receipt); });
-    });
+    static std::pmr::synchronized_pool_resource resource;
+    static std::pmr::polymorphic_allocator alloc(&resource);
+    return ::ranges::views::transform(
+        m_inner.receipts, [&](auto& inner) -> bcos::protocol::TransactionReceipt::ConstPtr {
+            return std::allocate_shared<bcostars::protocol::TransactionReceiptImpl>(
+                alloc, [&]() mutable { return std::addressof(inner); });
+        });
 }
 size_t bcostars::protocol::BlockImpl::size() const
 {

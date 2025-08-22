@@ -49,6 +49,8 @@
 #include <boost/throw_exception.hpp>
 #include <exception>
 #include <iterator>
+#include <range/v3/view/for_each.hpp>
+#include <range/v3/view/transform.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -395,27 +397,22 @@ void bcos::rpc::toJsonResp(Json::Value& jResp, bcos::protocol::Block& block, boo
 {
     // header
     toJsonResp(jResp, block.blockHeader());
-    auto txSize = _onlyTxHash ? block.transactionsMetaDataSize() : block.transactionsSize();
 
     Json::Value jTxs(Json::arrayValue);
-    for (std::size_t index = 0; index < txSize; ++index)
+    if (_onlyTxHash)
     {
-        Json::Value jTx;
-        if (_onlyTxHash)
-        {
-            // Note: should not call transactionHash for in the common cases transactionHash maybe
-            // empty
-            jTx = toHexStringWithPrefix(block.transactionMetaData(index)->hash());
-        }
-        else
-        {
-            auto transaction = block.transaction(index);
-            toJsonResp(jTx, *transaction);
-        }
-        jTxs.append(jTx);
+        ::ranges::for_each(block.transactionHashes(),
+            [&](const auto& txHash) { jTxs.append(toHexStringWithPrefix(txHash)); });
     }
-
-    jResp["transactions"] = jTxs;
+    else
+    {
+        ::ranges::for_each(block.transactions(), [&](const auto& transaction) {
+            Json::Value jTx;
+            toJsonResp(jTx, *transaction);
+            jTxs.append(std::move(jTx));
+        });
+    }
+    jResp["transactions"] = std::move(jTxs);
 }
 
 void JsonRpcImpl_2_0::call(std::string_view _groupID, std::string_view _nodeName,

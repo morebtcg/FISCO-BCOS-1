@@ -53,17 +53,17 @@ public:
     RANGES::any_view<protocol::NonceType> nonceList() const override { return m_nodelist; }
     size_t size() const override { return 0; }
 
-    protocol::ViewResult<crypto::HashType> transactionHashes() const override { return {}; }
-    protocol::ViewResult<std::unique_ptr<protocol::TransactionMetaData>> transactionMetaDatas()
+    protocol::ListView<crypto::HashType> transactionHashes() const override { return {}; }
+    protocol::ListView<bcos::protocol::TransactionMetaData::ConstPtr> transactionMetaDatas()
         const override
     {
         return {};
     }
-    protocol::ViewResult<std::unique_ptr<protocol::Transaction>> transactions() const override
+    protocol::ListView<bcos::protocol::Transaction::ConstPtr> transactions() const override
     {
         return {};
     }
-    protocol::ViewResult<std::unique_ptr<protocol::TransactionReceipt>> receipts() const override
+    protocol::ListView<bcos::protocol::TransactionReceipt::ConstPtr> receipts() const override
     {
         return {};
     }

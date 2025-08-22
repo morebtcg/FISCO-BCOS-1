@@ -39,7 +39,7 @@ enum BlockType : int32_t
 };
 
 template <class T>
-using ViewResult = ::ranges::any_view<T, ::ranges::category::mask | ::ranges::category::sized>;
+using ListView = ::ranges::any_view<T, ::ranges::category::mask | ::ranges::category::sized>;
 
 class Block
 {
@@ -100,10 +100,11 @@ public:
     virtual void setNonceList(::ranges::any_view<std::string> nonces) = 0;
     virtual ::ranges::any_view<std::string> nonceList() const = 0;
 
-    virtual ViewResult<crypto::HashType> transactionHashes() const = 0;
-    virtual ViewResult<std::unique_ptr<TransactionMetaData>> transactionMetaDatas() const = 0;
-    virtual ViewResult<std::unique_ptr<Transaction>> transactions() const = 0;
-    virtual ViewResult<std::unique_ptr<TransactionReceipt>> receipts() const = 0;
+    virtual ListView<crypto::HashType> transactionHashes() const = 0;
+    virtual ListView<bcos::protocol::TransactionMetaData::ConstPtr> transactionMetaDatas()
+        const = 0;
+    virtual ListView<bcos::protocol::Transaction::ConstPtr> transactions() const = 0;
+    virtual ListView<bcos::protocol::TransactionReceipt::ConstPtr> receipts() const = 0;
     bool operator<(const Block& block) const
     {
         return blockHeaderConst()->number() < block.blockHeaderConst()->number();
