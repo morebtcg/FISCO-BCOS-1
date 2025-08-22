@@ -200,7 +200,7 @@ task::Task<void> finishExecute(auto& storage, ::ranges::range auto const& receip
 
     // 写入blocknumber和blockhash供getBlockHash()使用
     // Write the blocknumber and blockhash for getBlockHash() to use
-    auto blockNumberStr = boost::lexical_cast<std::string>(newBlockHeader.number());
+    auto blockNumberStr = std::to_string(newBlockHeader.number());
     auto blockHash = newBlockHeader.hash();
 
     storage::Entry hashEntry;

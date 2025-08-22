@@ -145,14 +145,6 @@ public:
     virtual void setImportTime(int64_t _importTime) = 0;
     virtual uint8_t type() const = 0;
 
-    virtual TransactionOp txOp() const
-    {
-        if (!to().empty())
-        {
-            return TransactionOp::MessageCall;
-        }
-        return TransactionOp::ContractCreation;
-    }
     virtual void forceSender(const bcos::bytes& _sender) const = 0;
     virtual bcos::bytesConstRef signatureData() const = 0;
 
@@ -166,21 +158,21 @@ public:
         m_submitCallback = std::move(_submitCallback);
     }
     bool synced() const { return m_synced; }
-    void setSynced(bool _synced) const { m_synced = _synced; }
+    void setSynced(bool _synced) { m_synced = _synced; }
 
     bool sealed() const { return m_sealed; }
-    void setSealed(bool _sealed) const { m_sealed = _sealed; }
+    void setSealed(bool _sealed) { m_sealed = _sealed; }
 
     bool invalid() const { return m_invalid; }
-    void setInvalid(bool _invalid) const { m_invalid = _invalid; }
+    void setInvalid(bool _invalid) { m_invalid = _invalid; }
 
     void setSystemTx(bool _systemTx) const { m_systemTx = _systemTx; }
     bool systemTx() const { return m_systemTx; }
 
-    void setBatchId(bcos::protocol::BlockNumber _batchId) const { m_batchId = _batchId; }
+    void setBatchId(bcos::protocol::BlockNumber _batchId) { m_batchId = _batchId; }
     bcos::protocol::BlockNumber batchId() const { return m_batchId; }
 
-    void setBatchHash(bcos::crypto::HashType const& _hash) const { m_batchHash = _hash; }
+    void setBatchHash(bcos::crypto::HashType const& _hash) { m_batchHash = _hash; }
     bcos::crypto::HashType const& batchHash() const { return m_batchHash; }
 
     bool storeToBackend() const { return m_storeToBackend; }

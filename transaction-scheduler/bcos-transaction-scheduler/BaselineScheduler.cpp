@@ -21,7 +21,7 @@ bcos::h256 bcos::scheduler_v1::calculateTransactionRoot(
     protocol::Block const& block, crypto::Hash const& hashImpl)
 {
     auto hasher = hashImpl.hasher();
-    bcos::crypto::merkle::Merkle<std::remove_reference_t<decltype(hasher)>> merkle(hasher.clone());
+    bcos::crypto::merkle::Merkle merkle(hasher.clone());
 
     if (block.transactionsSize() == 0 && block.transactionsMetaDataSize() == 0)
     {
@@ -31,16 +31,12 @@ bcos::h256 bcos::scheduler_v1::calculateTransactionRoot(
     std::vector<bcos::h256> merkleTrie;
     if (block.transactionsSize() > 0)
     {
-        auto hashes = ::ranges::iota_view<size_t, size_t>(0LU, block.transactionsSize()) |
-                      ::ranges::views::transform(
-                          [&block](uint64_t index) { return block.transaction(index)->hash(); });
+        auto hashes = block.transactionHashes();
         merkle.generateMerkle(hashes, merkleTrie);
     }
     else
     {
-        auto hashes = ::ranges::iota_view<size_t, size_t>(0LU, block.transactionsMetaDataSize()) |
-                      ::ranges::views::transform(
-                          [&block](uint64_t index) { return block.transactionHash(index); });
+        auto hashes = block.transactionHashes();
         merkle.generateMerkle(hashes, merkleTrie);
     }
 

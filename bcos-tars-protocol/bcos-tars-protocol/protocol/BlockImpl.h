@@ -44,7 +44,7 @@ public:
     BlockImpl(BlockImpl&&) = delete;
     BlockImpl& operator=(const BlockImpl&) = delete;
     BlockImpl& operator=(BlockImpl&&) = delete;
-    explicit BlockImpl(bcostars::Block _block) : BlockImpl() { m_inner = std::move(_block); }
+    explicit BlockImpl(bcostars::Block _block);
     ~BlockImpl() noexcept override = default;
 
     void decode(bcos::bytesConstRef _data, bool _calculateHash, bool _checkSig) override;
@@ -86,8 +86,8 @@ public:
     // get receipts size
     uint64_t receiptsSize() const override;
 
-    void setNonceList(RANGES::any_view<std::string> nonces) override;
-    RANGES::any_view<std::string> nonceList() const override;
+    void setNonceList(::ranges::any_view<std::string> nonces) override;
+    ::ranges::any_view<std::string> nonceList() const override;
 
     const bcostars::Block& inner() const;
     bcostars::Block& inner();

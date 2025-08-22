@@ -94,12 +94,12 @@ void BlockImpl::appendReceipt(bcos::protocol::TransactionReceipt::Ptr _receipt)
         std::dynamic_pointer_cast<bcostars::protocol::TransactionReceiptImpl>(_receipt)->inner());
 }
 
-void BlockImpl::setNonceList(RANGES::any_view<std::string> nonces)
+void BlockImpl::setNonceList(::ranges::any_view<std::string> nonces)
 {
     m_inner.nonceList = ::ranges::to<std::vector>(nonces);
 }
 
-RANGES::any_view<std::string> BlockImpl::nonceList() const
+::ranges::any_view<std::string> BlockImpl::nonceList() const
 {
     return m_inner.nonceList;
 }
@@ -193,7 +193,7 @@ void bcostars::protocol::BlockImpl::setInner(bcostars::Block inner)
 bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateTransactionRoot(
     const bcos::crypto::Hash& hashImpl) const
 {
-    auto txsRoot = bcos::crypto::HashType();
+    bcos::crypto::HashType txsRoot;
     // with no transactions
     if (transactionsSize() == 0 && transactionsMetaDataSize() == 0)
     {
@@ -205,7 +205,7 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateTransactionRoot(
     {
         auto hashesRange =
             m_inner.transactions |
-            RANGES::views::transform([&](const bcostars::Transaction& transaction) {
+            ::ranges::views::transform([&](const bcostars::Transaction& transaction) {
                 bcos::bytes hash;
                 bcos::concepts::hash::calculate(transaction, hashImpl.hasher(), hash);
                 return hash;
@@ -214,14 +214,14 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateTransactionRoot(
     }
     else if (transactionsMetaDataSize() > 0)
     {
-        auto hashesRange =
-            m_inner.transactionsMetaData |
-            RANGES::views::transform([](const bcostars::TransactionMetaData& transactionMetaData) {
-                return transactionMetaData.hash;
-            });
+        auto hashesRange = m_inner.transactionsMetaData |
+                           ::ranges::views::transform(
+                               [](const bcostars::TransactionMetaData& transactionMetaData) {
+                                   return transactionMetaData.hash;
+                               });
         merkle.generateMerkle(hashesRange, m_inner.transactionsMerkle);
     }
-    bcos::concepts::bytebuffer::assignTo(*RANGES::rbegin(m_inner.transactionsMerkle), txsRoot);
+    bcos::concepts::bytebuffer::assignTo(*::ranges::rbegin(m_inner.transactionsMerkle), txsRoot);
 
     return txsRoot;
 }
@@ -235,14 +235,14 @@ bcos::crypto::HashType bcostars::protocol::BlockImpl::calculateReceiptRoot(
         return receiptsRoot;
     }
     auto hashesRange = m_inner.receipts |
-                       RANGES::views::transform([&](const bcostars::TransactionReceipt& receipt) {
+                       ::ranges::views::transform([&](const bcostars::TransactionReceipt& receipt) {
                            bcos::bytes hash;
                            bcos::concepts::hash::calculate(receipt, hashImpl.hasher(), hash);
                            return hash;
                        });
     bcos::crypto::merkle::Merkle merkle(hashImpl.hasher());
     merkle.generateMerkle(hashesRange, m_inner.receiptsMerkle);
-    bcos::concepts::bytebuffer::assignTo(*RANGES::rbegin(m_inner.receiptsMerkle), receiptsRoot);
+    bcos::concepts::bytebuffer::assignTo(*::ranges::rbegin(m_inner.receiptsMerkle), receiptsRoot);
 
     return receiptsRoot;
 }
@@ -293,3 +293,5 @@ size_t bcostars::protocol::BlockImpl::size() const
     }
     return size;
 }
+
+bcostars::protocol::BlockImpl::BlockImpl(bcostars::Block _block) : m_inner(std::move(_block)) {};

@@ -135,7 +135,6 @@ private:
     std::shared_ptr<Executable> m_executable;
     const bcos::executor_v1::Precompiled* m_preparedPrecompiled{};
     bcos::bytes m_dynamicPrecompiledInput;
-    bool m_enableTransfer = false;
     int64_t m_level;
     bool m_web3Tx;
 

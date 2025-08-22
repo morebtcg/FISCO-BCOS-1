@@ -97,19 +97,8 @@ public:
     virtual uint64_t receiptsSize() const = 0;
 
     // for nonceList
-    virtual void setNonceList(RANGES::any_view<std::string> nonces) = 0;
-    virtual RANGES::any_view<std::string> nonceList() const = 0;
-
-    virtual NonceListPtr nonces() const
-    {
-        return std::make_shared<NonceList>(
-            RANGES::iota_view<size_t, size_t>(0LU, transactionsSize()) |
-            RANGES::views::transform([this](uint64_t index) {
-                auto transaction = this->transaction(index);
-                return transaction->nonce();
-            }) |
-            RANGES::to<NonceList>());
-    }
+    virtual void setNonceList(::ranges::any_view<std::string> nonces) = 0;
+    virtual ::ranges::any_view<std::string> nonceList() const = 0;
 
     virtual ViewResult<crypto::HashType> transactionHashes() const = 0;
     virtual ViewResult<std::unique_ptr<TransactionMetaData>> transactionMetaDatas() const = 0;
