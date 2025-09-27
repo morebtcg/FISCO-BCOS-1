@@ -362,6 +362,7 @@ TransactionStatus MemoryStorage::verifyAndSubmitTransaction(
 
 TransactionStatus MemoryStorage::insert(Transaction::Ptr transaction)
 {
+    assert(transaction);
     auto* toMap = transaction->sealed() ? &m_sealedTransactions : &m_unsealTransactions;
     auto* ptr = transaction.get();
     if (TxsMap::WriteAccessor accessor;

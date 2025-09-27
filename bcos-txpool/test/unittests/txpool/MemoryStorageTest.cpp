@@ -4,6 +4,7 @@
  */
 #include "bcos-txpool/txpool/storage/MemoryStorage.h"
 #include "bcos-crypto/hash/Keccak256.h"
+#include "bcos-protocol/TransactionSubmitResultImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include "bcos-txpool/txpool/interfaces/NonceCheckerInterface.h"
 #include "bcos-txpool/txpool/interfaces/TxValidatorInterface.h"
@@ -76,8 +77,8 @@ BOOST_AUTO_TEST_CASE(InsertExistsAndSize)
     auto tx1 = makeTx("n1", /*sealed*/ false);
     auto tx2 = makeTx("n2", /*sealed*/ true);
 
-    BOOST_CHECK(storage.insert(tx1) == TransactionStatus::None);
-    BOOST_CHECK(storage.insert(tx2) == TransactionStatus::None);
+    BOOST_TEST(storage.insert(tx1) == TransactionStatus::None);
+    BOOST_TEST(storage.insert(tx2) == TransactionStatus::None);
 
     BOOST_CHECK_EQUAL(storage.exists(tx1->hash()), true);
     BOOST_CHECK_EQUAL(storage.exists(tx2->hash()), true);
@@ -87,8 +88,8 @@ BOOST_AUTO_TEST_CASE(InsertExistsAndSize)
     HashList hashes{tx1->hash(), tx2->hash()};
     auto out = storage.getTransactions(hashes);
     BOOST_CHECK_EQUAL(out.size(), 2U);
-    BOOST_CHECK(out[0]);
-    BOOST_CHECK(out[1]);
+    BOOST_TEST(out[0]);
+    BOOST_TEST(out[1]);
     BOOST_CHECK_EQUAL(out[0]->hash(), tx1->hash());
     BOOST_CHECK_EQUAL(out[1]->hash(), tx2->hash());
 }
@@ -156,7 +157,7 @@ BOOST_AUTO_TEST_CASE(RemoveAndClear)
     // Insert two more transactions and then clear
     storage.insert(makeTx("r2", false));
     storage.insert(makeTx("r3", true));
-    BOOST_CHECK(storage.size() >= 2);
+    BOOST_TEST(storage.size() >= 2);
     storage.clear();
     BOOST_CHECK_EQUAL(storage.size(), 0U);
 }
@@ -181,6 +182,50 @@ BOOST_AUTO_TEST_CASE(GetTxsHash)
         auto it = std::find(hashes.begin(), hashes.end(), h);
         BOOST_CHECK(it != hashes.end());
     }
+}
+
+BOOST_AUTO_TEST_CASE(DuplicateInsert)
+{
+    auto tx = makeTx("dup", false);
+    BOOST_TEST(storage.insert(tx) == TransactionStatus::None);
+    BOOST_TEST(storage.insert(tx) == TransactionStatus::AlreadyInTxPool);
+    BOOST_CHECK_EQUAL(storage.size(), 1U);
+}
+
+BOOST_AUTO_TEST_CASE(InvalidHashExists)
+{
+    // Query a non-existent hash
+    HashType invalidHash{};
+    BOOST_CHECK_EQUAL(storage.exists(invalidHash), false);
+}
+
+BOOST_AUTO_TEST_CASE(RemoveNonexistent)
+{
+    // Remove a non-existent transaction; expect no crash
+    HashType invalidHash{};
+    storage.remove(invalidHash);
+    BOOST_CHECK_EQUAL(storage.size(), 0U);
+}
+
+BOOST_AUTO_TEST_CASE(BatchMarkTxsEmpty)
+{
+    // Batch mark with an empty list
+    HashList emptyList;
+    HashType batchHash;
+    auto ok = storage.batchMarkTxs(emptyList, 1, batchHash, true);
+    BOOST_CHECK_EQUAL(ok, true);
+}
+
+BOOST_AUTO_TEST_CASE(FilterUnknownTxsAllMissing)
+{
+    // All hashes do not exist
+    HashType missingHashA{};
+    HashType missingHashB{};
+    HashList query{missingHashA, missingHashB};
+    auto miss = storage.filterUnknownTxs(query, nullptr);
+    BOOST_CHECK_EQUAL(miss.size(), 2U);
+    BOOST_CHECK_EQUAL(miss[0], missingHashA);
+    BOOST_CHECK_EQUAL(miss[1], missingHashB);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
