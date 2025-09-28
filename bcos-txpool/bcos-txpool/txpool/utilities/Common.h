@@ -25,16 +25,16 @@
 namespace bcos::txpool
 {
 // Trigger a transaction cleanup operation every 3s
-static constexpr const uint64_t TXPOOL_CLEANUP_TIME = 3000;
+static constexpr uint64_t TXPOOL_CLEANUP_TIME = 3000;
 // Notify txsSize to consensus module every 100ms
-static constexpr const uint64_t TXS_SIZE_NOTIFY_TIME = 100;
+static constexpr uint64_t TXS_SIZE_NOTIFY_TIME = 100;
 // the txs expiration time, default is 10 minutes
-static constexpr const uint64_t TX_DEFAULT_EXPIRATION_TIME = uint64_t(60 * 10 * 1000);
+static constexpr uint64_t TX_DEFAULT_EXPIRATION_TIME = uint64_t(60 * 10 * 1000);
 // Maximum number of transactions traversed by m_cleanUpTimer,
 // The limit set here is to minimize the impact of the cleanup operation on txpool performance
-static constexpr const uint64_t MAX_TRAVERSE_TXS_COUNT = 10000;
-static constexpr const size_t MAX_RETRY_NOTIFY_TIME = 3;
-static constexpr const size_t DEFAULT_POOL_LIMIT = 15000;
-static constexpr const int64_t DEFAULT_BLOCK_LIMIT = 600;
-static constexpr const uint64_t DEFAULT_WEB3_NONCE_CHECK_LIMIT = DEFAULT_BLOCK_LIMIT * 1000;
+static constexpr uint64_t MAX_TRAVERSE_TXS_COUNT = 10000;
+static constexpr size_t MAX_RETRY_NOTIFY_TIME = 3;
+static constexpr size_t DEFAULT_POOL_LIMIT = 15000;
+static constexpr int64_t DEFAULT_BLOCK_LIMIT = 600;
+static constexpr uint64_t DEFAULT_WEB3_NONCE_CHECK_LIMIT = DEFAULT_BLOCK_LIMIT * 1000;
 }  // namespace bcos::txpool

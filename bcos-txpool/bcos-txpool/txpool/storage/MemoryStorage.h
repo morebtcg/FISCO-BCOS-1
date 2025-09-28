@@ -39,8 +39,8 @@ class MemoryStorage : public TxPoolStorageInterface,
 {
 public:
     // the default txsExpirationTime is 10 minutes
-    explicit MemoryStorage(TxPoolConfig::Ptr _config, size_t _notifyWorkerNum = 2,
-        uint64_t _txsExpirationTime = TX_DEFAULT_EXPIRATION_TIME);
+    MemoryStorage(
+        TxPoolConfig::Ptr _config, uint64_t _txsExpirationTime = TX_DEFAULT_EXPIRATION_TIME);
     ~MemoryStorage() override;
 
     task::Task<protocol::TransactionSubmitResult::Ptr> submitTransaction(

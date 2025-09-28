@@ -47,8 +47,7 @@ using namespace bcos::txpool;
 using namespace bcos::crypto;
 using namespace bcos::protocol;
 
-MemoryStorage::MemoryStorage(
-    TxPoolConfig::Ptr _config, size_t _notifyWorkerNum, uint64_t _txsExpirationTime)
+MemoryStorage::MemoryStorage(TxPoolConfig::Ptr _config, uint64_t _txsExpirationTime)
   : m_config(std::move(_config)),
     m_unsealTransactions(BUCKET_SIZE),
     m_sealedTransactions(BUCKET_SIZE),
@@ -61,7 +60,6 @@ MemoryStorage::MemoryStorage(
     m_cleanUpTimer->registerTimeoutHandler([this] { cleanUpExpiredTransactions(); });
     m_txsSizeNotifierTimer->registerTimeoutHandler([this] { notifyTxsSize(); });
     TXPOOL_LOG(INFO) << LOG_DESC("init MemoryStorage of txpool")
-                     << LOG_KV("txNotifierWorkerNum", _notifyWorkerNum)
                      << LOG_KV("txsExpirationTime", m_txsExpirationTime)
                      << LOG_KV("poolLimit", m_config->poolLimit()) << LOG_KV("cpuCores", CPU_CORES);
 }
