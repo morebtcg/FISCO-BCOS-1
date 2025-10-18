@@ -180,17 +180,6 @@ public:
             std::shared_ptr<ConcreteView> m_view;
         };
 
-        template <class ConcreteView>
-        static View makeFrom(ConcreteView&& concreteView)
-        {
-            using CV = std::remove_cvref_t<ConcreteView>;
-            auto model = std::make_shared<ViewModel<CV>>(std::forward<ConcreteView>(concreteView));
-            View out;
-            out.m_self = std::move(model);
-            out.m_anyStorage = out.m_self->makeAny();
-            return out;
-        }
-
         std::shared_ptr<ViewConcept> m_self;
         AnyStorage<Key, Val> m_anyStorage;
 
@@ -208,11 +197,7 @@ public:
       : m_self(std::make_shared<Model<MultiLayer>>(mls))
     {}
 
-    // 生成可作为 Storage 使用的视图
     View fork() { return m_self->fork(); }
-
-
-    // 直接获取 AnyStorage 视图，便于调用方无需再从 View 提取
     AnyStorage<Key, Val> forkAny() { return m_self->forkAny(); }
 
 private:
@@ -242,7 +227,7 @@ private:
         View fork() override
         {
             auto view = m_mls->fork();
-            return View::makeFrom(std::move(view));
+            return {std::move(view)};
         }
 
         AnyStorage<Key, Val> forkAny() override
