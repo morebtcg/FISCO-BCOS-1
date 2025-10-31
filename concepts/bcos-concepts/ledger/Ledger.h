@@ -1,7 +1,7 @@
 #pragma once
 #include "../ByteBuffer.h"
 #include "../protocol/Block.h"
-#include <concepts>
+
 namespace bcos::concepts::ledger
 {
 
