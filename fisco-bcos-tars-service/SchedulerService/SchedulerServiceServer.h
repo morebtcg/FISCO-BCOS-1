@@ -22,10 +22,10 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
-#include <bcos-framework/dispatcher/SchedulerInterface.h>
-#include <bcos-framework/protocol/BlockFactory.h>
-#include <bcos-tars-protocol/tars/SchedulerService.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
+#include "bcos-framework/dispatcher/SchedulerInterface.h"
+#include "bcos-framework/protocol/BlockFactory.h"
+#include "bcos-tars-protocol/tars/SchedulerService.h"
 namespace bcostars
 {
 struct SchedulerServiceParam

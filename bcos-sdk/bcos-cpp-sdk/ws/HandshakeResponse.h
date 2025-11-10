@@ -19,7 +19,7 @@
  */
 
 #pragma once
-#include <bcos-framework/multigroup/GroupInfoCodec.h>
+#include "bcos-framework/multigroup/GroupInfoCodec.h"
 #include <json/json.h>
 #include <algorithm>
 #include <unordered_map>

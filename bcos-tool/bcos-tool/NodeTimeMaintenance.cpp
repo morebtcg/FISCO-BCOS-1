@@ -7,8 +7,8 @@
 
 #include "NodeTimeMaintenance.h"
 
-#include <bcos-sync/utilities/Common.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-sync/utilities/Common.h"
+#include "bcos-utilities/Common.h"
 
 using namespace bcos::tool;
 

@@ -23,9 +23,9 @@
 #include "bcos-crypto/interfaces/crypto/Signature.h"
 #include "bcos-txpool/sync/TransactionSyncConfig.h"
 #include "bcos-txpool/sync/interfaces/TransactionSyncInterface.h"
-#include <bcos-framework/protocol/Protocol.h>
-#include <bcos-utilities/ThreadPool.h>
-#include <bcos-utilities/Worker.h>
+#include "bcos-framework/protocol/Protocol.h"
+#include "bcos-utilities/ThreadPool.h"
+#include "bcos-utilities/Worker.h"
 
 namespace bcos::sync
 {

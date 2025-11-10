@@ -19,7 +19,7 @@
  */
 #pragma once
 
-#include <bcos-crypto/interfaces/crypto/KeyPairInterface.h>
+#include "bcos-crypto/interfaces/crypto/KeyPairInterface.h"
 
 namespace bcos
 {

@@ -11,7 +11,7 @@
 #include <aws/kms/KMSClient.h>
 #include <aws/kms/model/DecryptRequest.h>
 #include <aws/kms/model/EncryptRequest.h>
-#include <bcos-security/cloudkms/AwsKmsWrapper.h>
+#include "bcos-security/cloudkms/AwsKmsWrapper.h"
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos::security;

@@ -18,7 +18,7 @@
  * @date 2021-08-26
  */
 
-#include <bcos-cpp-sdk/amop/TopicManager.h>
+#include "bcos-cpp-sdk/amop/TopicManager.h"
 #include <json/json.h>
 
 using namespace bcos;

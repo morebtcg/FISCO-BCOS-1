@@ -19,8 +19,8 @@
  * @date 2021-04-02
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/Hash.h>
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
+#include "bcos-crypto/interfaces/crypto/Hash.h"
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
 #include <cstddef>
 #include <memory>
 namespace bcos::crypto

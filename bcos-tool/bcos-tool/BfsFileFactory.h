@@ -19,11 +19,11 @@
  */
 
 #pragma once
-#include <bcos-framework/Common.h>
-#include <bcos-framework/storage/Common.h>
-#include <bcos-framework/storage/StorageInterface.h>
-#include <bcos-framework/storage/Table.h>
-#include <bcos-utilities/Ranges.h>
+#include "bcos-framework/Common.h"
+#include "bcos-framework/storage/Common.h"
+#include "bcos-framework/storage/StorageInterface.h"
+#include "bcos-framework/storage/Table.h"
+#include "bcos-utilities/Ranges.h"
 #include <boost/algorithm/string/join.hpp>
 
 namespace bcos::tool

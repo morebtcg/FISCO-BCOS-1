@@ -1,6 +1,6 @@
 #pragma once
 #include "Basic.h"
-#include <bcos-crypto/hasher/Hasher.h>
+#include "bcos-crypto/hasher/Hasher.h"
 #include <boost/type_traits.hpp>
 
 namespace bcos::concepts::hash

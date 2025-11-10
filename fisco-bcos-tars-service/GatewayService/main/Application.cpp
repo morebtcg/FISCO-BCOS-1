@@ -3,8 +3,8 @@
 #include "../GatewayServiceServer.h"
 #include "bcos-tool/NodeConfig.h"
 #include "libinitializer/CommandHelper.h"
-#include <bcos-gateway/GatewayConfig.h>
-#include <bcos-utilities/BoostLogInitializer.h>
+#include "bcos-gateway/GatewayConfig.h"
+#include "bcos-utilities/BoostLogInitializer.h"
 #include <servant/Application.h>
 
 using namespace bcostars;

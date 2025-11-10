@@ -21,15 +21,15 @@
 
 #pragma once
 
-#include <bcos-tars-protocol/Common.h>
+#include "bcos-tars-protocol/Common.h"
 // if windows, manual include tup/Tars.h first
 #ifdef _WIN32
 #include <tup/Tars.h>
 #endif
-#include <bcos-framework/executor/ExecutionMessage.h>
-#include <bcos-framework/protocol/LogEntry.h>
-#include <bcos-tars-protocol/tars/ExecutionMessage.h>
-#include <bcos-tars-protocol/tars/TransactionReceipt.h>
+#include "bcos-framework/executor/ExecutionMessage.h"
+#include "bcos-framework/protocol/LogEntry.h"
+#include "bcos-tars-protocol/tars/ExecutionMessage.h"
+#include "bcos-tars-protocol/tars/TransactionReceipt.h"
 namespace bcostars
 {
 namespace protocol

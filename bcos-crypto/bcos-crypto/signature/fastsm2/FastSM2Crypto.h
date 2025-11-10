@@ -19,9 +19,9 @@
  */
 
 #pragma once
-#include <bcos-crypto/signature/fastsm2/FastSM2KeyPairFactory.h>
-#include <bcos-crypto/signature/fastsm2/fast_sm2.h>
-#include <bcos-crypto/signature/sm2/SM2Crypto.h>
+#include "bcos-crypto/signature/fastsm2/FastSM2KeyPairFactory.h"
+#include "bcos-crypto/signature/fastsm2/fast_sm2.h"
+#include "bcos-crypto/signature/sm2/SM2Crypto.h"
 #include <memory>
 
 #ifdef WITH_SM2_OPTIMIZE

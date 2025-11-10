@@ -22,8 +22,8 @@
 #include "Common.h"
 #include "bcos-framework/consensus/ConsensusConfigInterface.h"
 #include "bcos-framework/protocol/Protocol.h"
-#include <bcos-crypto/interfaces/crypto/KeyPairInterface.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-crypto/interfaces/crypto/KeyPairInterface.h"
+#include "bcos-utilities/Common.h"
 
 namespace bcos::consensus
 {

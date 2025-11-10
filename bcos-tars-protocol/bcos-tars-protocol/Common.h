@@ -20,26 +20,26 @@
 
 #pragma once
 // if windows, manual include tup/Tars.h first
-#include <bcos-framework/consensus/ConsensusNode.h>
+#include "bcos-framework/consensus/ConsensusNode.h"
 #ifdef _WIN32
 #include <tup/Tars.h>
 #endif
 #include "bcos-tars-protocol/tars/GatewayInfo.h"
 #include "bcos-tars-protocol/tars/TransactionReceipt.h"
-#include <bcos-crypto/interfaces/crypto/Hash.h>
-#include <bcos-framework/protocol/LogEntry.h>
+#include "bcos-crypto/interfaces/crypto/Hash.h"
+#include "bcos-framework/protocol/LogEntry.h"
 #if !ONLY_CPP_SDK
 #include "bcos-tars-protocol/tars/GroupInfo.h"
 #include "bcos-tars-protocol/tars/LedgerConfig.h"
 #include "bcos-tars-protocol/tars/TwoPCParams.h"
-#include <bcos-crypto/interfaces/crypto/KeyFactory.h>
-#include <bcos-framework/gateway/GatewayTypeDef.h>
-#include <bcos-framework/ledger/LedgerConfig.h>
-#include <bcos-framework/multigroup/ChainNodeInfoFactory.h>
-#include <bcos-framework/multigroup/GroupInfoFactory.h>
+#include "bcos-crypto/interfaces/crypto/KeyFactory.h"
+#include "bcos-framework/gateway/GatewayTypeDef.h"
+#include "bcos-framework/ledger/LedgerConfig.h"
+#include "bcos-framework/multigroup/ChainNodeInfoFactory.h"
+#include "bcos-framework/multigroup/GroupInfoFactory.h"
 #endif
-#include <bcos-framework/protocol/ProtocolInfo.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-framework/protocol/ProtocolInfo.h"
+#include "bcos-utilities/Common.h"
 #include <cstdint>
 #include <functional>
 #include <memory>

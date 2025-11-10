@@ -26,8 +26,8 @@
 
 #include "TransactionReceiptImpl.h"
 #include "bcos-tars-protocol/tars/ExecutionResult.h"
-#include <bcos-framework/protocol/ExecutionResult.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-framework/protocol/ExecutionResult.h"
+#include "bcos-utilities/Common.h"
 
 
 namespace bcostars::protocol

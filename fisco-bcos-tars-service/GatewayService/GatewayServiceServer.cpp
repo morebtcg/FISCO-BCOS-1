@@ -1,6 +1,6 @@
 #include "GatewayServiceServer.h"
 #include "bcos-task/Wait.h"
-#include <bcos-tars-protocol/Common.h>
+#include "bcos-tars-protocol/Common.h"
 using namespace bcostars;
 bcostars::Error GatewayServiceServer::asyncNotifyGroupInfo(
     const bcostars::GroupInfo& groupInfo, tars::TarsCurrentPtr current)

@@ -20,8 +20,8 @@
  */
 #pragma once
 #include "../config/PBFTConfig.h"
-#include <bcos-framework/protocol/Block.h>
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-framework/protocol/Block.h"
+#include "bcos-utilities/ThreadPool.h"
 namespace bcos
 {
 namespace consensus

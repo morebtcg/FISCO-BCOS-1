@@ -21,17 +21,17 @@
 #include "GatewayInitializer.h"
 #include "../Common/TarsUtils.h"
 #include "libinitializer/ProtocolInitializer.h"
-#include <bcos-framework/election/FailOverTypeDef.h>
-#include <bcos-framework/protocol/GlobalConfig.h>
-#include <bcos-gateway/Gateway.h>
-#include <bcos-gateway/GatewayConfig.h>
-#include <bcos-gateway/GatewayFactory.h>
+#include "bcos-framework/election/FailOverTypeDef.h"
+#include "bcos-framework/protocol/GlobalConfig.h"
+#include "bcos-gateway/Gateway.h"
+#include "bcos-gateway/GatewayConfig.h"
+#include "bcos-gateway/GatewayFactory.h"
 #ifdef WITH_LEDGER_ELECTION
-#include <bcos-leader-election/src/LeaderEntryPoint.h>
+#include "bcos-leader-election/src/LeaderEntryPoint.h"
 #endif
-#include <bcos-tars-protocol/protocol/MemberImpl.h>
-#include <bcos-tars-protocol/protocol/ProtocolInfoCodecImpl.h>
-#include <bcos-tool/NodeConfig.h>
+#include "bcos-tars-protocol/protocol/MemberImpl.h"
+#include "bcos-tars-protocol/protocol/ProtocolInfoCodecImpl.h"
+#include "bcos-tool/NodeConfig.h"
 // #include "bcos-framework/security/KeyEncryptionType.h"
 
 using namespace tars;

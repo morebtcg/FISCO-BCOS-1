@@ -19,10 +19,10 @@
  * @date 2021-09-08
  */
 #pragma once
-#include <bcos-framework/multigroup/ChainNodeInfoFactory.h>
-#include <bcos-framework/multigroup/GroupTypeDef.h>
-#include <bcos-framework/protocol/ServiceDesc.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-framework/multigroup/ChainNodeInfoFactory.h"
+#include "bcos-framework/multigroup/GroupTypeDef.h"
+#include "bcos-framework/protocol/ServiceDesc.h"
+#include "bcos-utilities/Common.h"
 #include <json/json.h>
 #include <memory>
 

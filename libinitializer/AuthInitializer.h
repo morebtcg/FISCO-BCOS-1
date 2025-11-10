@@ -21,12 +21,12 @@
 #pragma once
 #include "Common.h"
 #include "libinitializer/ProtocolInitializer.h"
-#include <bcos-codec/abi/ContractABICodec.h>
-#include <bcos-framework/dispatcher/SchedulerInterface.h>
-#include <bcos-framework/executor/PrecompiledTypeDef.h>
-#include <bcos-framework/ledger/LedgerConfig.h>
-#include <bcos-tool/NodeConfig.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-codec/abi/ContractABICodec.h"
+#include "bcos-framework/dispatcher/SchedulerInterface.h"
+#include "bcos-framework/executor/PrecompiledTypeDef.h"
+#include "bcos-framework/ledger/LedgerConfig.h"
+#include "bcos-tool/NodeConfig.h"
+#include "bcos-utilities/Common.h"
 
 namespace bcos::initializer
 {

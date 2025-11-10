@@ -23,7 +23,7 @@
 #include "bcos-ledger/LedgerMethods.h"
 #include "bcos-sync/utilities/Common.h"
 #include "bcos-task/Wait.h"
-#include <bcos-framework/dispatcher/SchedulerTypeDef.h>
+#include "bcos-framework/dispatcher/SchedulerTypeDef.h"
 
 using namespace std;
 using namespace bcos;

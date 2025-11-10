@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <bcos-rpc/Common.h>
+#include "bcos-rpc/Common.h"
 
 namespace bcos::rpc
 {

@@ -22,8 +22,8 @@
 #include "ProtocolTypeDef.h"
 #include "bcos-utilities/AnyHolder.h"
 #include "bcos-utilities/Common.h"
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
-#include <bcos-utilities/FixedBytes.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
+#include "bcos-utilities/FixedBytes.h"
 #include <gsl/span>
 
 namespace bcos::protocol

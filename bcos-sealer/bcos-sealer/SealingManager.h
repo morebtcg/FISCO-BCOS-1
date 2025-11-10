@@ -20,8 +20,7 @@
 #pragma once
 #include "SealerConfig.h"
 #include "bcos-framework/protocol/TransactionMetaData.h"
-#include <bcos-utilities/CallbackCollectionHandler.h>
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-utilities/CallbackCollectionHandler.h"
 #include <atomic>
 
 namespace bcos::sealer

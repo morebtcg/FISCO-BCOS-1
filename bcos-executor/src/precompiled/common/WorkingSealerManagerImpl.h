@@ -24,7 +24,6 @@
 #include "VRFInfo.h"
 #include "bcos-framework/consensus/ConsensusNode.h"
 #include "bcos-framework/sealer/VrfCurveType.h"
-#include <bcos-framework/storage/Table.h>
 #include <cstdint>
 #include <functional>
 
@@ -41,7 +40,8 @@ public:
     WorkingSealerManagerImpl(bool withWeight);
     ~WorkingSealerManagerImpl() = default;
 
-    void createVRFInfo(bytes _vrfProof, bytes _vrfPublicKey, bytes _vrfInput, sealer::VrfCurveType vrfCurveType = sealer::VrfCurveType::CURVE25519);
+    void createVRFInfo(bytes _vrfProof, bytes _vrfPublicKey, bytes _vrfInput,
+        sealer::VrfCurveType vrfCurveType = sealer::VrfCurveType::CURVE25519);
     void createVRFInfo(std::unique_ptr<VRFInfo> vrfInfo);
     void setConfiguredEpochSealersSize(uint32_t _size);
 
@@ -58,7 +58,8 @@ private:
     static void setNotifyRotateFlag(
         const executor::TransactionExecutive::Ptr& executive, unsigned flag);
     static bool getNotifyRotateFlag(const executor::TransactionExecutive::Ptr& executive);
-    static bool checkSealerPublicKey(const std::string& publicKey, const std::vector<std::reference_wrapper<consensus::ConsensusNode>>& nodeLists);
+    static bool checkSealerPublicKey(const std::string& publicKey,
+        const std::vector<std::reference_wrapper<consensus::ConsensusNode>>& nodeLists);
 
     // calculate the number of working sealers that need to be added and removed
     std::tuple<uint32_t, uint32_t> calNodeRotatingInfo() const;

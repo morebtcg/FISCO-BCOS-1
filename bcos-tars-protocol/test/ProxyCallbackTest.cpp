@@ -26,7 +26,7 @@
 #include "bcos-tars-protocol/tars/GatewayService.h"
 #include "bcos-utilities/Exceptions.h"
 #include "fisco-bcos-tars-service/Common/TarsUtils.h"
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <servant/Communicator.h>
 #include <util/tc_clientsocket.h>
 #include <boost/test/tools/old/interface.hpp>

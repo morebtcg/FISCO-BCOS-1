@@ -28,10 +28,10 @@
 
 #pragma once
 #include "Common.h"
-#include <bcos-crypto/interfaces/crypto/SymmetricEncryption.h>
-#include <bcos-framework/security/KeyEncryptInterface.h>
-#include <bcos-tool/NodeConfig.h>
-#include <bcos-utilities/FileUtility.h>
+#include "bcos-crypto/interfaces/crypto/SymmetricEncryption.h"
+#include "bcos-framework/security/KeyEncryptInterface.h"
+#include "bcos-tool/NodeConfig.h"
+#include "bcos-utilities/FileUtility.h"
 #include <memory>
 
 namespace bcos::security

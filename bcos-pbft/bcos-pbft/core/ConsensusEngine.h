@@ -21,7 +21,7 @@
 #pragma once
 #include "Common.h"
 #include "bcos-framework/consensus/ConsensusEngineInterface.h"
-#include <bcos-utilities/Worker.h>
+#include "bcos-utilities/Worker.h"
 
 
 namespace bcos::consensus

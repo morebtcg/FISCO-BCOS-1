@@ -18,7 +18,7 @@
  * @date 2022-05-19
  */
 
-#include <bcos-cpp-sdk/utilities/abi/ContractABIMethodDefinition.h>
+#include "bcos-cpp-sdk/utilities/abi/ContractABIMethodDefinition.h"
 #include <stdexcept>
 
 using namespace bcos;

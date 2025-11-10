@@ -3,10 +3,10 @@
 #include "../Common/TarsUtils.h"
 #include "GatewayInitializer.h"
 #include "libinitializer/ProtocolInitializer.h"
-#include <bcos-tars-protocol/Common.h>
-#include <bcos-tars-protocol/ErrorConverter.h>
-#include <bcos-tars-protocol/protocol/GroupNodeInfoImpl.h>
-#include <bcos-tars-protocol/tars/GatewayService.h>
+#include "bcos-tars-protocol/Common.h"
+#include "bcos-tars-protocol/ErrorConverter.h"
+#include "bcos-tars-protocol/protocol/GroupNodeInfoImpl.h"
+#include "bcos-tars-protocol/tars/GatewayService.h"
 #include <chrono>
 #include <mutex>
 

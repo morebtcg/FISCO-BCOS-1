@@ -20,7 +20,7 @@
 
 #pragma once
 #include "bcos-rpc/groupmgr/GroupManager.h"
-#include <bcos-rpc/jsonrpc/JsonRpcInterface.h>
+#include "bcos-rpc/jsonrpc/JsonRpcInterface.h"
 #include <json/json.h>
 #include <boost/core/ignore_unused.hpp>
 #include <unordered_map>

@@ -20,7 +20,7 @@
  */
 #pragma once
 
-#include <bcos-utilities/Error.h>
+#include "bcos-utilities/Error.h"
 #include <boost/throw_exception.hpp>
 #include <algorithm>
 #include <cstdlib>

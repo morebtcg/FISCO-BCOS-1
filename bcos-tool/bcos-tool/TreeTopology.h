@@ -21,7 +21,7 @@
 #pragma once
 
 #include "bcos-crypto/KeyCompareTools.h"
-#include <bcos-crypto/interfaces/crypto/KeyFactory.h>
+#include "bcos-crypto/interfaces/crypto/KeyFactory.h"
 
 #define TREE_LOG(LEVEL)                                                      \
     BCOS_LOG(LEVEL) << LOG_BADGE("TREE") << LOG_KV("consIndex", m_consIndex) \

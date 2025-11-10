@@ -30,8 +30,8 @@
 #include "bcos-utilities/BoostLog.h"
 #include "bcos-utilities/Common.h"
 #include "fisco-bcos-tars-service/Common/TarsUtils.h"
-#include <bcos-framework/ledger/GenesisConfig.h>
-#include <bcos-framework/protocol/GlobalConfig.h>
+#include "bcos-framework/ledger/GenesisConfig.h"
+#include "bcos-framework/protocol/GlobalConfig.h"
 #include <json/forwards.h>
 #include <json/reader.h>
 #include <json/value.h>

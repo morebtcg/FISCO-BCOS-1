@@ -22,7 +22,7 @@
 
 #include "EthMethods.h"
 
-#include <bcos-rpc/jsonrpc/Common.h>
+#include "bcos-rpc/jsonrpc/Common.h"
 
 namespace bcos::rpc
 {

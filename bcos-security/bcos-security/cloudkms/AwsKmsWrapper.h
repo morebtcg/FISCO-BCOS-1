@@ -22,7 +22,7 @@
  */
 #pragma once
 #include <aws/kms/KMSClient.h>
-#include <bcos-framework/security/KeyEncryptInterface.h>
+#include "bcos-framework/security/KeyEncryptInterface.h"
 #include <string>
 
 namespace bcos::security

@@ -23,7 +23,6 @@
 #include "bcos-crypto/interfaces/crypto/CommonType.h"
 #include "bcos-framework/sealer/VrfCurveType.h"
 #include "bcos-utilities/Common.h"
-#include <cstdint>
 namespace bcos::precompiled
 {
 class VRFInfo
@@ -33,7 +32,8 @@ public:
     VRFInfo(VRFInfo&&) = default;
     VRFInfo& operator=(const VRFInfo&) = default;
     VRFInfo& operator=(VRFInfo&&) = default;
-    VRFInfo(bcos::bytes _vrfProof, bcos::bytes _vrfPk, bcos::bytes _vrfInput, bcos::sealer::VrfCurveType vrfCurveType = bcos::sealer::VrfCurveType::CURVE25519)
+    VRFInfo(bcos::bytes _vrfProof, bcos::bytes _vrfPk, bcos::bytes _vrfInput,
+        bcos::sealer::VrfCurveType vrfCurveType = bcos::sealer::VrfCurveType::CURVE25519)
       : m_vrfProof(std::move(_vrfProof)),
         m_vrfPublicKey(std::move(_vrfPk)),
         m_vrfInput(std::move(_vrfInput)),

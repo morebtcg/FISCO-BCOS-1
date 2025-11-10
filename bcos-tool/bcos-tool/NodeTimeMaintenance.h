@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
 
 #define TIMESYNC_LOG(LEVEL) BCOS_LOG(LEVEL) << LOG_BADGE("TIMESYNC")
 

@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "JsonChainNodeInfoCodec.h"
-#include <bcos-framework/multigroup/GroupInfoCodec.h>
-#include <bcos-framework/multigroup/GroupInfoFactory.h>
-#include <bcos-framework/multigroup/GroupTypeDef.h>
+#include "bcos-framework/multigroup/GroupInfoCodec.h"
+#include "bcos-framework/multigroup/GroupInfoFactory.h"
+#include "bcos-framework/multigroup/GroupTypeDef.h"
 #include <json/json.h>
 
 namespace bcos::group

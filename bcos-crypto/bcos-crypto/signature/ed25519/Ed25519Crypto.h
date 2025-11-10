@@ -19,7 +19,7 @@
  * @author yujiechen
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/Signature.h>
+#include "bcos-crypto/interfaces/crypto/Signature.h"
 namespace bcos
 {
 namespace crypto

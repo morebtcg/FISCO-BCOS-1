@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include <bcos-framework/storage/StorageInterface.h>
-#include <bcos-utilities/ITTAPI.h>
+#include "bcos-framework/storage/StorageInterface.h"
+#include "bcos-utilities/ITTAPI.h"
 
 namespace bcos::storage
 {

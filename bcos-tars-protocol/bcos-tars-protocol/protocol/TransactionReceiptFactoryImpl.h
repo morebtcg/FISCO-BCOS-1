@@ -20,8 +20,8 @@
  */
 #pragma once
 #include "TransactionReceiptImpl.h"
-#include <bcos-concepts/Hash.h>
-#include <bcos-framework/protocol/TransactionReceiptFactory.h>
+#include "bcos-concepts/Hash.h"
+#include "bcos-framework/protocol/TransactionReceiptFactory.h"
 
 
 namespace bcostars::protocol

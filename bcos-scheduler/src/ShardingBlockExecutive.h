@@ -21,8 +21,8 @@
 
 #pragma once
 #include "BlockExecutive.h"
-#include <bcos-table/src/ContractShardUtils.h>
-#include <bcos-utilities/BucketMap.h>
+#include "bcos-table/src/ContractShardUtils.h"
+#include "bcos-utilities/BucketMap.h"
 #include <tbb/concurrent_unordered_map.h>
 
 namespace bcos::scheduler

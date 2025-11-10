@@ -19,7 +19,7 @@
  * @date 2021-05-10
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
 namespace bcos::crypto
 {
 class KeyFactory

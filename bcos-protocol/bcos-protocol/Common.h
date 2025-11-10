@@ -19,9 +19,9 @@
  */
 #pragma once
 
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-utilities/DataConvertUtility.h>
-#include <bcos-utilities/Exceptions.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-utilities/DataConvertUtility.h"
+#include "bcos-utilities/Exceptions.h"
 
 namespace bcos::protocol
 {

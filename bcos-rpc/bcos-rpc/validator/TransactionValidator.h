@@ -20,7 +20,7 @@
 #pragma once
 
 #include "bcos-protocol/TransactionStatus.h"
-#include <bcos-framework/protocol/Transaction.h>
+#include "bcos-framework/protocol/Transaction.h"
 
 namespace bcos::rpc
 {

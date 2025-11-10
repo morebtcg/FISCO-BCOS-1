@@ -19,8 +19,8 @@
  * @author yujiechen
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyFactory.h>
-#include <bcos-crypto/signature/key/KeyImpl.h>
+#include "bcos-crypto/interfaces/crypto/KeyFactory.h"
+#include "bcos-crypto/signature/key/KeyImpl.h"
 
 namespace bcos::crypto
 {

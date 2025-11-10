@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "bcos-framework/consensus/StateMachineInterface.h"
-#include <bcos-framework/dispatcher/SchedulerInterface.h>
-#include <bcos-framework/protocol/BlockFactory.h>
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-framework/dispatcher/SchedulerInterface.h"
+#include "bcos-framework/protocol/BlockFactory.h"
+#include "bcos-utilities/ThreadPool.h"
 
 #include <utility>
 namespace bcos

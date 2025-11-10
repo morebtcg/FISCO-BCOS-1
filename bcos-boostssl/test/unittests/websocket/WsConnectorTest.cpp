@@ -19,7 +19,7 @@
  * @date 2021-10-04
  */
 
-#include <bcos-boostssl/websocket/WsConnector.h>
+#include "bcos-boostssl/websocket/WsConnector.h"
 
 #include <boost/test/unit_test.hpp>
 #include <memory>

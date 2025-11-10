@@ -22,7 +22,7 @@
 
 #include "Endpoints.h"
 
-#include <bcos-task/Task.h>
+#include "bcos-task/Task.h"
 #include <json/json.h>
 
 namespace bcos::rpc

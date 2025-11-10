@@ -23,7 +23,7 @@
 #include "TransactionFactory.h"
 #include "TransactionMetaData.h"
 #include "TransactionReceiptFactory.h"
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
 
 namespace bcos::protocol
 {

@@ -1,7 +1,7 @@
 #include "FrontServiceServer.h"
 #include "../Common/TarsUtils.h"
 #include "bcos-task/Wait.h"
-#include <bcos-tars-protocol/protocol/GroupNodeInfoImpl.h>
+#include "bcos-tars-protocol/protocol/GroupNodeInfoImpl.h"
 
 using namespace bcostars;
 

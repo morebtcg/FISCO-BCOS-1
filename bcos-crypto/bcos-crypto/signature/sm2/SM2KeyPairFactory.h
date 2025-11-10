@@ -19,8 +19,8 @@
  * @author yujiechen
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyPairFactory.h>
-#include <bcos-crypto/signature/sm2/SM2KeyPair.h>
+#include "bcos-crypto/interfaces/crypto/KeyPairFactory.h"
+#include "bcos-crypto/signature/sm2/SM2KeyPair.h"
 #include <wedpr-crypto/WedprCrypto.h>
 #include <memory>
 namespace bcos

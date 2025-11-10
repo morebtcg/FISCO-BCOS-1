@@ -33,7 +33,7 @@
 #include "bcos-framework/protocol/Transaction.h"
 #include "bcos-protocol/TransactionStatus.h"
 #include "bcos-table/src/StateStorage.h"
-#include <bcos-codec/abi/ContractABICodec.h>
+#include "bcos-codec/abi/ContractABICodec.h"
 #include <boost/algorithm/string/case_conv.hpp>
 #include <functional>
 #include <variant>

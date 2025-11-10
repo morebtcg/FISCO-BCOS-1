@@ -20,7 +20,7 @@
  */
 #pragma once
 #include "Transaction.h"
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
 #include <utility>
 
 namespace bcos::protocol

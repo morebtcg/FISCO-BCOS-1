@@ -1,6 +1,6 @@
 #pragma once
 #include "bcos-framework/storage2/Storage.h"
-#include <bcos-task/Trait.h>
+#include "bcos-task/Trait.h"
 #include <type_traits>
 #include <utility>
 

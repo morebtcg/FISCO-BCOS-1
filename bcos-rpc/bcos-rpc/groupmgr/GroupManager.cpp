@@ -20,7 +20,7 @@
  */
 #include "GroupManager.h"
 #include "bcos-framework/multigroup/GroupTypeDef.h"
-#include <bcos-framework/protocol/ServiceDesc.h>
+#include "bcos-framework/protocol/ServiceDesc.h"
 
 using namespace bcos;
 using namespace bcos::group;

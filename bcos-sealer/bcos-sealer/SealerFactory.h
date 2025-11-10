@@ -19,9 +19,8 @@
  */
 #pragma once
 #include "Sealer.h"
-#include "SealerConfig.h"
 #include "VRFBasedSealer.h"
-#include <bcos-tool/NodeConfig.h>
+#include "bcos-tool/NodeConfig.h"
 namespace bcos
 {
 namespace sealer

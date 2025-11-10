@@ -23,10 +23,10 @@
 #include "bcos-framework/bcos-framework/testutils/faker/FakeBlockHeader.h"
 
 #include "SyncFixture.h"
-#include <bcos-crypto/hash/Keccak256.h>
-#include <bcos-crypto/hash/SM3.h>
-#include <bcos-crypto/signature/secp256k1/Secp256k1Crypto.h>
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-crypto/hash/Keccak256.h"
+#include "bcos-crypto/hash/SM3.h"
+#include "bcos-crypto/signature/secp256k1/Secp256k1Crypto.h"
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos;

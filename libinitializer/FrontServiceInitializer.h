@@ -19,8 +19,8 @@
  * @date 2021-06-10
  */
 #pragma once
-#include <bcos-framework/front/FrontServiceInterface.h>
-#include <bcos-tool/NodeConfig.h>
+#include "bcos-framework/front/FrontServiceInterface.h"
+#include "bcos-tool/NodeConfig.h"
 #include <memory>
 
 namespace bcos

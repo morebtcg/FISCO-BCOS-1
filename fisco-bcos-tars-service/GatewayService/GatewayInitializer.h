@@ -19,13 +19,13 @@
  * @date 2021-10-15
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
-#include <bcos-crypto/signature/key/KeyFactoryImpl.h>
-#include <bcos-framework/election/LeaderEntryPointInterface.h>
-#include <bcos-framework/gateway/GatewayInterface.h>
-#include <bcos-framework/multigroup/ChainNodeInfoFactory.h>
-#include <bcos-framework/multigroup/GroupInfoFactory.h>
-#include <bcos-gateway/GatewayConfig.h>
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-crypto/signature/key/KeyFactoryImpl.h"
+#include "bcos-framework/election/LeaderEntryPointInterface.h"
+#include "bcos-framework/gateway/GatewayInterface.h"
+#include "bcos-framework/multigroup/ChainNodeInfoFactory.h"
+#include "bcos-framework/multigroup/GroupInfoFactory.h"
+#include "bcos-gateway/GatewayConfig.h"
 
 namespace bcostars
 {

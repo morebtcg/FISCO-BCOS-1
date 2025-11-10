@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "../TransactionSyncConfig.h"
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-framework/front/FrontServiceInterface.h>
-#include <bcos-framework/protocol/Block.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-framework/front/FrontServiceInterface.h"
+#include "bcos-framework/protocol/Block.h"
 
 namespace bcos::sync
 {

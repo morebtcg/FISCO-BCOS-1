@@ -21,8 +21,8 @@
 
 #pragma once
 #include "../ledger/LedgerConfig.h"
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
-#include <bcos-sync/state/SyncPeerStatus.h>
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-sync/state/SyncPeerStatus.h"
 #include <memory>
 namespace bcos::sync
 {

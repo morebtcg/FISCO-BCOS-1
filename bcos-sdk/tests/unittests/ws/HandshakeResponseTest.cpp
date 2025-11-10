@@ -18,12 +18,12 @@
  * @date 2021-10-26
  */
 
-#include <bcos-cpp-sdk/multigroup/JsonGroupInfoCodec.h>
-#include <bcos-cpp-sdk/ws/Common.h>
-#include <bcos-cpp-sdk/ws/HandshakeResponse.h>
-#include <bcos-framework/rpc/HandshakeRequest.h>
-#include <bcos-utilities/Common.h>
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-cpp-sdk/multigroup/JsonGroupInfoCodec.h"
+#include "bcos-cpp-sdk/ws/Common.h"
+#include "bcos-cpp-sdk/ws/HandshakeResponse.h"
+#include "bcos-framework/rpc/HandshakeRequest.h"
+#include "bcos-utilities/Common.h"
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <boost/test/tools/old/interface.hpp>
 #include <boost/test/unit_test.hpp>
 #include <future>

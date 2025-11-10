@@ -21,8 +21,8 @@
 #include "TransactionReceiptImpl.h"
 #include "../impl/TarsHashable.h"
 #include "../impl/TarsSerializable.h"
-#include <bcos-concepts/Hash.h>
-#include <bcos-concepts/Serialize.h>
+#include "bcos-concepts/Hash.h"
+#include "bcos-concepts/Serialize.h"
 
 using namespace bcostars;
 using namespace bcostars::protocol;

@@ -18,8 +18,8 @@
  * @date 2022-01-18
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyPairInterface.h>
-#include <bcos-utilities/Common.h>
+#include "bcos-crypto/interfaces/crypto/KeyPairInterface.h"
+#include "bcos-utilities/Common.h"
 namespace bcos::crypto
 {
 class KeyPairFactory

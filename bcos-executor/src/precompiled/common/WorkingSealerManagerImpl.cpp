@@ -25,7 +25,7 @@
 #include "bcos-framework/sealer/VrfCurveType.h"
 #include "bcos-framework/storage/LegacyStorageMethods.h"
 #include "fmt/ranges.h"
-#include <bcos-framework/ledger/LedgerTypeDef.h>
+#include "bcos-framework/ledger/LedgerTypeDef.h"
 #include <fmt/format.h>
 #include <boost/endian/conversion.hpp>
 #include <algorithm>

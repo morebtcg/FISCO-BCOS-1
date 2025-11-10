@@ -19,8 +19,8 @@
  * @author lucasli
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/KeyPairFactory.h>
-#include <bcos-crypto/signature/hsmSM2/HsmSM2KeyPair.h>
+#include "bcos-crypto/interfaces/crypto/KeyPairFactory.h"
+#include "bcos-crypto/signature/hsmSM2/HsmSM2KeyPair.h"
 #include <memory>
 namespace bcos
 {

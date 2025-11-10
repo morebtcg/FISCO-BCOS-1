@@ -24,7 +24,7 @@
 #include "bcos-framework/storage/Table.h"
 #include "bcos-utilities/Common.h"
 #include "rocksdb/convenience.h"
-#include <bcos-utilities/Error.h>
+#include "bcos-utilities/Error.h"
 #include <rocksdb/cleanable.h>
 #include <rocksdb/options.h>
 #include <rocksdb/slice.h>

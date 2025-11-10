@@ -18,9 +18,9 @@
  * @date 2021.03.10
  * @author yujiechen
  */
-#include <bcos-crypto/hash/SM3.h>
-#include <bcos-crypto/signature/Exceptions.h>
-#include <bcos-crypto/signature/sm2/SM2KeyPair.h>
+#include "bcos-crypto/hash/SM3.h"
+#include "bcos-crypto/signature/Exceptions.h"
+#include "bcos-crypto/signature/sm2/SM2KeyPair.h"
 
 using namespace bcos;
 using namespace bcos::crypto;

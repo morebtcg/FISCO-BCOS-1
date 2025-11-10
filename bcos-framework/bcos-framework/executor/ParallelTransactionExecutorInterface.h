@@ -25,9 +25,9 @@
 #include "../protocol/ProtocolTypeDef.h"
 #include "ExecutionMessage.h"
 #include "ExecutorStatus.h"
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-utilities/Common.h>
-#include <bcos-utilities/FixedBytes.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-utilities/Common.h"
+#include "bcos-utilities/FixedBytes.h"
 #include <boost/iterator/iterator_categories.hpp>
 #include <memory>
 

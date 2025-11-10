@@ -18,7 +18,7 @@
  * @date 2021-06-14
  */
 #pragma once
-#include <bcos-boostssl/context/ContextConfig.h>
+#include "bcos-boostssl/context/ContextConfig.h"
 #include <boost/asio/ssl.hpp>
 #include <boost/filesystem.hpp>
 

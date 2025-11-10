@@ -17,7 +17,7 @@
  * @author: yujiechen
  */
 #pragma once
-#include <bcos-utilities/Log.h>
+#include "bcos-utilities/Log.h"
 
 #define METRIC LOG_BADGE("METRIC")
 

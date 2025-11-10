@@ -21,8 +21,8 @@
 #pragma once
 #include "bcos-framework/consensus/ProposalInterface.h"
 #include "bcos-pbft/core/proto/Consensus.pb.h"
-#include <bcos-framework/protocol/BlockHeader.h>
-#include <bcos-protocol/Common.h>
+#include "bcos-framework/protocol/BlockHeader.h"
+#include "bcos-protocol/Common.h"
 
 namespace bcos::consensus
 {

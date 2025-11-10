@@ -25,9 +25,9 @@
 #include "../protocol/ProtocolTypeDef.h"
 #include "ConsensusConfigInterface.h"
 #include "ConsensusTypeDef.h"
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
-#include <bcos-utilities/Error.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-utilities/Error.h"
 
 
 namespace bcos::consensus

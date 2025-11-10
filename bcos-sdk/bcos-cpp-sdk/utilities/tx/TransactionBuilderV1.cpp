@@ -20,7 +20,7 @@
 
 
 #include "TransactionBuilderV1.h"
-#include <bcos-crypto/signature/secp256k1/Secp256k1Crypto.h>
+#include "bcos-crypto/signature/secp256k1/Secp256k1Crypto.h"
 
 #include <utility>
 

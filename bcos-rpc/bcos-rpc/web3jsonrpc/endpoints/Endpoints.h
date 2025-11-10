@@ -22,7 +22,7 @@
 #include "EthEndpoint.h"
 #include "NetEndpoint.h"
 #include "Web3Endpoint.h"
-#include <bcos-rpc/groupmgr/NodeService.h>
+#include "bcos-rpc/groupmgr/NodeService.h"
 
 namespace bcos::rpc
 {

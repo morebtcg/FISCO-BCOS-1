@@ -19,8 +19,8 @@
  */
 
 #pragma once
-#include <bcos-rpc/Common.h>
-#include <bcos-utilities/DataConvertUtility.h>
+#include "bcos-rpc/Common.h"
+#include "bcos-utilities/DataConvertUtility.h"
 #include <json/json.h>
 
 namespace bcos::rpc

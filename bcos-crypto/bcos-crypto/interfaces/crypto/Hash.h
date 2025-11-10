@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "../../hasher/AnyHasher.h"
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
-#include <bcos-utilities/FixedBytes.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-utilities/FixedBytes.h"
 #include <memory>
 namespace bcos::crypto
 {

@@ -30,7 +30,7 @@
 #include "bcos-codec/abi/ContractABICodec.h"
 #include "bcos-codec/wrapper/CodecWrapper.h"
 #include "bcos-framework/executor/PrecompiledTypeDef.h"
-#include <bcos-utilities/Common.h>
+#include "bcos-utilities/Common.h"
 #include <evmc/evmc.h>
 #include <boost/algorithm/hex.hpp>
 #include <boost/core/ignore_unused.hpp>

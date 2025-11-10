@@ -20,7 +20,7 @@
  */
 #include "TxPoolInitializer.h"
 #include "Common.h"
-#include <bcos-txpool/TxPoolFactory.h>
+#include "bcos-txpool/TxPoolFactory.h"
 #include <fisco-bcos-tars-service/Common/TarsUtils.h>
 #include <utility>
 

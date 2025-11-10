@@ -26,7 +26,7 @@
 #include "bcos-framework/storage/StorageInterface.h"
 #include "bcos-framework/storage/Table.h"
 #include "bcos-task/Wait.h"
-#include <bcos-utilities/Error.h>
+#include "bcos-utilities/Error.h"
 #include <boost/core/ignore_unused.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/throw_exception.hpp>

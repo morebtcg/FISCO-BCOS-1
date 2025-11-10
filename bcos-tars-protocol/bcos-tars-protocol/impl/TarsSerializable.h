@@ -1,8 +1,8 @@
 #pragma once
 #include "../Common.h"
 #include "TarsStruct.h"
-#include <bcos-concepts/Basic.h>
-#include <bcos-concepts/ByteBuffer.h>
+#include "bcos-concepts/Basic.h"
+#include "bcos-concepts/ByteBuffer.h"
 
 namespace bcostars
 {

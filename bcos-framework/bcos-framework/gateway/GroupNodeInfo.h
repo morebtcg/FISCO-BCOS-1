@@ -18,8 +18,8 @@
  * @date 2022-3-8
  */
 #pragma once
-#include <bcos-framework/protocol/Protocol.h>
-#include <bcos-framework/protocol/ProtocolInfo.h>
+#include "bcos-framework/protocol/Protocol.h"
+#include "bcos-framework/protocol/ProtocolInfo.h"
 #include <memory>
 #include <vector>
 

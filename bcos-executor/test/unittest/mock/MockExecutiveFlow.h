@@ -1,7 +1,7 @@
 #pragma once
 #include "../../../src/CallParameters.h"
 #include "../../../src/executive/ExecutiveFlowInterface.h"
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-utilities/ThreadPool.h"
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos;

@@ -18,15 +18,15 @@
  * @author: yujiechen
  * @date 2021-10-28
  */
-#include <bcos-tars-protocol/client/GatewayServiceClient.h>
+#include "bcos-tars-protocol/client/GatewayServiceClient.h"
 
 #include "AMOPClient.h"
 #include "bcos-tars-protocol/Common.h"
 #include "fisco-bcos-tars-service/Common/TarsUtils.h"
-#include <bcos-framework/gateway/GatewayTypeDef.h>
-#include <bcos-framework/protocol/CommonError.h>
-#include <bcos-protocol/amop/TopicItem.h>
-#include <bcos-rpc/Common.h>
+#include "bcos-framework/gateway/GatewayTypeDef.h"
+#include "bcos-framework/protocol/CommonError.h"
+#include "bcos-protocol/amop/TopicItem.h"
+#include "bcos-rpc/Common.h"
 
 using namespace bcos;
 using namespace bcos::rpc;

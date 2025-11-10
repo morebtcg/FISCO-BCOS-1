@@ -22,7 +22,7 @@
 #include "bcos-pbft/pbft/interfaces/PBFTBaseMessageInterface.h"
 #include "bcos-pbft/pbft/protocol/proto/PBFT.pb.h"
 #include "bcos-utilities/Common.h"
-#include <bcos-protocol/Common.h>
+#include "bcos-protocol/Common.h"
 namespace bcos
 {
 namespace consensus

@@ -21,8 +21,8 @@
 #pragma once
 
 #include "../vm/Precompiled.h"
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-framework/storage/Table.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-framework/storage/Table.h"
 
 namespace bcos::precompiled
 {

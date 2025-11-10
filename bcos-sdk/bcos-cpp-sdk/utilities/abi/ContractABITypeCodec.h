@@ -20,8 +20,8 @@
 #pragma once
 
 #include "bcos-cpp-sdk/utilities/abi/ContractABIType.h"
-#include <bcos-utilities/Common.h>
-#include <bcos-utilities/FixedBytes.h>
+#include "bcos-utilities/Common.h"
+#include "bcos-utilities/FixedBytes.h"
 #include <memory>
 namespace bcos
 {

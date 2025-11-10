@@ -19,8 +19,8 @@
  */
 
 #pragma once
-#include <bcos-cpp-sdk/event/EventSubParams.h>
-#include <bcos-cpp-sdk/event/EventSubTask.h>
+#include "bcos-cpp-sdk/event/EventSubParams.h"
+#include "bcos-cpp-sdk/event/EventSubTask.h"
 
 #include <utility>
 

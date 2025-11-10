@@ -19,7 +19,7 @@
  */
 #pragma once
 
-#include <bcos-boostssl/websocket/WsConfig.h>
+#include "bcos-boostssl/websocket/WsConfig.h"
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <memory>

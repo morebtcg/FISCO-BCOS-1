@@ -20,7 +20,7 @@
  */
 #pragma once
 #include "TxPool.h"
-#include <bcos-framework/txpool/TxPoolInterface.h>
+#include "bcos-framework/txpool/TxPoolInterface.h"
 
 namespace bcos::txpool
 {

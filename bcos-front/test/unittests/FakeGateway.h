@@ -21,10 +21,9 @@
 
 #pragma once
 
-#include <bcos-framework/front/FrontServiceInterface.h>
-#include <bcos-framework/gateway/GatewayInterface.h>
-#include <bcos-utilities/Common.h>
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-framework/front/FrontServiceInterface.h"
+#include "bcos-framework/gateway/GatewayInterface.h"
+#include "bcos-utilities/Common.h"
 #include <boost/asio.hpp>
 #include <boost/core/ignore_unused.hpp>
 

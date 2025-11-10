@@ -23,7 +23,6 @@
 #include "SealerConfig.h"
 #include "SealingManager.h"
 #include "bcos-framework/sealer/VrfCurveType.h"
-#include <bcos-utilities/Worker.h>
 #include <utility>
 
 namespace bcos::sealer

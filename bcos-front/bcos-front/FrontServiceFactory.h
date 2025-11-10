@@ -20,9 +20,8 @@
 
 #pragma once
 
-#include <bcos-framework/front/FrontServiceInterface.h>
-#include <bcos-framework/gateway/GatewayInterface.h>
-#include <bcos-front/FrontService.h>
+#include "bcos-framework/gateway/GatewayInterface.h"
+#include "bcos-front/FrontService.h"
 #include <utility>
 
 namespace bcos::front

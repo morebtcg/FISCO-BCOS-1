@@ -21,8 +21,8 @@
 #include "bcos-txpool/sync/TransactionSync.h"
 #include "bcos-task/Wait.h"
 #include "bcos-txpool/sync/utilities/Common.h"
-#include <bcos-framework/protocol/CommonError.h>
-#include <bcos-framework/protocol/Protocol.h>
+#include "bcos-framework/protocol/CommonError.h"
+#include "bcos-framework/protocol/Protocol.h"
 
 using namespace bcos;
 using namespace bcos::sync;

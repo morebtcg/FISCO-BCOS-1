@@ -19,7 +19,7 @@
  */
 
 #pragma once
-#include <bcos-table/src/StorageWrapper.h>
+#include "bcos-table/src/StorageWrapper.h"
 
 namespace bcos::storage
 {

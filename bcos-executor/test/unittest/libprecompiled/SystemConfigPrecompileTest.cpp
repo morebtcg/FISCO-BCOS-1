@@ -10,7 +10,7 @@
 #include "precompiled/SystemConfigPrecompiled.h"
 #include "precompiled/TableManagerPrecompiled.h"
 #include "precompiled/common/PrecompiledResult.h"
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 
 using namespace bcos;
 using namespace bcos::precompiled;

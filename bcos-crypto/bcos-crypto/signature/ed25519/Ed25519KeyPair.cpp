@@ -19,8 +19,8 @@
  * @author yujiechen
  */
 
-#include <bcos-crypto/signature/Exceptions.h>
-#include <bcos-crypto/signature/ed25519/Ed25519KeyPair.h>
+#include "bcos-crypto/signature/Exceptions.h"
+#include "bcos-crypto/signature/ed25519/Ed25519KeyPair.h"
 #include <wedpr-crypto/WedprCrypto.h>
 
 using namespace bcos;

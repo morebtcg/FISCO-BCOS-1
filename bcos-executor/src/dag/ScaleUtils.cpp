@@ -21,7 +21,7 @@
  */
 
 #include "ScaleUtils.h"
-#include <bcos-codec/scale/Scale.h>
+#include "bcos-codec/scale/Scale.h"
 #include <boost/algorithm/string/predicate.hpp>
 #include <string>
 

@@ -1,6 +1,6 @@
 #pragma once
 #include "../groupmgr/NodeService.h"
-#include <bcos-tars-protocol/tars/RPC.h>
+#include "bcos-tars-protocol/tars/RPC.h"
 #include <tbb/concurrent_hash_map.h>
 #include <tup/Tars.h>
 #include <utility>

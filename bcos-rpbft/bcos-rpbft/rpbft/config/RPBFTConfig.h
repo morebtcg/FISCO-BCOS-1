@@ -22,7 +22,7 @@
 #pragma once
 
 #include "RPBFTConfigTools.h"
-#include <bcos-pbft/pbft/config/PBFTConfig.h>
+#include "bcos-pbft/pbft/config/PBFTConfig.h"
 
 namespace bcos::consensus
 {

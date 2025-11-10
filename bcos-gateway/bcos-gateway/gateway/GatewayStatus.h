@@ -19,7 +19,7 @@
  */
 #pragma once
 #include "bcos-gateway/Common.h"
-#include <bcos-gateway/protocol/GatewayNodeStatus.h>
+#include "bcos-gateway/protocol/GatewayNodeStatus.h"
 #include <mutex>
 
 namespace bcos::gateway

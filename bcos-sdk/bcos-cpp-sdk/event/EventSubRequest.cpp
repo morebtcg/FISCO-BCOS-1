@@ -18,8 +18,8 @@
  * @date 2021-09-03
  */
 
-#include <bcos-cpp-sdk/event/Common.h>
-#include <bcos-cpp-sdk/event/EventSubRequest.h>
+#include "bcos-cpp-sdk/event/Common.h"
+#include "bcos-cpp-sdk/event/EventSubRequest.h"
 
 #include <json/json.h>
 #include <exception>

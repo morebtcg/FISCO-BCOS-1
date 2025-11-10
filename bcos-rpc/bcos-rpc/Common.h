@@ -19,7 +19,7 @@
  */
 #pragma once
 #include "bcos-utilities/Common.h"
-#include <bcos-framework/Common.h>
+#include "bcos-framework/Common.h"
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/device/back_inserter.hpp>
 #include <boost/iostreams/filtering_stream.hpp>

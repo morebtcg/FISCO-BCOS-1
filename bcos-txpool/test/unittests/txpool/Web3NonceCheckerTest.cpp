@@ -20,7 +20,7 @@
 
 #include "bcos-utilities/Common.h"
 #include "test/unittests/txpool/TxPoolFixture.h"
-#include <bcos-txpool/txpool/validator/Web3NonceChecker.h>
+#include "bcos-txpool/txpool/validator/Web3NonceChecker.h"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/test/unit_test.hpp>
 #include <memory>

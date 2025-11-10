@@ -23,7 +23,7 @@
 #include "../../ledger/LedgerInterface.h"
 #include "../../protocol/Block.h"
 #include "FakeBlock.h"
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-utilities/ThreadPool.h"
 
 #include <map>
 #include <string>

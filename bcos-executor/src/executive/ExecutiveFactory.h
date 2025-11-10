@@ -23,7 +23,7 @@
 
 #include "../executor/TransactionExecutor.h"
 // #include "PromiseTransactionExecutive.h"
-#include <bcos-framework/protocol/GlobalConfig.h>
+#include "bcos-framework/protocol/GlobalConfig.h"
 #include <tbb/concurrent_unordered_map.h>
 #include <boost/algorithm/string.hpp>
 #include <atomic>

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <bcos-gateway/libnetwork/Message.h>
+#include "bcos-gateway/libnetwork/Message.h"
 
 namespace bcos::gateway
 {

@@ -3,7 +3,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include "RpcInitializer.h"
-#include <bcos-tars-protocol/tars/RpcService.h>
+#include "bcos-tars-protocol/tars/RpcService.h"
 namespace bcostars
 {
 struct RpcServiceParam

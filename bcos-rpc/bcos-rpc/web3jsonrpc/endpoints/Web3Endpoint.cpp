@@ -20,8 +20,8 @@
 
 #include "Web3Endpoint.h"
 #include "include/BuildInfo.h"
-#include <bcos-crypto/hash/Keccak256.h>
-#include <bcos-rpc/web3jsonrpc/utils/util.h>
+#include "bcos-crypto/hash/Keccak256.h"
+#include "bcos-rpc/web3jsonrpc/utils/util.h"
 using namespace bcos::rpc;
 bcos::task::Task<void> Web3Endpoint::clientVersion(
     const Json::Value& request, Json::Value& response)

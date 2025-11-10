@@ -21,7 +21,7 @@
 #pragma once
 
 #include "bcos-framework/protocol/Protocol.h"
-#include <bcos-tars-protocol/protocol/TransactionReceiptImpl.h>
+#include "bcos-tars-protocol/protocol/TransactionReceiptImpl.h"
 #include <json/json.h>
 
 namespace bcostars

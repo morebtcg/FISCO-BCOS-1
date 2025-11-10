@@ -19,7 +19,7 @@
  * @date: 2021-04-9
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
 namespace bcos::protocol
 {
 using BlockNumber = int64_t;

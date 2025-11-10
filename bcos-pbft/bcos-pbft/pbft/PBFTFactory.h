@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "PBFTImpl.h"
-#include <bcos-framework/dispatcher/SchedulerInterface.h>
-#include <bcos-framework/storage/KVStorageHelper.h>
-#include <bcos-framework/sync/BlockSyncInterface.h>
+#include "bcos-framework/dispatcher/SchedulerInterface.h"
+#include "bcos-framework/storage/KVStorageHelper.h"
+#include "bcos-framework/sync/BlockSyncInterface.h"
 
 namespace bcos::consensus
 {

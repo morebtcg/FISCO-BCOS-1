@@ -18,8 +18,8 @@
  * @author: octopus
  * @date 2021-09-22
  */
-#include <bcos-cpp-sdk/event/EventSubRequest.h>
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-cpp-sdk/event/EventSubRequest.h"
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <boost/test/tools/old/interface.hpp>
 #include <boost/test/unit_test.hpp>
 #include <memory>

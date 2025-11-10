@@ -19,10 +19,10 @@
  */
 
 #include "CallValidator.h"
-#include <bcos-crypto/hash/Keccak256.h>
-#include <bcos-crypto/hash/SM3.h>
-#include <bcos-crypto/signature/fastsm2/FastSM2Crypto.h>
-#include <bcos-crypto/signature/secp256k1/Secp256k1Crypto.h>
+#include "bcos-crypto/hash/Keccak256.h"
+#include "bcos-crypto/hash/SM3.h"
+#include "bcos-crypto/signature/fastsm2/FastSM2Crypto.h"
+#include "bcos-crypto/signature/secp256k1/Secp256k1Crypto.h"
 using namespace bcos;
 std::pair<bool, bytes> bcos::rpc::CallValidator::verify(std::string_view _to,
     std::string_view _data, std::string_view _sign, group::NodeCryptoType _type)

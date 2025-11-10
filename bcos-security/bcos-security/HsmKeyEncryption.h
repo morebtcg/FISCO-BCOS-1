@@ -23,10 +23,10 @@
 
 #pragma once
 #include "Common.h"
-#include <bcos-crypto/encrypt/HsmSM4Crypto.h>
-#include <bcos-framework/security/KeyEncryptInterface.h>
-#include <bcos-tool/NodeConfig.h>
-#include <bcos-utilities/FileUtility.h>
+#include "bcos-crypto/encrypt/HsmSM4Crypto.h"
+#include "bcos-framework/security/KeyEncryptInterface.h"
+#include "bcos-tool/NodeConfig.h"
+#include "bcos-utilities/FileUtility.h"
 #include <memory>
 
 namespace bcos

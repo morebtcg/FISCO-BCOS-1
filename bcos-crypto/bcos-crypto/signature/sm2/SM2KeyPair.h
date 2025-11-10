@@ -19,8 +19,8 @@
  * @author yujiechen
  */
 #pragma once
-#include <bcos-crypto/interfaces/crypto/Signature.h>
-#include <bcos-crypto/signature/key/KeyPair.h>
+#include "bcos-crypto/interfaces/crypto/Signature.h"
+#include "bcos-crypto/signature/key/KeyPair.h"
 #include <wedpr-crypto/WedprCrypto.h>
 
 namespace bcos

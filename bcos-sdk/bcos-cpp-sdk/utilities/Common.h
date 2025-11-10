@@ -19,7 +19,7 @@
  */
 
 #pragma once
-#include <bcos-cpp-sdk/utilities/logger/LogInitializer.h>
+#include "bcos-cpp-sdk/utilities/logger/LogInitializer.h"
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/trim.hpp>
 

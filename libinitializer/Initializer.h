@@ -27,9 +27,9 @@
 #include "bcos-tool/NodeConfig.h"
 #include "libinitializer/MultiVersionScheduler.h"
 #include "tools/archive-tool/ArchiveService.h"
-#include <bcos-executor/src/executor/SwitchExecutorManager.h>
-#include <bcos-scheduler/src/SchedulerManager.h>
-#include <bcos-utilities/BoostLogInitializer.h>
+#include "bcos-executor/src/executor/SwitchExecutorManager.h"
+#include "bcos-scheduler/src/SchedulerManager.h"
+#include "bcos-utilities/BoostLogInitializer.h"
 #include <memory>
 #ifdef WITH_LIGHTNODE
 #include "LightNodeInitializer.h"

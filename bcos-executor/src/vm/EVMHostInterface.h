@@ -25,7 +25,7 @@
 #include "bcos-framework/protocol/BlockHeader.h"
 #include "evmc/evmc.h"
 #include "evmc/instructions.h"
-#include <bcos-framework/protocol/LogEntry.h>
+#include "bcos-framework/protocol/LogEntry.h"
 #include <boost/optional.hpp>
 #include <functional>
 #include <set>

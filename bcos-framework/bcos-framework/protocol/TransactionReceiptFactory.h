@@ -22,7 +22,7 @@
 #include "Protocol.h"
 #include "TransactionReceipt.h"
 #include "bcos-utilities/Common.h"
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
 
 namespace bcos::protocol
 {

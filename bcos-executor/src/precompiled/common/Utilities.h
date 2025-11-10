@@ -28,7 +28,7 @@
 #include "bcos-framework/executor/PrecompiledTypeDef.h"
 #include "bcos-framework/storage/Table.h"
 #include "bcos-tool/BfsFileFactory.h"
-#include <bcos-utilities/Common.h>
+#include "bcos-utilities/Common.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/string.hpp>

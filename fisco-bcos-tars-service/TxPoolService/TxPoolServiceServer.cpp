@@ -4,7 +4,7 @@
 #include "bcos-tars-protocol/protocol/BlockImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionMetaDataImpl.h"
-#include <bcos-task/Wait.h>
+#include "bcos-task/Wait.h"
 using namespace bcostars;
 
 bcostars::Error TxPoolServiceServer::submit(const bcostars::Transaction& tx,

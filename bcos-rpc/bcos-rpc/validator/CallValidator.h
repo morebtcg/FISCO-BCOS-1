@@ -19,9 +19,9 @@
  */
 
 #pragma once
-#include <bcos-crypto/interfaces/crypto/CryptoSuite.h>
-#include <bcos-framework/multigroup/ChainNodeInfo.h>
-#include <bcos-protocol/TransactionStatus.h>
+#include "bcos-crypto/interfaces/crypto/CryptoSuite.h"
+#include "bcos-framework/multigroup/ChainNodeInfo.h"
+#include "bcos-protocol/TransactionStatus.h"
 namespace bcos::rpc
 {
 class CallValidator

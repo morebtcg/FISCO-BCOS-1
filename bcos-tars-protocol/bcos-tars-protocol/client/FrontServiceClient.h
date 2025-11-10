@@ -1,11 +1,11 @@
 #pragma once
 
 #include "bcos-tars-protocol/tars/FrontService.h"
-#include <bcos-crypto/interfaces/crypto/KeyFactory.h>
-#include <bcos-framework/front/FrontServiceInterface.h>
-#include <bcos-tars-protocol/protocol/GroupNodeInfoImpl.h>
-#include <bcos-utilities/Common.h>
-#include <bcos-utilities/RefDataContainer.h>
+#include "bcos-crypto/interfaces/crypto/KeyFactory.h"
+#include "bcos-framework/front/FrontServiceInterface.h"
+#include "bcos-tars-protocol/protocol/GroupNodeInfoImpl.h"
+#include "bcos-utilities/Common.h"
+#include "bcos-utilities/RefDataContainer.h"
 
 namespace bcostars
 {

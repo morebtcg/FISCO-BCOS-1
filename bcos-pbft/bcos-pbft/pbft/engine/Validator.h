@@ -22,9 +22,9 @@
 #include "../interfaces/PBFTMessageFactory.h"
 #include "../interfaces/PBFTProposalInterface.h"
 #include "bcos-framework/txpool/TxPoolInterface.h"
-#include <bcos-framework/protocol/BlockFactory.h>
-#include <bcos-framework/protocol/TransactionSubmitResultFactory.h>
-#include <bcos-utilities/ThreadPool.h>
+#include "bcos-framework/protocol/BlockFactory.h"
+#include "bcos-framework/protocol/TransactionSubmitResultFactory.h"
+#include "bcos-utilities/ThreadPool.h"
 #include <utility>
 
 namespace bcos::consensus

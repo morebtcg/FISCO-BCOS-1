@@ -26,8 +26,8 @@
 #ifdef _WIN32
 #include <tup/Tars.h>
 #endif
-#include <bcos-framework/protocol/ProtocolInfoCodec.h>
-#include <bcos-tars-protocol/tars/ProtocolInfo.h>
+#include "bcos-framework/protocol/ProtocolInfoCodec.h"
+#include "bcos-tars-protocol/tars/ProtocolInfo.h"
 
 namespace bcostars::protocol
 {

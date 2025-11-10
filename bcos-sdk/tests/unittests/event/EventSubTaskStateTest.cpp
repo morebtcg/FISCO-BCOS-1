@@ -18,8 +18,8 @@
  * @author: octopus
  * @date 2021-09-22
  */
-#include <bcos-cpp-sdk/event/EventSubTask.h>
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-cpp-sdk/event/EventSubTask.h"
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos;

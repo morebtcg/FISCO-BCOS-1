@@ -19,8 +19,8 @@
  * @date 2025-07-29
  */
 
-#include <bcos-boostssl/httpserver/HttpSession.h>
-#include <bcos-rpc/RpcFactory.h>
+#include "bcos-boostssl/httpserver/HttpSession.h"
+#include "bcos-rpc/RpcFactory.h"
 #include <sstream>
 
 #include <boost/test/unit_test.hpp>

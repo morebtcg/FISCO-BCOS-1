@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bcos-executor/src/executor/TransactionExecutorFactory.h>
+#include "bcos-executor/src/executor/TransactionExecutorFactory.h"
 
 namespace bcos::initializer
 {

@@ -22,7 +22,7 @@
 #include "bcos-sync/interfaces/BlockSyncMsgInterface.h"
 #include "bcos-sync/protocol/proto/BlockSync.pb.h"
 #include "bcos-sync/utilities/Common.h"
-#include <bcos-protocol/Common.h>
+#include "bcos-protocol/Common.h"
 namespace bcos::sync
 {
 class BlockSyncMsgImpl : virtual public BlockSyncMsgInterface

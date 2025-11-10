@@ -20,9 +20,9 @@
  */
 #pragma once
 #include "bcos-framework/consensus/ConsensusNode.h"
-#include <bcos-crypto/interfaces/crypto/KeyInterface.h>
-#include <bcos-framework/protocol/ProtocolTypeDef.h>
-#include <bcos-utilities/Log.h>
+#include "bcos-crypto/interfaces/crypto/KeyInterface.h"
+#include "bcos-framework/protocol/ProtocolTypeDef.h"
+#include "bcos-utilities/Log.h"
 #include <mutex>
 namespace bcos::sync
 {

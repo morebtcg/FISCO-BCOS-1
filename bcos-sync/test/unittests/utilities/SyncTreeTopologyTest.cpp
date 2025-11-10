@@ -17,10 +17,10 @@
  * @author: yujiechen
  * @date: 2023-3-27
  */
-#include <bcos-crypto/interfaces/crypto/CommonType.h>
-#include <bcos-crypto/signature/sm2/SM2KeyPairFactory.h>
-#include <bcos-sync/utilities/SyncTreeTopology.h>
-#include <bcos-utilities/testutils/TestPromptFixture.h>
+#include "bcos-crypto/interfaces/crypto/CommonType.h"
+#include "bcos-crypto/signature/sm2/SM2KeyPairFactory.h"
+#include "bcos-sync/utilities/SyncTreeTopology.h"
+#include "bcos-utilities/testutils/TestPromptFixture.h"
 #include <boost/test/unit_test.hpp>
 
 using namespace bcos::sync;

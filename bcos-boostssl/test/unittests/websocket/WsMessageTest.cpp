@@ -19,7 +19,7 @@
  * @date 2021-07-12
  */
 
-#include <bcos-boostssl/websocket/WsMessage.h>
+#include "bcos-boostssl/websocket/WsMessage.h"
 
 #include <boost/test/unit_test.hpp>
 

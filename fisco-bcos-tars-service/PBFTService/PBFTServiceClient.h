@@ -22,10 +22,10 @@
 #pragma once
 
 #include "bcos-framework/sealer/SealerInterface.h"
-#include <bcos-framework/consensus/ConsensusInterface.h>
-#include <bcos-framework/sync/BlockSyncInterface.h>
-#include <bcos-tars-protocol/ErrorConverter.h>
-#include <bcos-tars-protocol/tars/PBFTService.h>
+#include "bcos-framework/consensus/ConsensusInterface.h"
+#include "bcos-framework/sync/BlockSyncInterface.h"
+#include "bcos-tars-protocol/ErrorConverter.h"
+#include "bcos-tars-protocol/tars/PBFTService.h"
 
 namespace bcostars
 {

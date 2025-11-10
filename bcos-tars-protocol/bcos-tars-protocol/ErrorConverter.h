@@ -23,8 +23,8 @@
 #ifdef _WIN32
 #include <tup/Tars.h>
 #endif
-#include <bcos-tars-protocol/tars/CommonProtocol.h>
-#include <bcos-utilities/Error.h>
+#include "bcos-tars-protocol/tars/CommonProtocol.h"
+#include "bcos-utilities/Error.h"
 
 namespace bcostars
 {

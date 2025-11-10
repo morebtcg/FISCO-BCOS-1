@@ -21,8 +21,8 @@
 #pragma once
 
 #include "bcos-tars-protocol/tars/GatewayService.h"
-#include <bcos-crypto/interfaces/crypto/KeyFactory.h>
-#include <bcos-framework/gateway/GatewayInterface.h>
+#include "bcos-crypto/interfaces/crypto/KeyFactory.h"
+#include "bcos-framework/gateway/GatewayInterface.h"
 #include <string>
 
 #define GATEWAYCLIENT_LOG(LEVEL) BCOS_LOG(LEVEL) << "[GATEWAYCLIENT][INITIALIZER]"

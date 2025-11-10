@@ -1,8 +1,8 @@
 #pragma once
 #include "bcos-tars-protocol/bcos-tars-protocol/impl/TarsServantProxyCallback.h"
 #include "bcos-utilities/BoostLog.h"
-#include <bcos-framework/Common.h>
-#include <bcos-framework/protocol/ServiceDesc.h>
+#include "bcos-framework/Common.h"
+#include "bcos-framework/protocol/ServiceDesc.h"
 #include <servant/Application.h>
 #include <servant/Communicator.h>
 #include <util/tc_clientsocket.h>
