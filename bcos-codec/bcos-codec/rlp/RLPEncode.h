@@ -23,7 +23,7 @@
 #include "Common.h"
 #include <bcos-utilities/Common.h>
 #include <bcos-utilities/DataConvertUtility.h>
-#include <concepts/bcos-concepts/Basic.h>
+#include <bcos-concepts/Basic.h>
 #include <vector>
 
 // THANKS TO: RLP implement based on silkworm: https://github.com/erigontech/silkworm.git

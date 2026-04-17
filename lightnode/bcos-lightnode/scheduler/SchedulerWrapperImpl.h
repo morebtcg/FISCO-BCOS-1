@@ -1,6 +1,5 @@
 #pragma once
 
-#include <bcos-concepts/scheduler/Scheduler.h>
 #include <bcos-tars-protocol/protocol/TransactionImpl.h>
 #include <bcos-tars-protocol/protocol/TransactionReceiptImpl.h>
 #include <bcos-task/Task.h>
@@ -11,19 +10,13 @@ namespace bcos::scheduler
 {
 template <class SchedulerType>
 class SchedulerWrapperImpl
-  : public bcos::concepts::scheduler::SchedulerBase<SchedulerWrapperImpl<SchedulerType>>
 {
-    friend bcos::concepts::scheduler::SchedulerBase<SchedulerWrapperImpl<SchedulerType>>;
-
 public:
     SchedulerWrapperImpl(SchedulerType scheduler, bcos::crypto::CryptoSuite::Ptr cryptoSuite)
       : m_scheduler(std::move(scheduler)), m_cryptoSuite(std::move(cryptoSuite))
     {}
 
-private:
-    auto& scheduler() { return bcos::concepts::getRef(m_scheduler); }
-
-    task::Task<void> impl_call(bcos::concepts::transaction::Transaction auto const& transaction,
+    task::Task<void> call(bcos::concepts::transaction::Transaction auto const& transaction,
         bcos::concepts::receipt::TransactionReceipt auto& receipt)
     {
         auto transactionImpl = std::make_shared<bcostars::protocol::TransactionImpl>(
@@ -77,6 +70,8 @@ private:
         co_return;
     }
 
+private:
+    auto& scheduler() { return bcos::concepts::getRef(m_scheduler); }
 
     SchedulerType m_scheduler;
     bcos::crypto::CryptoSuite::Ptr m_cryptoSuite;

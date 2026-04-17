@@ -5,7 +5,6 @@
 #include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionReceiptImpl.h"
 #include "bcos-tars-protocol/tars/TransactionReceipt.h"
-#include <bcos-concepts/transaction-pool/TransactionPool.h>
 #include <bcos-framework/protocol/TransactionSubmitResult.h>
 #include <bcos-task/Task.h>
 #include <bcos-task/Wait.h>
@@ -18,21 +17,15 @@ namespace bcos::transaction_pool
 {
 
 template <class TransactionPoolType>
-class TransactionPoolImpl : public bcos::concepts::transacton_pool::TransactionPoolBase<
-                                TransactionPoolImpl<TransactionPoolType>>
+class TransactionPoolImpl
 {
-    friend bcos::concepts::transacton_pool::TransactionPoolBase<
-        TransactionPoolImpl<TransactionPoolType>>;
-
 public:
     TransactionPoolImpl(
         bcos::crypto::CryptoSuite::Ptr cryptoSuite, TransactionPoolType transactionPool)
       : m_cryptoSuite(std::move(cryptoSuite)), m_transactionPool(std::move(transactionPool))
     {}
 
-private:
-    task::Task<void> impl_submitTransaction(
-        bcos::concepts::transaction::Transaction auto transaction,
+    task::Task<void> submitTransaction(bcos::concepts::transaction::Transaction auto transaction,
         bcos::concepts::receipt::TransactionReceipt auto& receipt)
     {
         TRANSACTIONPOOL_LOG(INFO) << "Submit transaction request";
@@ -54,6 +47,7 @@ private:
         TRANSACTIONPOOL_LOG(INFO) << "Submit transaction successed";
     }
 
+private:
     bcos::crypto::CryptoSuite::Ptr m_cryptoSuite;
     TransactionPoolType m_transactionPool;
 };

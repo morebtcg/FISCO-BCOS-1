@@ -31,6 +31,7 @@
 #include "libinitializer/CommandHelper.h"
 #include <bcos-framework/protocol/ProtocolTypeDef.h>
 #include <bcos-ledger/Ledger.h>
+#include <bcos-ledger/LedgerImpl.h>
 #include <bcos-storage/StorageWrapperImpl.h>
 #include <bcos-tars-protocol/impl/TarsHashable.h>
 #include <bcos-tars-protocol/tars/Block.h>
@@ -66,8 +67,8 @@ static auto newStorage(const std::string& path)
         std::unique_ptr<rocksdb::DB>(rocksdb), nullptr);
 }
 
-static auto startSyncerThread(bcos::concepts::ledger::Ledger auto fromLedger,
-    bcos::concepts::ledger::Ledger auto toLedger,
+template <class FromLedger, class ToLedger>
+static auto startSyncerThread(FromLedger fromLedger, ToLedger toLedger,
     std::shared_ptr<bcos::boostssl::ws::WsService> wsService, std::string groupID,
     std::string nodeName, std::shared_ptr<std::atomic_bool> stopToken)
 {
@@ -80,12 +81,38 @@ static auto startSyncerThread(bcos::concepts::ledger::Ledger auto fromLedger,
         {
             try
             {
-                auto& ledger = bcos::concepts::getRef(toLedger);
+                auto& localLedger = bcos::concepts::getRef(toLedger);
+                auto& remoteLedger = bcos::concepts::getRef(fromLedger);
 
-                auto syncedBlock = bcos::task::syncWait(ledger
-                        .template sync<std::remove_cvref_t<decltype(fromLedger)>, bcostars::Block>(
-                            fromLedger, true));
-                auto currentStatus = bcos::task::syncWait(ledger.getStatus());
+                auto currentStatus = bcos::task::syncWait(localLedger.getStatus());
+                auto allPeersStatus = bcos::task::syncWait(remoteLedger.getAllPeersStatus());
+                bcos::protocol::BlockNumber remoteMaxBlockNumber = currentStatus.blockNumber;
+                for (auto const& [nodeID, blockNumber] : allPeersStatus)
+                {
+                    if (blockNumber > remoteMaxBlockNumber)
+                    {
+                        remoteMaxBlockNumber = blockNumber;
+                    }
+                }
+
+                size_t syncedBlock = 0;
+                if (remoteMaxBlockNumber > currentStatus.blockNumber)
+                {
+                    bcostars::Block headerBlock;
+                    auto nextBlockNumber = currentStatus.blockNumber + 1;
+                    bcos::task::syncWait(
+                        remoteLedger.getBlock(nextBlockNumber, headerBlock, true));
+
+                    if (!RANGES::empty(headerBlock.blockHeader.data.parentInfo) ||
+                        nextBlockNumber == 0)
+                    {
+                        bcos::task::syncWait(
+                            localLedger.template setBlock<bcos::ledger::BlockDataHeader>(
+                                std::move(headerBlock)));
+                        syncedBlock = 1;
+                        currentStatus = bcos::task::syncWait(localLedger.getStatus());
+                    }
+                }
 
                 if (syncedBlock > 0)
                 {

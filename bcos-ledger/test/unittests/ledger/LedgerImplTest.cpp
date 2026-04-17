@@ -1,8 +1,6 @@
 #include "bcos-ledger/LedgerImpl.h"
 #include <bcos-concepts/ByteBuffer.h>
 #include <bcos-concepts/Serialize.h>
-#include <bcos-concepts/ledger/Ledger.h>
-#include <bcos-concepts/storage/Storage.h>
 #include <bcos-crypto/hasher/OpenSSLHasher.h>
 #include <bcos-framework/ledger/LedgerTypeDef.h>
 #include <bcos-framework/storage/Entry.h>
@@ -56,13 +54,13 @@ ostream& operator<<(ostream& os, bcos::storage::Entry const&)
 }
 }  // namespace std
 
-struct MockMemoryStorage : bcos::concepts::storage::StorageBase<MockMemoryStorage>
+struct MockMemoryStorage
 {
     MockMemoryStorage(
         std::map<std::tuple<std::string, std::string>, bcos::storage::Entry, std::less<>>& data1)
-      : bcos::concepts::storage::StorageBase<MockMemoryStorage>(), data(data1){};
+            : data(data1){};
 
-    std::optional<bcos::storage::Entry> impl_getRow(std::string_view table, std::string_view key)
+        std::optional<bcos::storage::Entry> getRow(std::string_view table, std::string_view key)
     {
         auto entryIt = data.find(std::tuple{table, key});
         if (entryIt != data.end())
@@ -72,7 +70,7 @@ struct MockMemoryStorage : bcos::concepts::storage::StorageBase<MockMemoryStorag
         return {};
     }
 
-    std::vector<std::optional<bcos::storage::Entry>> impl_getRows(
+    std::vector<std::optional<bcos::storage::Entry>> getRows(
         std::string_view table, RANGES::range auto const& keys)
     {
         std::vector<std::optional<bcos::storage::Entry>> output;
@@ -84,7 +82,7 @@ struct MockMemoryStorage : bcos::concepts::storage::StorageBase<MockMemoryStorag
         return output;
     }
 
-    void impl_setRow(std::string_view table, std::string_view key, bcos::storage::Entry entry)
+    void setRow(std::string_view table, std::string_view key, bcos::storage::Entry entry)
     {
         auto it = data.find(std::tuple{table, key});
         if (it != data.end())
@@ -97,7 +95,7 @@ struct MockMemoryStorage : bcos::concepts::storage::StorageBase<MockMemoryStorag
         }
     }
 
-    void impl_createTable([[maybe_unused]] std::string_view tableName) {}
+    void createTable([[maybe_unused]] std::string_view tableName) {}
 
     std::map<std::tuple<std::string, std::string>, bcos::storage::Entry, std::less<>>& data;
 };
@@ -183,8 +181,8 @@ BOOST_AUTO_TEST_CASE(getBlock)
     bcostars::Block block;
     bcos::task::syncWait(
         ledger
-            .getBlock<bcos::concepts::ledger::HEADER, bcos::concepts::ledger::TRANSACTIONS_METADATA,
-                bcos::concepts::ledger::TRANSACTIONS, bcos::concepts::ledger::RECEIPTS>(
+            .getBlock<bcos::ledger::BlockDataHeader, bcos::ledger::BlockDataTransactionsMeta,
+                bcos::ledger::BlockDataTransactions, bcos::ledger::BlockDataReceipts>(
                 10086, block));
     BOOST_CHECK_EQUAL(block.blockHeader.data.blockNumber, 10086);
     BOOST_CHECK_EQUAL(block.blockHeader.data.gasUsed, "1000");
@@ -204,7 +202,7 @@ BOOST_AUTO_TEST_CASE(getBlock)
     }
 
     bcostars::Block block2;
-    bcos::task::syncWait(ledger.getBlock<bcos::concepts::ledger::ALL>(10086, block2));
+    bcos::task::syncWait(ledger.getBlock<bcos::ledger::BlockDataAll>(10086, block2));
     BOOST_CHECK_EQUAL(block2.blockHeader.data.blockNumber, 10086);
     BOOST_CHECK_EQUAL(block2.blockHeader.data.gasUsed, "1000");
     BOOST_CHECK_EQUAL(block2.blockHeader.data.timestamp, 5000);
@@ -224,10 +222,10 @@ BOOST_AUTO_TEST_CASE(getBlock)
 
     bcostars::Block block3;
     BOOST_CHECK_THROW(
-        bcos::task::syncWait(ledger.getBlock<bcos::concepts::ledger::HEADER>(10087, block3)),
+        bcos::task::syncWait(ledger.getBlock<bcos::ledger::BlockDataHeader>(10087, block3)),
         bcos::ledger::NotFoundBlockHeader);
     BOOST_CHECK_THROW(
-        bcos::task::syncWait(ledger.getBlock<bcos::concepts::ledger::ALL>(10087, block3)),
+        bcos::task::syncWait(ledger.getBlock<bcos::ledger::BlockDataAll>(10087, block3)),
         bcos::ledger::GetBlockDataError);
 }
 

@@ -6,8 +6,7 @@
 #include <bcos-concepts/Basic.h>
 #include <bcos-concepts/ByteBuffer.h>
 #include <bcos-concepts/Hash.h>
-#include <bcos-concepts/ledger/Ledger.h>
-#include <bcos-concepts/storage/Storage.h>
+#include <bcos-concepts/protocol/Block.h>
 #include <bcos-crypto/hasher/Hasher.h>
 #include <bcos-crypto/merkle/Merkle.h>
 #include <bcos-executor/src/Common.h>
@@ -34,12 +33,38 @@ DERIVE_BCOS_EXCEPTION(NotFoundBlockHeader);
 DERIVE_BCOS_EXCEPTION(GetABIError);
 DERIVE_BCOS_EXCEPTION(GetBlockDataError);
 
-template <bcos::crypto::hasher::Hasher Hasher, bcos::concepts::storage::Storage Storage>
-class LedgerImpl : public bcos::concepts::ledger::LedgerBase<LedgerImpl<Hasher, Storage>>,
-                   public Ledger
+struct LedgerStatus
 {
-    friend bcos::concepts::ledger::LedgerBase<LedgerImpl<Hasher, Storage>>;
+    int64_t total = 0;
+    int64_t failed = 0;
+    int64_t blockNumber = 0;
+};
 
+struct BlockDataFlagBase
+{
+};
+struct BlockDataAll : BlockDataFlagBase
+{
+};
+struct BlockDataHeader : BlockDataFlagBase
+{
+};
+struct BlockDataTransactionsMeta : BlockDataFlagBase
+{
+};
+struct BlockDataTransactions : BlockDataFlagBase
+{
+};
+struct BlockDataReceipts : BlockDataFlagBase
+{
+};
+struct BlockDataNonces : BlockDataFlagBase
+{
+};
+
+template <bcos::crypto::hasher::Hasher Hasher, class Storage>
+class LedgerImpl : public Ledger
+{
 public:
     LedgerImpl(Hasher hasher, Storage storage, bcos::protocol::BlockFactory::Ptr blockFactory,
         bcos::storage::StorageInterface::Ptr storageInterface, size_t blockLimit,
@@ -89,8 +114,8 @@ public:
         return requestNodeIDList;
     }
 
-private:
-    template <bcos::concepts::ledger::DataFlag... Flags>
+public:
+    template <class... Flags>
     task::Task<void> impl_getBlock(bcos::concepts::block::BlockNumber auto blockNumber,
         bcos::concepts::block::Block auto& block)
     {
@@ -99,7 +124,15 @@ private:
         auto blockNumberStr = boost::lexical_cast<std::string>(blockNumber);
         (co_await getBlockData<Flags>(blockNumberStr, block), ...);
     }
-    template <bcos::concepts::ledger::DataFlag... Flags>
+
+    template <class... Flags>
+    task::Task<void> getBlock(bcos::concepts::block::BlockNumber auto blockNumber,
+        bcos::concepts::block::Block auto& block)
+    {
+        co_await impl_getBlock<Flags...>(blockNumber, block);
+    }
+
+    template <class... Flags>
     task::Task<void> impl_getBlockByNodeList(bcos::concepts::block::BlockNumber auto blockNumber,
         bcos::concepts::block::Block auto& block, bcos::crypto::NodeIDs const& nodeList)
     {
@@ -117,7 +150,14 @@ private:
         co_return;
     }
 
-    template <bcos::concepts::ledger::DataFlag... Flags>
+    template <class... Flags>
+    task::Task<void> getBlockByNodeList(bcos::concepts::block::BlockNumber auto blockNumber,
+        bcos::concepts::block::Block auto& block, bcos::crypto::NodeIDs const& nodeList)
+    {
+        co_await impl_getBlockByNodeList<Flags...>(blockNumber, block, nodeList);
+    }
+
+    template <class... Flags>
     task::Task<void> impl_setBlock(bcos::concepts::block::Block auto block)
     {
         LEDGER_LOG(INFO) << "setBlock: " << block.blockHeader.data.blockNumber;
@@ -125,6 +165,34 @@ private:
         auto blockNumberStr = boost::lexical_cast<std::string>(block.blockHeader.data.blockNumber);
         (co_await setBlockData<Flags>(blockNumberStr, block), ...);
         co_return;
+    }
+
+    template <class... Flags>
+    task::Task<void> setBlock(bcos::concepts::block::Block auto block)
+    {
+        co_await impl_setBlock<Flags...>(std::move(block));
+    }
+
+    task::Task<void> getBlockNumberByHash(
+        bcos::concepts::bytebuffer::ByteBuffer auto const& hash, std::integral auto& number)
+    {
+        co_await impl_getBlockNumberByHash(hash, number);
+    }
+
+    task::Task<void> getBlockHashByNumber(
+        std::integral auto number, bcos::concepts::bytebuffer::ByteBuffer auto& hash)
+    {
+        co_await impl_getBlockHashByNumber(number, hash);
+    }
+
+    task::Task<std::string> getABI(std::string contractAddress)
+    {
+        co_return co_await impl_getABI(std::move(contractAddress));
+    }
+
+    task::Task<void> getTransactions(RANGES::range auto const& hashes, RANGES::range auto& out)
+    {
+        co_await impl_getTransactions(hashes, out);
     }
 
     task::Task<void> impl_getBlockNumberByHash(
@@ -256,13 +324,13 @@ private:
         co_return;
     }
 
-    task::Task<bcos::concepts::ledger::Status> impl_getStatus()
+    task::Task<LedgerStatus> impl_getStatus()
     {
         LEDGER_LOG(TRACE) << "getStatus";
         constexpr static auto keys = std::to_array({SYS_KEY_TOTAL_TRANSACTION_COUNT,
             SYS_KEY_TOTAL_FAILED_TRANSACTION, SYS_KEY_CURRENT_NUMBER});
 
-        bcos::concepts::ledger::Status status;
+        LedgerStatus status;
         auto entries = storage().getRows(SYS_CURRENT_STATE, keys);
         for (auto i = 0U; i < RANGES::size(entries); ++i)
         {
@@ -298,6 +366,8 @@ private:
         co_return status;
     }
 
+    task::Task<LedgerStatus> getStatus() { co_return co_await impl_getStatus(); }
+
     task::Task<std::map<crypto::NodeIDPtr, bcos::protocol::BlockNumber>> impl_getAllPeersStatus()
     {
         std::map<crypto::NodeIDPtr, bcos::protocol::BlockNumber> allPeersStatus;
@@ -305,7 +375,12 @@ private:
         co_return allPeersStatus;
     }
 
-    template <bcos::concepts::ledger::Ledger LedgerType, bcos::concepts::block::Block BlockType>
+    task::Task<std::map<crypto::NodeIDPtr, bcos::protocol::BlockNumber>> getAllPeersStatus()
+    {
+        co_return co_await impl_getAllPeersStatus();
+    }
+
+    template <class LedgerType, bcos::concepts::block::Block BlockType>
     task::Task<size_t> impl_sync(LedgerType& source, bool onlyHeader)
     {
         auto& sourceLedger = bcos::concepts::getRef(source);
@@ -338,12 +413,12 @@ private:
             auto syncNodeList = filterSyncNodeList(allPeersStatus, blockNumber);
             if (onlyHeader)
             {
-                co_await sourceLedger.template getBlockByNodeList<bcos::concepts::ledger::HEADER>(
+                co_await sourceLedger.template getBlockByNodeList<BlockDataHeader>(
                     blockNumber, block, syncNodeList);
             }
             else
             {
-                co_await sourceLedger.template getBlockByNodeList<bcos::concepts::ledger::ALL>(
+                co_await sourceLedger.template getBlockByNodeList<BlockDataAll>(
                     blockNumber, block, syncNodeList);
             }
             // if getBlockByNodeList return empty block, break
@@ -358,18 +433,17 @@ private:
                 if (!parentBlock)
                 {
                     parentBlock = BlockType();
-                    co_await impl_getBlock<bcos::concepts::ledger::HEADER>(
-                        blockNumber - 1, *parentBlock);
+                    co_await impl_getBlock<BlockDataHeader>(blockNumber - 1, *parentBlock);
                 }
                 checkParentBlock(*parentBlock, block);
             }
             if (onlyHeader)
             {
-                co_await impl_setBlock<bcos::concepts::ledger::HEADER>(block);
+                co_await impl_setBlock<BlockDataHeader>(block);
             }
             else
             {
-                co_await impl_setBlock<bcos::concepts::ledger::ALL>(block);
+                co_await impl_setBlock<BlockDataAll>(block);
             }
             parentBlock = std::move(block);
             ++syncedBlock;
@@ -377,7 +451,13 @@ private:
         co_return syncedBlock;
     }
 
-    template <std::same_as<bcos::concepts::ledger::HEADER>>
+    template <class LedgerType, bcos::concepts::block::Block BlockType>
+    task::Task<size_t> sync(LedgerType& source, bool onlyHeader)
+    {
+        co_return co_await impl_sync<LedgerType, BlockType>(source, onlyHeader);
+    }
+
+    template <std::same_as<BlockDataHeader>>
     task::Task<void> getBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -396,7 +476,7 @@ private:
         co_return;
     }
 
-    template <std::same_as<concepts::ledger::TRANSACTIONS_METADATA>>
+    template <std::same_as<BlockDataTransactionsMeta>>
     task::Task<void> getBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -418,8 +498,8 @@ private:
     }
 
     template <class Type>
-        requires std::same_as<Type, concepts::ledger::TRANSACTIONS> ||
-                 std::same_as<Type, concepts::ledger::RECEIPTS>
+        requires std::same_as<Type, BlockDataTransactions> ||
+             std::same_as<Type, BlockDataReceipts>
     task::Task<void> getBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -438,7 +518,7 @@ private:
                     -> auto& { return metaData.hash; });
         auto outputSize = RANGES::size(block.transactionsMetaData);
 
-        if constexpr (std::is_same_v<Type, concepts::ledger::TRANSACTIONS>)
+        if constexpr (std::is_same_v<Type, BlockDataTransactions>)
         {
             bcos::concepts::resizeTo(block.transactions, outputSize);
             co_await impl_getTransactions(std::move(hashesRange), block.transactions);
@@ -450,7 +530,7 @@ private:
         }
     }
 
-    template <std::same_as<concepts::ledger::NONCES>>
+    template <std::same_as<BlockDataNonces>>
     task::Task<void> getBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -469,7 +549,7 @@ private:
         block.nonceList = std::move(nonceBlock.nonceList);
     }
 
-    template <std::same_as<concepts::ledger::ALL>>
+    template <std::same_as<BlockDataAll>>
     task::Task<void> getBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -477,11 +557,11 @@ private:
 
         try
         {
-            co_await getBlockData<concepts::ledger::HEADER>(blockNumberKey, block);
-            co_await getBlockData<concepts::ledger::TRANSACTIONS_METADATA>(blockNumberKey, block);
-            co_await getBlockData<concepts::ledger::TRANSACTIONS>(blockNumberKey, block);
-            co_await getBlockData<concepts::ledger::RECEIPTS>(blockNumberKey, block);
-            co_await getBlockData<concepts::ledger::NONCES>(blockNumberKey, block);
+            co_await getBlockData<BlockDataHeader>(blockNumberKey, block);
+            co_await getBlockData<BlockDataTransactionsMeta>(blockNumberKey, block);
+            co_await getBlockData<BlockDataTransactions>(blockNumberKey, block);
+            co_await getBlockData<BlockDataReceipts>(blockNumberKey, block);
+            co_await getBlockData<BlockDataNonces>(blockNumberKey, block);
         }
         catch (std::exception const& e)
         {
@@ -491,7 +571,7 @@ private:
         }
     }
 
-    template <std::same_as<bcos::concepts::ledger::HEADER>>
+    template <std::same_as<BlockDataHeader>>
     task::Task<void> setBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -524,7 +604,7 @@ private:
         co_return;
     }
 
-    template <std::same_as<concepts::ledger::NONCES>>
+    template <std::same_as<BlockDataNonces>>
     task::Task<void> setBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -541,7 +621,7 @@ private:
         co_return;
     }
 
-    template <std::same_as<concepts::ledger::TRANSACTIONS_METADATA>>
+    template <std::same_as<BlockDataTransactionsMeta>>
     task::Task<void> setBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
@@ -580,15 +660,15 @@ private:
         co_return;
     }
 
-    template <std::same_as<concepts::ledger::ALL>>
+    template <std::same_as<BlockDataAll>>
     task::Task<void> setBlockData(
         std::string_view blockNumberKey, bcos::concepts::block::Block auto& block)
     {
         LEDGER_LOG(DEBUG) << "setBlockData all: " << blockNumberKey;
 
-        co_await setBlockData<concepts::ledger::HEADER>(blockNumberKey, block);
-        co_await setBlockData<concepts::ledger::TRANSACTIONS_METADATA>(blockNumberKey, block);
-        co_await setBlockData<concepts::ledger::NONCES>(blockNumberKey, block);
+        co_await setBlockData<BlockDataHeader>(blockNumberKey, block);
+        co_await setBlockData<BlockDataTransactionsMeta>(blockNumberKey, block);
+        co_await setBlockData<BlockDataNonces>(blockNumberKey, block);
     }
 
     task::Task<void> impl_setupGenesisBlock(bcos::concepts::block::Block auto block)
@@ -597,7 +677,7 @@ private:
         {
             decltype(block) currentBlock;
 
-            co_await impl_getBlock<concepts::ledger::HEADER>(0, currentBlock);
+            co_await impl_getBlock<BlockDataHeader>(0, currentBlock);
             co_return;
         }
         catch (NotFoundBlockHeader& e)
@@ -605,7 +685,7 @@ private:
             LEDGER_LOG(INFO) << "Not found genesis block, may be not initialized";
         }
 
-        co_await impl_setBlock<concepts::ledger::HEADER>(std::move(block));
+        co_await impl_setBlock<BlockDataHeader>(std::move(block));
     }
 
     task::Task<void> impl_checkGenesisBlock(bcos::concepts::block::Block auto block)
@@ -614,7 +694,7 @@ private:
         {
             decltype(block) currentBlock;
 
-            co_await impl_getBlock<concepts::ledger::HEADER>(0, currentBlock);
+            co_await impl_getBlock<BlockDataHeader>(0, currentBlock);
             co_return;
         }
         catch (NotFoundBlockHeader& e)
@@ -624,6 +704,18 @@ private:
                 NotFoundBlockHeader{} << errinfo_comment{"Not found genesis block!"});
         }
     }
+
+    task::Task<void> setupGenesisBlock(bcos::concepts::block::Block auto block)
+    {
+        co_await impl_setupGenesisBlock(std::move(block));
+    }
+
+    task::Task<void> checkGenesisBlock(bcos::concepts::block::Block auto block)
+    {
+        co_await impl_checkGenesisBlock(std::move(block));
+    }
+
+private:
 
     auto& storage() { return bcos::concepts::getRef(m_storage); }
 

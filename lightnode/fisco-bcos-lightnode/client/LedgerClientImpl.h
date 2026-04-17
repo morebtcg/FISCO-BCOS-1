@@ -5,7 +5,8 @@
 #include "P2PClientImpl.h"
 #include <bcos-concepts/Basic.h>
 #include <bcos-concepts/Serialize.h>
-#include <bcos-concepts/ledger/Ledger.h>
+#include <bcos-framework/ledger/Ledger.h>
+#include <bcos-framework/ledger/LedgerTypeDef.h>
 #include <bcos-framework/protocol/Protocol.h>
 #include <bcos-gateway/Gateway.h>
 #include <bcos-lightnode/Log.h>
@@ -21,34 +22,21 @@
 namespace bcos::ledger
 {
 DERIVE_BCOS_EXCEPTION(GetBlockFailed);
-class LedgerClientImpl : public bcos::concepts::ledger::LedgerBase<LedgerClientImpl>
+class LedgerClientImpl
 {
-    friend bcos::concepts::ledger::LedgerBase<LedgerClientImpl>;
-
 public:
     LedgerClientImpl(std::shared_ptr<p2p::P2PClientImpl> p2p) : m_p2p(std::move(p2p)) {}
 
-private:
-    auto& p2p() { return bcos::concepts::getRef(m_p2p); }
+    static constexpr int32_t BLOCK_FLAG_HEADER = bcos::ledger::HEADER;
+    static constexpr int32_t BLOCK_FLAG_ALL = bcos::ledger::FULL_BLOCK;
 
-    template <bcos::concepts::ledger::DataFlag Flag>
-    void processGetBlockFlags(bool& onlyHeaderFlag)
-    {
-        if constexpr (std::is_same_v<Flag, bcos::concepts::ledger::HEADER>)
-        {
-            onlyHeaderFlag = true;
-        }
-    }
-
-    template <bcos::concepts::ledger::DataFlag... Flags>
-    task::Task<void> impl_getBlock(bcos::concepts::block::BlockNumber auto blockNumber,
-        bcos::concepts::block::Block auto& block)
+    task::Task<void> getBlock(
+        bcos::concepts::block::BlockNumber auto blockNumber, bcos::concepts::block::Block auto& block,
+        bool onlyHeader)
     {
         bcostars::RequestBlock request;
         request.blockNumber = blockNumber;
-        request.onlyHeader = false;
-
-        (processGetBlockFlags<Flags>(request.onlyHeader), ...);
+        request.onlyHeader = onlyHeader;
 
         bcostars::ResponseBlock response;
         bcos::crypto::NodeIDs nodeIDs;
@@ -62,7 +50,6 @@ private:
             response.block = {};
             std::swap(response.block, block);
         }
-        size_t failedNodeCount = 0;
         for (auto& nodeID : nodeIDs)
         {
             co_await p2p().sendMessageByNodeID(
@@ -90,24 +77,22 @@ private:
         std::swap(response.block, block);
     }
 
-    template <bcos::concepts::ledger::DataFlag... Flags>
-    task::Task<void> impl_getBlockByNodeList(bcos::concepts::block::BlockNumber auto blockNumber,
-        bcos::concepts::block::Block auto& block, crypto::NodeIDs const& nodeList)
+    task::Task<void> getBlockByNodeList(
+        bcos::concepts::block::BlockNumber auto blockNumber, bcos::concepts::block::Block auto& block,
+        crypto::NodeIDs const& nodeList, bool onlyHeader)
     {
         bcostars::RequestBlock request;
         bcostars::ResponseBlock response;
         request.blockNumber = blockNumber;
-        request.onlyHeader = false;
+        request.onlyHeader = onlyHeader;
 
-        (processGetBlockFlags<Flags>(request.onlyHeader), ...);
-        // if nodeList is empty, return
         if (nodeList.size() == 0)
         {
             response.block = {};
             std::swap(response.block, block);
             co_return;
         }
-        // random select nodeID from nodeList
+
         std::mt19937 rng;
         rng = std::mt19937(std::random_device{}());
         std::uniform_int_distribution<size_t> distribution{0U, nodeList.size() - 1};
@@ -132,7 +117,7 @@ private:
         std::swap(response.block, block);
     }
 
-    task::Task<void> impl_getTransactions(RANGES::range auto const& hashes, RANGES::range auto& out)
+    task::Task<void> getTransactions(RANGES::range auto const& hashes, RANGES::range auto& out)
     {
         using DataType = RANGES::range_value_t<std::remove_cvref_t<decltype(out)>>;
         using RequestType = std::conditional_t<bcos::concepts::transaction::Transaction<DataType>,
@@ -156,7 +141,9 @@ private:
         co_await p2p().sendMessageByNodeID(moduleID, std::move(nodeID), request, response);
 
         if (response.error.errorCode)
+        {
             BOOST_THROW_EXCEPTION(std::runtime_error(response.error.errorMessage));
+        }
 
         if constexpr (bcos::concepts::transaction::Transaction<DataType>)
         {
@@ -172,7 +159,7 @@ private:
         }
     }
 
-    task::Task<std::string> impl_getABI(std::string contractAddress)
+    task::Task<std::string> getABI(std::string contractAddress)
     {
         bcostars::RequestGetABI request;
         bcostars::ResponseGetABI response;
@@ -195,7 +182,7 @@ private:
         co_return abiStr;
     }
 
-    task::Task<bcos::concepts::ledger::Status> impl_getStatus()
+    task::Task<bcos::ledger::TransactionCount> getStatus()
     {
         bcostars::RequestGetStatus request;
         bcostars::ResponseGetStatus response;
@@ -212,7 +199,7 @@ private:
             BOOST_THROW_EXCEPTION(std::runtime_error(response.error.errorMessage));
         }
 
-        bcos::concepts::ledger::Status status;
+        bcos::ledger::TransactionCount status;
         status.total = response.total;
         status.failed = response.failed;
         status.blockNumber = response.blockNumber;
@@ -223,7 +210,7 @@ private:
         co_return status;
     }
 
-    task::Task<std::map<crypto::NodeIDPtr, bcos::protocol::BlockNumber>> impl_getAllPeersStatus()
+    task::Task<std::map<crypto::NodeIDPtr, bcos::protocol::BlockNumber>> getAllPeersStatus()
     {
         bcostars::RequestGetStatus request;
         bcostars::ResponseGetStatus response;
@@ -253,7 +240,8 @@ private:
         co_return allPeersStatus;
     }
 
-
+private:
+    auto& p2p() { return bcos::concepts::getRef(m_p2p); }
     std::shared_ptr<p2p::P2PClientImpl> m_p2p;
 };
 }  // namespace bcos::ledger

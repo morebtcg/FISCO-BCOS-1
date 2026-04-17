@@ -1,7 +1,6 @@
 #pragma once
 
 #include <bcos-concepts/Basic.h>
-#include <bcos-concepts/storage/Storage.h>
 #include <bcos-framework/storage/Entry.h>
 #include <boost/throw_exception.hpp>
 
@@ -9,7 +8,7 @@ namespace bcos::storage
 {
 
 template <class StorageType>
-class StorageImpl : public bcos::concepts::storage::StorageBase<StorageImpl<StorageType>>
+class StorageImpl
 {
 public:
     StorageImpl(StorageType storage) : m_storage(std::move(storage)) {}
@@ -19,7 +18,7 @@ public:
     StorageImpl& operator=(StorageImpl&&) noexcept = default;
     ~StorageImpl() = default;
 
-    std::optional<Entry> impl_getRow(std::string_view table, std::string_view key)
+    std::optional<Entry> getRow(std::string_view table, std::string_view key)
     {
         Error::UniquePtr error;
         std::optional<storage::Entry> entry;
@@ -38,7 +37,7 @@ public:
         return entry;
     }
 
-    std::vector<std::optional<Entry>> impl_getRows(
+    std::vector<std::optional<Entry>> getRows(
         std::string_view table, RANGES::range auto const& keys)
     {
         Error::UniquePtr error;
@@ -67,7 +66,7 @@ public:
         return entries;
     }
 
-    void impl_setRow(std::string_view table, std::string_view key, Entry entry)
+    void setRow(std::string_view table, std::string_view key, Entry entry)
     {
         Error::UniquePtr error;
 
@@ -80,7 +79,7 @@ public:
         }
     }
 
-    void impl_createTable(std::string tableName)
+    void createTable(std::string tableName)
     {
         Error::UniquePtr error;
 
@@ -99,6 +98,4 @@ private:
 
     StorageType m_storage;
 };
-
-static_assert(bcos::concepts::storage::Storage<StorageImpl<int>>, "fail!");
 }  // namespace bcos::storage

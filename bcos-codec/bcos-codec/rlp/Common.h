@@ -21,7 +21,7 @@
 #pragma once
 #include <bcos-utilities/Common.h>
 #include <bcos-utilities/FixedBytes.h>
-#include <concepts/bcos-concepts/Basic.h>
+#include <bcos-concepts/Basic.h>
 #include <utility>
 #include <vector>
 

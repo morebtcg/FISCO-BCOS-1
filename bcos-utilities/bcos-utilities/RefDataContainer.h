@@ -18,7 +18,7 @@
  *  @date 2021-02-24
  */
 #pragma once
-#include <concepts/bcos-concepts/Basic.h>
+#include <bcos-concepts/Basic.h>
 #include <atomic>
 #include <cassert>
 #include <cstring>

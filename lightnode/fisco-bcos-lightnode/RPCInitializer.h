@@ -28,10 +28,7 @@ namespace bcos::lightnode
 
 static auto initRPC(bcos::tool::NodeConfig::Ptr nodeConfig, std::string nodeID,
     bcos::gateway::Gateway::Ptr gateway, bcos::crypto::KeyFactory::Ptr keyFactory,
-    bcos::concepts::ledger::Ledger auto localLedger,
-    bcos::concepts::ledger::Ledger auto remoteLedger,
-    bcos::concepts::transacton_pool::TransactionPool auto transactionPool,
-    bcos::concepts::scheduler::Scheduler auto scheduler)
+    auto localLedger, auto remoteLedger, auto transactionPool, auto scheduler)
 {
     bcos::rpc::RpcFactory rpcFactory(nodeConfig->chainId(), gateway, keyFactory, nullptr);
     bcos::rpc::JsonRpcInterface::Ptr jsonrpc;

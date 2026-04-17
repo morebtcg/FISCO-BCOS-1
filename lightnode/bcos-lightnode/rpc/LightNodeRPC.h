@@ -9,9 +9,6 @@
 #include "bcos-tars-protocol/tars/TransactionMetaData.h"
 #include "bcos-tars-protocol/tars/TransactionReceipt.h"
 #include "bcos-utilities/DataConvertUtility.h"
-#include <bcos-concepts/ledger/Ledger.h>
-#include <bcos-concepts/scheduler/Scheduler.h>
-#include <bcos-concepts/transaction-pool/TransactionPool.h>
 #include <bcos-crypto/hasher/Hasher.h>
 #include <bcos-crypto/merkle/Merkle.h>
 #include <bcos-rpc/jsonrpc/JsonRpcInterface.h>
@@ -33,10 +30,8 @@ namespace bcos::rpc
 DERIVE_BCOS_EXCEPTION(NotFoundTransactionHash);
 DERIVE_BCOS_EXCEPTION(CheckMerkleRootFailed);
 
-template <bcos::concepts::ledger::Ledger LocalLedgerType,
-    bcos::concepts::ledger::Ledger RemoteLedgerType,
-    bcos::concepts::transacton_pool::TransactionPool TransactionPoolType,
-    bcos::concepts::scheduler::Scheduler SchedulerType, bcos::crypto::hasher::Hasher Hasher>
+template <class LocalLedgerType, class RemoteLedgerType, class TransactionPoolType,
+    class SchedulerType, bcos::crypto::hasher::Hasher Hasher>
 class LightNodeRPC : public bcos::rpc::JsonRpcInterface
 {
 public:
@@ -281,15 +276,13 @@ public:
             {
                 if (onlyHeader)
                 {
-                    co_await self->localLedger().template getBlock<bcos::concepts::ledger::HEADER>(
-                        blockNumber, block);
+                    co_await self->localLedger().getBlock(blockNumber, block, true);
                 }
                 else
                 {
                     try
                     {
-                        co_await self->remoteLedger()
-                            .template getBlock<bcos::concepts::ledger::ALL>(blockNumber, block);
+                        co_await self->remoteLedger().getBlock(blockNumber, block, false);
                     }
                     catch (const std::exception& e)
                     {
@@ -356,9 +349,7 @@ public:
                     if (blockNumber > 0)
                     {
                         decltype(block) parentBlock;
-                        co_await self->localLedger()
-                            .template getBlock<bcos::concepts::ledger::HEADER>(
-                                blockNumber - 1, parentBlock);
+                        co_await self->localLedger().getBlock(blockNumber - 1, parentBlock, true);
 
                         std::array<std::byte, Hasher::HASH_SIZE> parentHash;
                         bcos::concepts::hash::calculate(

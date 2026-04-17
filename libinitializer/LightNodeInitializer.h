@@ -2,7 +2,6 @@
 
 #include "bcos-concepts/Serialize.h"
 #include "bcos-lightnode/Log.h"
-#include <bcos-concepts/ledger/Ledger.h>
 #include <bcos-crypto/hasher/OpenSSLHasher.h>
 #include <bcos-framework/front/FrontServiceInterface.h>
 #include <bcos-framework/protocol/Protocol.h>
@@ -26,8 +25,9 @@ class LightNodeInitializer : public std::enable_shared_from_this<LightNodeInitia
 {
 public:
     // Note: FrontService is owned by Initializier for the entire lifetime
+    template <class LedgerType>
     void initLedgerServer(std::shared_ptr<bcos::front::FrontService> front,
-        bcos::concepts::ledger::Ledger auto ledger,
+        LedgerType ledger,
         std::shared_ptr<bcos::transaction_pool::TransactionPoolImpl<
             std::shared_ptr<bcos::txpool::TxPoolInterface>>>
             transactionPool,
@@ -248,8 +248,9 @@ private:
         return success;
     }
 
-    task::Task<void> getBlock(std::shared_ptr<bcos::front::FrontService> front,
-        bcos::concepts::ledger::Ledger auto ledger, bcos::crypto::NodeIDPtr nodeID,
+    template <class LedgerType>
+    task::Task<void> getBlock(std::shared_ptr<bcos::front::FrontService> front, LedgerType ledger,
+        bcos::crypto::NodeIDPtr nodeID,
         std::string messageID, bcostars::RequestBlock request)
     {
         bcostars::ResponseBlock response;
@@ -258,15 +259,10 @@ private:
             LIGHTNODE_LOG(INFO) << "Get block:" << request.blockNumber << " | "
                                 << request.onlyHeader;
 
-            if (request.onlyHeader)
+            co_await concepts::getRef(ledger).getBlock(
+                request.blockNumber, response.block, request.onlyHeader);
+            if (!request.onlyHeader)
             {
-                co_await concepts::getRef(ledger).template getBlock<bcos::concepts::ledger::HEADER>(
-                    request.blockNumber, response.block);
-            }
-            else
-            {
-                co_await concepts::getRef(ledger).template getBlock<bcos::concepts::ledger::ALL>(
-                    request.blockNumber, response.block);
                 LIGHTNODE_LOG(DEBUG) << "getAllBlock success:" << request.blockNumber;
             }
         }
