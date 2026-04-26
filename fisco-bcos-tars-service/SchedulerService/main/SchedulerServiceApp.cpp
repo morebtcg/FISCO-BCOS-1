@@ -64,7 +64,7 @@ void SchedulerServiceApp::createAndInitSchedulerService()
     // for stat the nodeVersion
     bcos::initializer::showNodeVersionMetric();
 
-    auto rpcServiceName = m_nodeConfig->rpcServiceName();
+    auto rpcServiceName = m_nodeConfig->serviceConfig().rpcServiceName();
     auto withoutTarsFramework = m_nodeConfig->withoutTarsFramework();
 
     SCHEDULER_SERVICE_LOG(INFO) << LOG_DESC("create RpcServiceClient")
@@ -72,19 +72,20 @@ void SchedulerServiceApp::createAndInitSchedulerService()
                                 << LOG_KV("withoutTarsFramework", withoutTarsFramework);
 
     std::vector<tars::TC_Endpoint> endPoints;
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::RPC_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(bcos::protocol::RPC_NAME, endPoints);
 
     auto rpcServicePrx = bcostars::createServantProxy<bcostars::RpcServicePrx>(
         withoutTarsFramework, rpcServiceName, endPoints);
 
     m_rpc = std::make_shared<bcostars::RpcServiceClient>(rpcServicePrx, rpcServiceName);
 
-    auto txpoolServiceName = m_nodeConfig->txpoolServiceName();
+    auto txpoolServiceName = m_nodeConfig->serviceConfig().txpoolServiceName();
 
     SCHEDULER_SERVICE_LOG(INFO) << LOG_DESC("create TxPoolServiceClient")
                                 << LOG_KV("txpoolServiceName", txpoolServiceName);
 
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::TXPOOL_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(
+        bcos::protocol::TXPOOL_NAME, endPoints);
     auto txpoolServicePrx = bcostars::createServantProxy<bcostars::TxPoolServicePrx>(
         withoutTarsFramework, txpoolServiceName, endPoints);
 
@@ -124,7 +125,7 @@ void SchedulerServiceApp::initConfig()
     boost::property_tree::ptree genesisPt;
     boost::property_tree::read_ini(m_genesisConfigPath, pt);
     // init service.without_tars_framework first for determine the log path
-    m_nodeConfig->loadWithoutTarsFrameworkConfig(pt);
+    m_nodeConfig->mutableServiceConfig().loadWithoutTarsFrameworkConfig(pt, "conf/tars_proxy.ini");
 
     m_logInitializer = std::make_shared<bcos::BoostLogInitializer>();
     if (!m_nodeConfig->withoutTarsFramework())
@@ -137,8 +138,10 @@ void SchedulerServiceApp::initConfig()
         std::make_shared<bcos::tool::NodeConfig>(std::make_shared<bcos::crypto::KeyFactoryImpl>());
     m_nodeConfig->loadGenesisConfig(genesisPt);
     m_nodeConfig->loadConfig(pt);
-    m_nodeConfig->loadServiceConfig(pt);
-    m_nodeConfig->loadNodeServiceConfig(m_nodeConfig->nodeName(), pt, true);
+    m_nodeConfig->mutableServiceConfig().loadServiceConfig(pt);
+    m_nodeConfig->mutableServiceConfig().loadNodeServiceConfig(
+        pt, m_nodeConfig->serviceConfig().nodeName(), m_nodeConfig->chainConfig().chainID(),
+        "conf/tars_proxy.ini", true);
     // init the protocol
     m_protocolInitializer = std::make_shared<ProtocolInitializer>();
     m_protocolInitializer->init(m_nodeConfig);
@@ -156,7 +159,7 @@ void SchedulerServiceApp::createScheduler()
     auto executionMessageFactory =
         std::make_shared<bcostars::protocol::ExecutionMessageFactoryImpl>();
     auto executorManager = std::make_shared<bcos::scheduler::RemoteExecutorManager>(
-        m_nodeConfig->executorServiceName());
+        m_nodeConfig->serviceConfig().executorServiceName());
 
     m_scheduler = SchedulerInitializer::build(executorManager, ledger,
         StorageInitializer::build(m_nodeConfig->pdAddrs(), getLogPath(), m_nodeConfig->pdCaPath(),
@@ -169,8 +172,8 @@ void SchedulerServiceApp::createScheduler()
     scheduler->registerBlockNumberReceiver([this](bcos::protocol::BlockNumber number) {
         BCOS_LOG(DEBUG) << "Notify blocknumber: " << number;
         // Note: the interface will notify blockNumber to all rpc nodes in pro/max mode
-        m_rpc->asyncNotifyBlockNumber(
-            m_nodeConfig->groupId(), m_nodeConfig->nodeName(), number, [](bcos::Error::Ptr) {});
+        m_rpc->asyncNotifyBlockNumber(m_nodeConfig->chainConfig().groupID(),
+            m_nodeConfig->serviceConfig().nodeName(), number, [](bcos::Error::Ptr) {});
     });
     // handler for notify transactions
     scheduler->registerTransactionNotifier([this](bcos::protocol::BlockNumber _blockNumber,

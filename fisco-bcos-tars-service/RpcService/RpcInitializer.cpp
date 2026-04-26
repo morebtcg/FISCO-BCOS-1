@@ -40,7 +40,7 @@ void RpcInitializer::init(std::string const& _configDir)
     // init node config
     RPCSERVICE_LOG(INFO) << LOG_DESC("init node config") << LOG_KV("configDir", _configDir);
 
-    if (!m_nodeConfig->rpcSmSsl())
+    if (!m_nodeConfig->rpcConfig().smSsl())
     {
         m_nodeConfig->setCaCert(_configDir + "/" + "ca.crt");
         m_nodeConfig->setNodeCert(_configDir + "/" + "ssl.crt");
@@ -61,7 +61,8 @@ void RpcInitializer::init(std::string const& _configDir)
         auto memberFactory = std::make_shared<bcostars::protocol::MemberFactoryImpl>();
         auto leaderEntryPointFactory =
             std::make_shared<bcos::election::LeaderEntryPointFactoryImpl>(memberFactory);
-        auto watchDir = "/" + m_nodeConfig->chainId() + bcos::election::CONSENSUS_LEADER_DIR;
+        auto watchDir =
+            "/" + m_nodeConfig->chainConfig().chainID() + bcos::election::CONSENSUS_LEADER_DIR;
         m_leaderEntryPoint = leaderEntryPointFactory->createLeaderEntryPoint(
             m_nodeConfig->failOverClusterUrl(), watchDir, "watchLeaderChange",
             m_nodeConfig->pdCaPath(), m_nodeConfig->pdCertPath(), m_nodeConfig->pdKeyPath());
@@ -75,7 +76,8 @@ void RpcInitializer::init(std::string const& _configDir)
     RPCSERVICE_LOG(INFO) << LOG_DESC("init rpc factory success")
                          << LOG_KV("rpcServiceName", rpcServiceName);
     auto rpc =
-        factory->buildRpc(m_nodeConfig->gatewayServiceName(), rpcServiceName, m_leaderEntryPoint);
+        factory->buildRpc(
+            m_nodeConfig->serviceConfig().gatewayServiceName(), rpcServiceName, m_leaderEntryPoint);
     m_rpc = rpc;
 }
 
@@ -89,7 +91,7 @@ bcos::rpc::RPCInterface::Ptr RpcInitializer::rpc()
     return m_rpc;
 }
 
-bcos::rpc::RpcFactory::Ptr RpcInitializer::initRpcFactory(bcos::tool::NodeConfig::Ptr _nodeConfig)
+bcos::rpc::RpcFactory::Ptr RpcInitializer::initRpcFactory(const bcos::tool::NodeConfig::Ptr& _nodeConfig)
 {
     // init the protocol
     auto protocolInitializer = std::make_shared<bcos::initializer::ProtocolInitializer>();
@@ -97,10 +99,11 @@ bcos::rpc::RpcFactory::Ptr RpcInitializer::initRpcFactory(bcos::tool::NodeConfig
     m_keyFactory = protocolInitializer->keyFactory();
 
     auto withoutTarsFramework = m_nodeConfig->withoutTarsFramework();
-    auto gatewayServiceName = _nodeConfig->gatewayServiceName();
+    auto gatewayServiceName = _nodeConfig->serviceConfig().gatewayServiceName();
 
     std::vector<tars::TC_Endpoint> endPoints;
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::GATEWAY_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(
+        bcos::protocol::GATEWAY_NAME, endPoints);
 
     // get the gateway client
     auto gatewayPrx = bcostars::createServantProxy<bcostars::GatewayServicePrx>(
@@ -109,9 +112,11 @@ bcos::rpc::RpcFactory::Ptr RpcInitializer::initRpcFactory(bcos::tool::NodeConfig
     auto gateway = std::make_shared<GatewayServiceClient>(
         gatewayPrx, gatewayServiceName, protocolInitializer->keyFactory());
 
-    auto factory = std::make_shared<bcos::rpc::RpcFactory>(_nodeConfig->chainId(), gateway,
+    auto factory = std::make_shared<bcos::rpc::RpcFactory>(
+        _nodeConfig->chainConfig().chainID(), gateway,
         protocolInitializer->keyFactory(),
-        protocolInitializer->getKeyEncryptionByType(_nodeConfig->keyEncryptionType()));
+        protocolInitializer->getKeyEncryptionByType(
+            _nodeConfig->securityConfig().keyEncryptionType()));
     factory->setNodeConfig(_nodeConfig);
     RPCSERVICE_LOG(INFO) << LOG_DESC("create rpc factory success")
                          << LOG_KV("withoutTarsFramework", withoutTarsFramework)

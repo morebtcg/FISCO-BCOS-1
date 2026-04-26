@@ -51,7 +51,7 @@ void GatewayInitializer::init(std::string const& _configPath)
 
     boost::property_tree::ptree pt;
     boost::property_tree::read_ini(_configPath, pt);
-    nodeConfig->loadServiceConfig(pt);
+    nodeConfig->mutableServiceConfig().loadServiceConfig(pt);
     GATEWAYSERVICE_LOG(INFO) << LOG_DESC("load nodeConfig success");
 #ifdef WITH_LEDGER_ELECTION
     if (nodeConfig->enableFailOver())
@@ -60,7 +60,8 @@ void GatewayInitializer::init(std::string const& _configPath)
         auto memberFactory = std::make_shared<bcostars::protocol::MemberFactoryImpl>();
         auto leaderEntryPointFactory =
             std::make_shared<bcos::election::LeaderEntryPointFactoryImpl>(memberFactory);
-        auto watchDir = "/" + nodeConfig->chainId() + bcos::election::CONSENSUS_LEADER_DIR;
+        auto watchDir =
+            "/" + nodeConfig->chainConfig().chainID() + bcos::election::CONSENSUS_LEADER_DIR;
         m_leaderEntryPoint = leaderEntryPointFactory->createLeaderEntryPoint(
             nodeConfig->failOverClusterUrl(), watchDir, "watchLeaderChange", nodeConfig->pdCaPath(),
             nodeConfig->pdCertPath(), nodeConfig->pdKeyPath());
@@ -70,8 +71,9 @@ void GatewayInitializer::init(std::string const& _configPath)
     auto protocolInitializer = std::make_shared<bcos::initializer::ProtocolInitializer>();
     protocolInitializer->init(nodeConfig);
 
-    bcos::gateway::GatewayFactory factory(nodeConfig->chainId(), nodeConfig->rpcServiceName(),
-        protocolInitializer->getKeyEncryptionByType(nodeConfig->keyEncryptionType()));
+    bcos::gateway::GatewayFactory factory(
+        nodeConfig->chainConfig().chainID(), nodeConfig->serviceConfig().rpcServiceName(),
+        protocolInitializer->getKeyEncryptionByType(nodeConfig->securityConfig().keyEncryptionType()));
     auto gatewayServiceName = bcostars::getProxyDesc(bcos::protocol::GATEWAY_SERVANT_NAME);
     GATEWAYSERVICE_LOG(INFO) << LOG_DESC("buildGateWay")
                              << LOG_KV("certPath", m_gatewayConfig->certPath())

@@ -65,7 +65,8 @@ public:
 
         auto tx = _protocol->blockFactory()->transactionFactory()->createTransaction(0,
             std::string(precompiled::AUTH_COMMITTEE_ADDRESS), input, u256(_number).str(), 500,
-            _nodeConfig->chainId(), _nodeConfig->groupId(), utcTime());
+            _nodeConfig->chainConfig().chainID(), _nodeConfig->chainConfig().groupID(),
+            utcTime());
         tx->forceSender(authAdmin.asBytes());
         block->appendTransaction(tx);
     }

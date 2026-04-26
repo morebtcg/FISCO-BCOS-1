@@ -32,7 +32,8 @@
 namespace bcos::security
 {
 CloudKmsKeyEncryption::CloudKmsKeyEncryption(const bcos::tool::NodeConfig::Ptr nodeConfig)
-  : m_kmsType(nodeConfig->cloudKmsType()), m_kmsUrl(nodeConfig->keyEncryptionUrl())
+    : m_kmsType(nodeConfig->securityConfig().cloudKmsType()),
+        m_kmsUrl(nodeConfig->securityConfig().keyEncryptionUrl())
 {}
 
 std::shared_ptr<bytes> CloudKmsKeyEncryption::decryptContents(

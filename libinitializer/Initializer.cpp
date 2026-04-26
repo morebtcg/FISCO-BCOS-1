@@ -98,17 +98,17 @@ void Initializer::initMicroServiceNode(bcos::protocol::NodeArchitectureType _nod
     // get gateway client
     auto keyFactory = std::make_shared<bcos::crypto::KeyFactoryImpl>();
 
-    auto gatewayServiceName = m_nodeConfig->gatewayServiceName();
+    auto gatewayServiceName = m_nodeConfig->serviceConfig().gatewayServiceName();
     auto withoutTarsFramework = m_nodeConfig->withoutTarsFramework();
 
     std::vector<tars::TC_Endpoint> endPoints;
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::GATEWAY_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(bcos::protocol::GATEWAY_NAME, endPoints);
 
     auto gatewayPrx = bcostars::createServantProxy<bcostars::GatewayServicePrx>(
         withoutTarsFramework, gatewayServiceName, endPoints);
 
     auto gateWay = std::make_shared<bcostars::GatewayServiceClient>(
-        gatewayPrx, m_nodeConfig->gatewayServiceName(), keyFactory);
+        gatewayPrx, m_nodeConfig->serviceConfig().gatewayServiceName(), keyFactory);
     init(_nodeArchType, _configFilePath, _genesisFile, gateWay, false, _logPath);
 }
 
@@ -122,7 +122,7 @@ void Initializer::initConfig(std::string const& _configFilePath, std::string con
     // init the protocol
     m_protocolInitializer = std::make_shared<ProtocolInitializer>();
     m_protocolInitializer->init(m_nodeConfig);
-    auto privateKeyPath = m_nodeConfig->privateKeyPath();
+            auto privateKeyPath = m_nodeConfig->securityConfig().privateKeyPath();
     if (!_airVersion)
     {
         privateKeyPath = _privateKeyPath;
@@ -130,12 +130,13 @@ void Initializer::initConfig(std::string const& _configFilePath, std::string con
     m_protocolInitializer->loadKeyPair(privateKeyPath);
     boost::property_tree::ptree pt;
     boost::property_tree::read_ini(_configFilePath, pt);
-    m_nodeConfig->loadNodeServiceConfig(
-        m_protocolInitializer->keyPair()->publicKey()->hex(), pt, false);
+    m_nodeConfig->mutableServiceConfig().loadNodeServiceConfig(pt,
+        m_protocolInitializer->keyPair()->publicKey()->hex(), m_nodeConfig->chainConfig().chainID(),
+        "conf/tars_proxy.ini", false);
     if (!_airVersion)
     {
         // load the service config
-        m_nodeConfig->loadServiceConfig(pt);
+        m_nodeConfig->mutableServiceConfig().loadServiceConfig(pt);
     }
 }
 
@@ -267,7 +268,7 @@ void Initializer::init(bcos::protocol::NodeArchitectureType _nodeArchType,
             transactionSubmitResultFactory, ledger, baselineSchedulerConfig);
 
     executorManager = std::make_shared<bcos::scheduler::TarsExecutorManager>(
-        m_nodeConfig->executorServiceName(), m_nodeConfig);
+        m_nodeConfig->serviceConfig().executorServiceName(), m_nodeConfig);
     auto factory = SchedulerInitializer::buildFactory(executorManager, ledger, schedulerStorage,
         executionMessageFactory, m_protocolInitializer->blockFactory(),
         m_txpoolInitializer->txpool(), m_protocolInitializer->txResultFactory(),
@@ -370,7 +371,7 @@ void Initializer::init(bcos::protocol::NodeArchitectureType _nodeArchType,
             consensusStorage, m_frontServiceInitializer->front(), nodeTimeMaintenance);
         auto nodeID = m_protocolInitializer->keyPair()->publicKey();
         auto frontService = m_frontServiceInitializer->front();
-        auto groupID = m_nodeConfig->groupId();
+        auto const& groupID = m_nodeConfig->chainConfig().groupID();
         auto blockSync =
             std::dynamic_pointer_cast<bcos::sync::BlockSync>(m_pbftInitializer->blockSync());
 
@@ -458,8 +459,8 @@ void Initializer::init(bcos::protocol::NodeArchitectureType _nodeArchType,
 void Initializer::initNotificationHandlers(bcos::rpc::RPCInterface::Ptr _rpc)
 {
     // init handlers
-    auto nodeName = m_nodeConfig->nodeName();
-    auto groupID = m_nodeConfig->groupId();
+    auto nodeName = m_nodeConfig->serviceConfig().nodeName();
+    auto const& groupID = m_nodeConfig->chainConfig().groupID();
 
     auto schedulerFactory =
         dynamic_cast<scheduler::SchedulerManager&>(m_scheduler->scheduler(0)).getFactory();
@@ -504,18 +505,21 @@ void Initializer::initSysContract()
     }
     auto block = m_protocolInitializer->blockFactory()->createBlock();
     block->blockHeader()->setNumber(SYS_CONTRACT_DEPLOY_NUMBER);
-    block->blockHeader()->setVersion(m_nodeConfig->compatibilityVersion());
+    block->blockHeader()->setVersion(m_nodeConfig->ledgerParamConfig().compatibilityVersion());
     block->blockHeader()->calculateHash(
         *m_protocolInitializer->blockFactory()->cryptoSuite()->hashImpl());
 
-    if (m_nodeConfig->compatibilityVersion() >= static_cast<uint32_t>(BlockVersion::V3_1_VERSION))
+    if (m_nodeConfig->ledgerParamConfig().compatibilityVersion() >=
+        static_cast<uint32_t>(BlockVersion::V3_1_VERSION))
     {
         BfsInitializer::init(
             SYS_CONTRACT_DEPLOY_NUMBER, m_protocolInitializer, m_nodeConfig, block);
     }
 
     if ((!m_nodeConfig->isWasm() && m_nodeConfig->isAuthCheck()) ||
-        versionCompareTo(m_nodeConfig->compatibilityVersion(), BlockVersion::V3_3_VERSION) >= 0)
+        versionCompareTo(
+            m_nodeConfig->ledgerParamConfig().compatibilityVersion(), BlockVersion::V3_3_VERSION) >=
+        0)
     {
         // add auth deploy func here
         AuthInitializer::init(
@@ -1258,7 +1262,8 @@ std::string Initializer::getStateDBPath(bool _airVersion) const
         return stateDBPath;
     }
     // if the stateDBPath is absolute path, the result stateDBPath will deep
-    return tars::ServerConfig::BasePath + ".." + c_fileSeparator + m_nodeConfig->groupId() +
+        return tars::ServerConfig::BasePath + ".." + c_fileSeparator +
+            m_nodeConfig->chainConfig().groupID() +
            c_fileSeparator + stateDBPath;
 }
 
@@ -1270,7 +1275,8 @@ std::string Initializer::getBlockDBPath(bool _airVersion) const
         return blockDBPath;
     }
     // if the stateDBPath is absolute path, the result stateDBPath will deep
-    return tars::ServerConfig::BasePath + ".." + c_fileSeparator + m_nodeConfig->groupId() +
+        return tars::ServerConfig::BasePath + ".." + c_fileSeparator +
+            m_nodeConfig->chainConfig().groupID() +
            c_fileSeparator + blockDBPath;
 }
 
@@ -1283,6 +1289,7 @@ std::string Initializer::getConsensusStorageDBPath(bool _airVersion) const
         return consensusStorageDBPath;
     }
     // if the stateDBPath is absolute path, the result stateDBPath will deep
-    return tars::ServerConfig::BasePath + ".." + c_fileSeparator + m_nodeConfig->groupId() +
+        return tars::ServerConfig::BasePath + ".." + c_fileSeparator +
+            m_nodeConfig->chainConfig().groupID() +
            c_fileSeparator + c_consensusStorageDBName;
 }

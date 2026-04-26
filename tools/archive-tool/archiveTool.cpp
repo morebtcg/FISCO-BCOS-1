@@ -2,7 +2,6 @@
  *  Copyright (C) 2021 FISCO BCOS.
  *  SPDX-License-Identifier: Apache-2.0
  *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
@@ -157,7 +156,7 @@ createBackendStorage(std::shared_ptr<bcos::tool::NodeConfig> nodeConfig, const s
     if (boost::iequals(nodeConfig->storageType(), "RocksDB"))
     {
         bcos::security::StorageEncryptInterface::Ptr dataEncryption = nullptr;
-        if (nodeConfig->storageSecurityEnable())
+        if (nodeConfig->securityConfig().storageSecurityEnable())
         {
             dataEncryption = std::make_shared<bcos::security::BcosKmsDataEncryption>(nodeConfig);
         }

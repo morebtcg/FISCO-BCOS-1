@@ -53,14 +53,15 @@ ProPBFTInitializer::ProPBFTInitializer(bcos::protocol::NodeArchitectureType _nod
     auto withoutTarsFramework = m_nodeConfig->withoutTarsFramework();
 
     // init rpc client
-    auto rpcServiceName = m_nodeConfig->rpcServiceName();
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::RPC_NAME, endPoints);
+    auto rpcServiceName = m_nodeConfig->serviceConfig().rpcServiceName();
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(bcos::protocol::RPC_NAME, endPoints);
     auto rpcServicePrx = bcostars::createServantProxy<bcostars::RpcServicePrx>(
         withoutTarsFramework, rpcServiceName, endPoints);
     m_rpc = std::make_shared<bcostars::RpcServiceClient>(rpcServicePrx, rpcServiceName);
 
-    auto gatewayServiceName = m_nodeConfig->gatewayServiceName();
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::GATEWAY_NAME, endPoints);
+    auto gatewayServiceName = m_nodeConfig->serviceConfig().gatewayServiceName();
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(
+        bcos::protocol::GATEWAY_NAME, endPoints);
     auto gatewayServicePrx = bcostars::createServantProxy<bcostars::GatewayServicePrx>(
         withoutTarsFramework, gatewayServiceName, endPoints);
     m_gateway =
@@ -138,12 +139,12 @@ void ProPBFTInitializer::init()
     m_timer->registerTimeoutHandler(boost::bind(&ProPBFTInitializer::scheduledTask, this));
     m_blockSync->config()->registerOnNodeTypeChanged([this](bcos::protocol::NodeType _type) {
         INITIALIZER_LOG(INFO) << LOG_DESC("OnNodeTypeChange") << LOG_KV("type", _type)
-                              << LOG_KV("nodeName", m_nodeConfig->nodeName());
-        auto nodeInfo = m_groupInfo->nodeInfo(m_nodeConfig->nodeName());
+                              << LOG_KV("nodeName", m_nodeConfig->serviceConfig().nodeName());
+        auto nodeInfo = m_groupInfo->nodeInfo(m_nodeConfig->serviceConfig().nodeName());
         if (!nodeInfo)
         {
             INITIALIZER_LOG(WARNING) << LOG_DESC("failed to find the given node information")
-                                     << LOG_KV("node", m_nodeConfig->nodeName());
+                                     << LOG_KV("node", m_nodeConfig->serviceConfig().nodeName());
             return;
         }
         nodeInfo->setNodeType(_type);
@@ -155,7 +156,7 @@ void ProPBFTInitializer::init()
     {
         m_leaderElection->registerOnElectionClusterException([this]() {
             INITIALIZER_LOG(INFO) << LOG_DESC("OnElectionClusterException")
-                                  << LOG_KV("nodeName", m_nodeConfig->nodeName());
+                                  << LOG_KV("nodeName", m_nodeConfig->serviceConfig().nodeName());
         });
         m_leaderElection->registerOnElectionClusterRecover([]() {
             INITIALIZER_LOG(INFO) << LOG_DESC(

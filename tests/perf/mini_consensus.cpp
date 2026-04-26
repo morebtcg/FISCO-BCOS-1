@@ -87,8 +87,9 @@ void createTxs(bcos::initializer::Initializer::Ptr const& init)
 {
     bytes input = {0};
     auto tx = init->protocolInitializer()->blockFactory()->transactionFactory()->createTransaction(
-        0, precompiled::AUTH_COMMITTEE_ADDRESS, input, "", 1000, init->nodeConfig()->chainId(),
-        init->nodeConfig()->groupId(), utcSteadyTime());
+        0, precompiled::AUTH_COMMITTEE_ADDRESS, input, "", 1000,
+        init->nodeConfig()->chainConfig().chainID(),
+        init->nodeConfig()->chainConfig().groupID(), utcSteadyTime());
     auto sender = Address(precompiled::AUTH_COMMITTEE_ADDRESS);
     tx->forceSender(sender.asBytes());
     while (true)
@@ -117,8 +118,8 @@ void initAndStart(std::string const& _configFilePath, std::string const& _genesi
     auto nodeInitializer = std::make_shared<bcos::initializer::Initializer>();
     nodeInitializer->initConfig(_configFilePath, _genesisFile, "", true);
 
-    GatewayFactory gatewayFactory(
-        nodeConfig->chainId(), "localRpc", nodeInitializer->protocolInitializer()->keyEncryption());
+    GatewayFactory gatewayFactory(nodeConfig->chainConfig().chainID(), "localRpc",
+        nodeInitializer->protocolInitializer()->keyEncryption());
     auto gateway = gatewayFactory.buildGateway(_configFilePath, true, nullptr, "localGateway");
 
     auto frontServiceInitializer = std::make_shared<FrontServiceInitializer>(

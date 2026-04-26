@@ -41,9 +41,10 @@ TxPoolInitializer::TxPoolInitializer(bcos::tool::NodeConfig::Ptr _nodeConfig,
     auto cryptoSuite = m_protocolInitializer->cryptoSuite();
     m_txpoolFactory = std::make_shared<TxPoolFactory>(keyPair->publicKey(), cryptoSuite,
         m_protocolInitializer->txResultFactory(), m_protocolInitializer->blockFactory(),
-        m_frontService, m_ledger, m_nodeConfig->groupId(), m_nodeConfig->chainId(),
+        m_frontService, m_ledger, m_nodeConfig->chainConfig().groupID(),
+        m_nodeConfig->chainConfig().chainID(),
         m_nodeConfig->blockLimit(), m_nodeConfig->txpoolLimit(),
-        m_nodeConfig->checkTransactionSignature());
+        m_nodeConfig->othersConfig().checkTransactionSignature());
 
     m_txpool = m_txpoolFactory->createTxPool(m_nodeConfig->notifyWorkerNum(),
         m_nodeConfig->verifierWorkerNum(), m_nodeConfig->txsExpirationTime());

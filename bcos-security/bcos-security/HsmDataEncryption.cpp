@@ -39,8 +39,9 @@ using namespace std;
 HsmDataEncryption::HsmDataEncryption(const bcos::tool::NodeConfig::Ptr nodeConfig)
 {
     m_nodeConfig = nodeConfig;
-    m_hsmLibPath = m_nodeConfig->hsmLibPath();
-    m_encKeyIndex = m_nodeConfig->encKeyIndex();
+    auto const& securityConfig = m_nodeConfig->securityConfig();
+    m_hsmLibPath = securityConfig.hsmLibPath();
+    m_encKeyIndex = securityConfig.encKeyIndex();
     m_symmetricEncrypt = std::make_shared<HsmSM4Crypto>(m_hsmLibPath);
 }
 

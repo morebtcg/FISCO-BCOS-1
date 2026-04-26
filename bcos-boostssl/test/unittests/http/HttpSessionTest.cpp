@@ -143,14 +143,15 @@ BOOST_AUTO_TEST_CASE(test_loadWeb3ConfigTest)
         auto nodeConfig = std::make_shared<NodeConfig>();
         nodeConfig->loadConfig(pt);
 
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowCredentials(), true);
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowedOrigins(), "*");
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowedMethods(), "GET, POST, OPTIONS");
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowCredentials(), true);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowedOrigins(), "*");
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowedMethods(), "GET, POST, OPTIONS");
         BOOST_CHECK_EQUAL(
-            nodeConfig->web3CorsAllowedHeaders(), "Content-Type, Authorization, X-Requested-With");
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsMaxAge(), 86400);
-        BOOST_CHECK_EQUAL(nodeConfig->web3EnableCors(), true);
-        BOOST_CHECK_EQUAL(nodeConfig->web3HttpBodySizeLimit(), 10240000);
+            nodeConfig->web3RpcConfig().corsAllowedHeaders(),
+            "Content-Type, Authorization, X-Requested-With");
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsMaxAge(), 86400);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().enableCors(), true);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().httpBodySizeLimit(), 10240000);
 
         auto rpcFactory = std::make_shared<RpcFactory>("1", nullptr, nullptr, nullptr);
         auto wsConfig = rpcFactory->initWeb3RpcServiceConfig(nodeConfig);
@@ -191,12 +192,13 @@ BOOST_AUTO_TEST_CASE(test_loadWeb3ConfigTest)
         auto nodeConfig = std::make_shared<NodeConfig>();
         nodeConfig->loadConfig(pt);
 
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowCredentials(), false);
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowedOrigins(), "potos.hk");
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowedMethods(), "OPTIONS");
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsAllowedHeaders(), "Authorization, X-Requested-With");
-        BOOST_CHECK_EQUAL(nodeConfig->web3CorsMaxAge(), -1);
-        BOOST_CHECK_EQUAL(nodeConfig->web3HttpBodySizeLimit(), 10240001);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowCredentials(), false);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowedOrigins(), "potos.hk");
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsAllowedMethods(), "OPTIONS");
+        BOOST_CHECK_EQUAL(
+            nodeConfig->web3RpcConfig().corsAllowedHeaders(), "Authorization, X-Requested-With");
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().corsMaxAge(), -1);
+        BOOST_CHECK_EQUAL(nodeConfig->web3RpcConfig().httpBodySizeLimit(), 10240001);
 
         auto rpcFactory = std::make_shared<RpcFactory>("1", nullptr, nullptr, nullptr);
         auto wsConfig = rpcFactory->initWeb3RpcServiceConfig(nodeConfig);

@@ -67,7 +67,7 @@ protected:
         auto nodeConfig = std::make_shared<bcos::tool::NodeConfig>(
             std::make_shared<bcos::crypto::KeyFactoryImpl>());
         nodeConfig->loadConfig(m_iniConfigPath, false, true, false);
-        if (nodeConfig->rpcSmSsl())
+        if (nodeConfig->rpcConfig().smSsl())
         {
             addConfig("sm_ca.crt");
             addConfig("sm_ssl.crt");
@@ -86,7 +86,7 @@ protected:
         boost::property_tree::ptree pt;
         boost::property_tree::read_ini(m_iniConfigPath, pt);
         // init service.without_tars_framework first for determine the log path
-        nodeConfig->loadWithoutTarsFrameworkConfig(pt);
+        nodeConfig->mutableServiceConfig().loadWithoutTarsFrameworkConfig(pt, "conf/tars_proxy.ini");
 
         m_logInitializer = std::make_shared<bcos::BoostLogInitializer>();
         if (!nodeConfig->withoutTarsFramework())
@@ -95,7 +95,7 @@ protected:
         }
 
         m_logInitializer->initLog(m_iniConfigPath);
-        nodeConfig->loadServiceConfig(pt);
+        nodeConfig->mutableServiceConfig().loadServiceConfig(pt);
         // for stat the nodeVersion
         bcos::initializer::showNodeVersionMetric();
 

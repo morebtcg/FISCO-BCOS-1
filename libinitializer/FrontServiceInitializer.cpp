@@ -48,7 +48,7 @@ FrontServiceInitializer::FrontServiceInitializer(bcos::tool::NodeConfig::Ptr _no
     frontServiceFactory->setGatewayInterface(m_gateWay);
 
     m_front = frontServiceFactory->buildFrontService(
-        m_nodeConfig->groupId(), m_protocolInitializer->keyPair()->publicKey());
+        m_nodeConfig->chainConfig().groupID(), m_protocolInitializer->keyPair()->publicKey());
 }
 
 void FrontServiceInitializer::start()

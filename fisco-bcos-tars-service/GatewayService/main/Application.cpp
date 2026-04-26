@@ -53,7 +53,7 @@ protected:
 
         bcos::tool::NodeConfig nodeConfig;
 
-        nodeConfig.loadWithoutTarsFrameworkConfig(pt);
+        nodeConfig.mutableServiceConfig().loadWithoutTarsFrameworkConfig(pt, "conf/tars_proxy.ini");
 
         // init the log
         m_logInitializer = std::make_shared<bcos::BoostLogInitializer>();

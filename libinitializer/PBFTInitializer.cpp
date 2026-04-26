@@ -87,9 +87,9 @@ PBFTInitializer::PBFTInitializer(bcos::protocol::NodeArchitectureType _nodeArchT
 std::string PBFTInitializer::generateGenesisConfig(bcos::tool::NodeConfig::Ptr _nodeConfig)
 {
     Json::Value genesisConfig;
-    genesisConfig["consensusType"] = _nodeConfig->consensusType();
+    genesisConfig["consensusType"] = _nodeConfig->ledgerParamConfig().consensusType();
     genesisConfig["blockTxCountLimit"] = _nodeConfig->ledgerConfig()->blockTxCountLimit();
-    genesisConfig["txGasLimit"] = (int64_t)(_nodeConfig->txGasLimit());
+    genesisConfig["txGasLimit"] = (int64_t)(_nodeConfig->ledgerParamConfig().txGasLimit());
     genesisConfig["consensusLeaderPeriod"] = _nodeConfig->ledgerConfig()->leaderSwitchPeriod();
     Json::Value sealerList(Json::arrayValue);
     auto consensusNodeList = _nodeConfig->ledgerConfig()->consensusNodeList();
@@ -118,16 +118,16 @@ std::string PBFTInitializer::generateIniConfig(bcos::tool::NodeConfig::Ptr _node
     binaryInfo["buildTime"] = FISCO_BCOS_BUILD_TIME;
     iniConfig["binaryInfo"] = binaryInfo;
 
-    iniConfig["chainID"] = _nodeConfig->chainId();
-    iniConfig["groupID"] = _nodeConfig->groupId();
+    iniConfig["chainID"] = _nodeConfig->chainConfig().chainID();
+    iniConfig["groupID"] = _nodeConfig->chainConfig().groupID();
     iniConfig["smCryptoType"] = _nodeConfig->smCryptoType();
     iniConfig["isWasm"] = _nodeConfig->isWasm();
     iniConfig["isAuthCheck"] = _nodeConfig->isAuthCheck();
     iniConfig["isSerialExecute"] = _nodeConfig->isSerialExecute();
-    iniConfig["nodeName"] = _nodeConfig->nodeName();
+    iniConfig["nodeName"] = _nodeConfig->serviceConfig().nodeName();
     iniConfig["nodeID"] = m_protocolInitializer->keyPair()->publicKey()->hex();
-    iniConfig["rpcServiceName"] = _nodeConfig->rpcServiceName();
-    iniConfig["gatewayServiceName"] = _nodeConfig->gatewayServiceName();
+    iniConfig["rpcServiceName"] = _nodeConfig->serviceConfig().rpcServiceName();
+    iniConfig["gatewayServiceName"] = _nodeConfig->serviceConfig().gatewayServiceName();
     Json::FastWriter fastWriter;
     std::string iniConfigStr = fastWriter.write(iniConfig);
     return iniConfigStr;
@@ -136,7 +136,8 @@ std::string PBFTInitializer::generateIniConfig(bcos::tool::NodeConfig::Ptr _node
 void PBFTInitializer::initChainNodeInfo(
     bcos::protocol::NodeArchitectureType _nodeArchType, bcos::tool::NodeConfig::Ptr _nodeConfig)
 {
-    m_groupInfo = std::make_shared<GroupInfo>(_nodeConfig->chainId(), _nodeConfig->groupId());
+    m_groupInfo = std::make_shared<GroupInfo>(
+        _nodeConfig->chainConfig().chainID(), _nodeConfig->chainConfig().groupID());
     m_groupInfo->setGenesisConfig(generateGenesisConfig(_nodeConfig));
     m_groupInfo->setWasm(_nodeConfig->isWasm());
     m_groupInfo->setSmCryptoType(_nodeConfig->smCryptoType());
@@ -151,7 +152,8 @@ void PBFTInitializer::initChainNodeInfo(
         microServiceMode = false;
     }
 
-    m_nodeInfo = std::make_shared<ChainNodeInfo>(_nodeConfig->nodeName(), nodeType);
+    m_nodeInfo =
+        std::make_shared<ChainNodeInfo>(_nodeConfig->serviceConfig().nodeName(), nodeType);
     m_nodeInfo->setNodeID(m_protocolInitializer->keyPair()->publicKey()->hex());
 
     m_nodeInfo->setIniConfig(generateIniConfig(_nodeConfig));
@@ -168,8 +170,8 @@ void PBFTInitializer::initChainNodeInfo(
     }
     // Note: must set the serviceInfo for rpc/gateway to pass the groupInfo check when sync latest
     // groupInfo to rpc/gateway service
-    m_nodeInfo->appendServiceInfo(GATEWAY, m_nodeConfig->gatewayServiceName());
-    m_nodeInfo->appendServiceInfo(RPC, m_nodeConfig->rpcServiceName());
+    m_nodeInfo->appendServiceInfo(GATEWAY, m_nodeConfig->serviceConfig().gatewayServiceName());
+    m_nodeInfo->appendServiceInfo(RPC, m_nodeConfig->serviceConfig().rpcServiceName());
     // set protocolInfo
     auto nodeProtocolInfo = g_BCOSConfig.protocolInfo(ProtocolModuleID::NodeService);
     m_nodeInfo->setNodeProtocol(*nodeProtocolInfo);
@@ -184,7 +186,7 @@ void PBFTInitializer::initChainNodeInfo(
     INITIALIZER_LOG(INFO) << LOG_DESC("PBFTInitializer::initChainNodeInfo")
                           << LOG_KV("nodeType", m_nodeInfo->nodeType())
                           << LOG_KV("nodeCryptoType", m_nodeInfo->nodeCryptoType())
-                          << LOG_KV("nodeName", _nodeConfig->nodeName())
+                          << LOG_KV("nodeName", _nodeConfig->serviceConfig().nodeName())
                           << LOG_KV("compatibilityVersion", m_nodeInfo->compatibilityVersion());
 }
 
@@ -379,7 +381,7 @@ void PBFTInitializer::initNotificationHandlers(bcos::rpc::RPCInterface::Ptr _rpc
     // version notification
     m_pbft->registerVersionInfoNotification([_rpc, this](uint32_t _version) {
         // Note: the nodeInfo and the groupInfo are mutable
-        auto nodeInfo = m_groupInfo->nodeInfo(m_nodeConfig->nodeName());
+        auto nodeInfo = m_groupInfo->nodeInfo(m_nodeConfig->serviceConfig().nodeName());
         // Note: notify groupInfo to all rpc nodes in pro/max mode
         nodeInfo->setCompatibilityVersion(_version);
         _rpc->asyncNotifyGroupInfo(m_groupInfo, [_version](bcos::Error::Ptr&& _error) {
@@ -413,7 +415,8 @@ void PBFTInitializer::createSealer()
     auto sealerFactory = SealerFactory(m_nodeConfig, m_protocolInitializer->blockFactory(),
         m_txpool, m_nodeTimeMaintenance, m_protocolInitializer->keyPair());
     // if rpbft sealer, register the sealer to the pbft
-    if (m_nodeConfig->consensusType() == ledger::RPBFT_CONSENSUS_TYPE) [[unlikely]]
+    if (m_nodeConfig->ledgerParamConfig().consensusType() == ledger::RPBFT_CONSENSUS_TYPE)
+        [[unlikely]]
     {
         m_sealer = sealerFactory.createVRFBasedSealer();
     }
@@ -427,7 +430,7 @@ void PBFTInitializer::createPBFT()
 {
     auto keyPair = m_protocolInitializer->keyPair();
     auto kvStorage = std::make_shared<bcos::storage::KVStorageHelper>(m_storage);
-    if (m_nodeConfig->consensusType() == ledger::PBFT_CONSENSUS_TYPE)
+    if (m_nodeConfig->ledgerParamConfig().consensusType() == ledger::PBFT_CONSENSUS_TYPE)
     {
         auto pbftFactory = std::make_shared<PBFTFactory>(m_protocolInitializer->cryptoSuite(),
             m_protocolInitializer->keyPair(), m_frontService, kvStorage, m_ledger, m_scheduler,
@@ -435,7 +438,7 @@ void PBFTInitializer::createPBFT()
             m_protocolInitializer->txResultFactory());
         m_pbft = pbftFactory->createPBFT();
     }
-    else if (m_nodeConfig->consensusType() == ledger::RPBFT_CONSENSUS_TYPE)
+    else if (m_nodeConfig->ledgerParamConfig().consensusType() == ledger::RPBFT_CONSENSUS_TYPE)
     {
         auto rpbftFactory = std::make_shared<RPBFTFactory>(m_protocolInitializer->cryptoSuite(),
             m_protocolInitializer->keyPair(), m_frontService, kvStorage, m_ledger, m_scheduler,
@@ -449,7 +452,7 @@ void PBFTInitializer::createPBFT()
     pbftConfig->setMinSealTime(m_nodeConfig->minSealTime());
     pbftConfig->setPipeLineSize(m_nodeConfig->pipelineSize());
 
-    if (m_nodeConfig->singlePointConsensus())
+    if (m_nodeConfig->othersConfig().singlePointConsensus())
     {
         ConsensusNodeList nodeList;
         nodeList.emplace_back(
@@ -570,7 +573,8 @@ void PBFTInitializer::initConsensusFailOver(KeyInterface::Ptr _nodeID)
 #endif
     // leader key: /${chainID}/consensus/${nodeID}
     std::string leaderKey =
-        "/" + m_nodeConfig->chainId() + bcos::election::CONSENSUS_LEADER_DIR + _nodeID->hex();
+        "/" + m_nodeConfig->chainConfig().chainID() + bcos::election::CONSENSUS_LEADER_DIR +
+        _nodeID->hex();
 
     std::string nodeConfig;
     m_groupInfoCodec->serialize(nodeConfig, m_groupInfo);

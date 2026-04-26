@@ -43,10 +43,11 @@ using namespace std;
 BcosKmsDataEncryption::BcosKmsDataEncryption(const bcos::tool::NodeConfig::Ptr nodeConfig)
 {
     m_nodeConfig = nodeConfig;
-    m_compatibilityVersion = m_nodeConfig->compatibilityVersion();
+    m_compatibilityVersion = m_nodeConfig->ledgerParamConfig().compatibilityVersion();
+    auto const& securityConfig = m_nodeConfig->securityConfig();
 
     std::vector<std::string> values;
-    boost::split(values, nodeConfig->storageSecuirtyKeyCenterUrl(), boost::is_any_of(":"),
+    boost::split(values, securityConfig.storageSecurityUrl(), boost::is_any_of(":"),
         boost::token_compress_on);
     if (2 != values.size())
     {
@@ -64,8 +65,7 @@ BcosKmsDataEncryption::BcosKmsDataEncryption(const bcos::tool::NodeConfig::Ptr n
                 "initGlobalConfig storage_security failed! Invalid key_manange_port!"));
     }
 
-
-    std::string cipherDataKey = m_nodeConfig->storageSecurityCipherDataKey();
+    std::string cipherDataKey = securityConfig.storageSecurityCipherDataKey();
 
     BcosKms keyClient;
     keyClient.setIpPort(keyCenterIp, keyCenterPort);

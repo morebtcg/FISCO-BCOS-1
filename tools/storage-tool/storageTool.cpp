@@ -2,7 +2,6 @@
  *  Copyright (C) 2021 FISCO BCOS.
  *  SPDX-License-Identifier: Apache-2.0
  *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
@@ -247,7 +246,7 @@ TransactionalStorageInterface::Ptr createBackendStorage(
     if (boost::iequals(nodeConfig->storageType(), "RocksDB"))
     {
         bcos::security::StorageEncryptInterface::Ptr dataEncryption = nullptr;
-        if (nodeConfig->storageSecurityEnable())
+        if (nodeConfig->securityConfig().storageSecurityEnable())
         {
             dataEncryption = std::make_shared<bcos::security::BcosKmsDataEncryption>(nodeConfig);
         }
@@ -460,13 +459,14 @@ int main(int argc, const char* argv[])
 
     nodeConfig->loadConfig(configPath);
     bcos::security::StorageEncryptInterface::Ptr dataEncryption = nullptr;
-    if (nodeConfig->storageSecurityEnable())
+    if (nodeConfig->securityConfig().storageSecurityEnable())
     {
         dataEncryption = std::make_shared<bcos::security::BcosKmsDataEncryption>(nodeConfig);
     }
 
     auto keyPageSize = nodeConfig->keyPageSize();
-    auto keyPageIgnoreTables = getKeyPageIgnoreTables(nodeConfig->compatibilityVersion());
+    auto keyPageIgnoreTables =
+        getKeyPageIgnoreTables(nodeConfig->ledgerParamConfig().compatibilityVersion());
     std::string secondaryPath = "./rocksdb_secondary/";
     std::string remoteSecondaryPath = "./rocksdb_secondary/";
     if (params.count("read"))
@@ -494,7 +494,8 @@ int main(int argc, const char* argv[])
         if (keyPageSize > 0 && !keyPageIgnoreTables->count(tableName))
         {
             auto keyPageStorage =
-                createKeyPageStorage(storage, keyPageSize, nodeConfig->compatibilityVersion());
+                createKeyPageStorage(
+                    storage, keyPageSize, nodeConfig->ledgerParamConfig().compatibilityVersion());
             keyPageStorage->setReadOnly(true);
             storage = keyPageStorage;
         }
@@ -555,7 +556,8 @@ int main(int argc, const char* argv[])
         if (keyPageSize > 0 && !keyPageIgnoreTables->count(tableName))
         {
             storage =
-                createKeyPageStorage(storage, keyPageSize, nodeConfig->compatibilityVersion());
+                createKeyPageStorage(
+                    storage, keyPageSize, nodeConfig->ledgerParamConfig().compatibilityVersion());
         }
         // std::promise<std::pair<Error::UniquePtr, std::optional<Entry>>> getPromise;
         // storage->asyncGetRow(
@@ -623,7 +625,8 @@ int main(int argc, const char* argv[])
         if (keyPageSize > 0 && !keyPageIgnoreTables->count(tableName))
         {
             storage =
-                createKeyPageStorage(storage, keyPageSize, nodeConfig->compatibilityVersion());
+                createKeyPageStorage(
+                    storage, keyPageSize, nodeConfig->ledgerParamConfig().compatibilityVersion());
         }
         auto outputFileName = tableName + ".txt";
         boost::replace_all(outputFileName, "/", "_");

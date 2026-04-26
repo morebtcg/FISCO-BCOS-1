@@ -72,7 +72,7 @@ void ExecutorServiceApp::createAndInitExecutor()
     boost::property_tree::read_ini(m_iniConfigPath, pt);
 
     // init service.without_tars_framework first for determine the log path
-    m_nodeConfig->loadWithoutTarsFrameworkConfig(pt);
+    m_nodeConfig->mutableServiceConfig().loadWithoutTarsFrameworkConfig(pt, "conf/tars_proxy.ini");
 
     m_logInitializer = std::make_shared<bcos::BoostLogInitializer>();
     if (!m_nodeConfig->withoutTarsFramework())
@@ -89,7 +89,9 @@ void ExecutorServiceApp::createAndInitExecutor()
 
     m_nodeConfig->loadGenesisConfig(genesisPt);
     m_nodeConfig->loadConfig(pt);
-    m_nodeConfig->loadNodeServiceConfig(m_nodeConfig->nodeName(), pt, true);
+    m_nodeConfig->mutableServiceConfig().loadNodeServiceConfig(
+        pt, m_nodeConfig->serviceConfig().nodeName(), m_nodeConfig->chainConfig().chainID(),
+        "conf/tars_proxy.ini", true);
     // init the protocol
     m_protocolInitializer = std::make_shared<ProtocolInitializer>();
     m_protocolInitializer->init(m_nodeConfig);
@@ -100,13 +102,14 @@ void ExecutorServiceApp::createAndInitExecutor()
     auto withoutTarsFramework = m_nodeConfig->withoutTarsFramework();
 
     // create txpool client
-    auto txpoolServiceName = m_nodeConfig->txpoolServiceName();
+    auto txpoolServiceName = m_nodeConfig->serviceConfig().txpoolServiceName();
     EXECUTOR_SERVICE_LOG(INFO) << LOG_DESC("create TxPoolServiceClient")
                                << LOG_KV("txpoolServiceName", txpoolServiceName)
                                << LOG_KV("withoutTarsFramework", withoutTarsFramework);
 
     std::vector<tars::TC_Endpoint> endPoints;
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::TXPOOL_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(
+        bcos::protocol::TXPOOL_NAME, endPoints);
 
     auto txpoolServicePrx = createServantProxy<bcostars::TxPoolServicePrx>(
         withoutTarsFramework, txpoolServiceName, endPoints);
@@ -114,9 +117,10 @@ void ExecutorServiceApp::createAndInitExecutor()
     m_txpool = std::make_shared<bcostars::TxPoolServiceClient>(txpoolServicePrx,
         m_protocolInitializer->cryptoSuite(), m_protocolInitializer->blockFactory());
 
-    auto schedulerServiceName = m_nodeConfig->schedulerServiceName();
+    auto schedulerServiceName = m_nodeConfig->serviceConfig().schedulerServiceName();
 
-    m_nodeConfig->getTarsClientProxyEndpoints(bcos::protocol::SCHEDULER_NAME, endPoints);
+    m_nodeConfig->serviceConfig().getTarsClientProxyEndpoints(
+        bcos::protocol::SCHEDULER_NAME, endPoints);
 
     EXECUTOR_SERVICE_LOG(INFO) << LOG_DESC("create SchedulerServiceClient")
                                << LOG_KV("schedulerServiceName", schedulerServiceName);

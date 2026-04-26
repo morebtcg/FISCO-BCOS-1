@@ -78,7 +78,7 @@ void NodeServiceApp::initLog()
     boost::property_tree::read_ini(m_iniConfigPath, pt);
 
     tool::NodeConfig nodeConfig;
-    nodeConfig.loadWithoutTarsFrameworkConfig(pt);
+    nodeConfig.mutableServiceConfig().loadWithoutTarsFrameworkConfig(pt, "conf/tars_proxy.ini");
 
     m_logInitializer = std::make_shared<BoostLogInitializer>();
     if (!nodeConfig.withoutTarsFramework())
@@ -94,12 +94,12 @@ void NodeServiceApp::initNodeService()
     m_nodeInitializer = std::make_shared<Initializer>();
     m_nodeInitializer->initMicroServiceNode(
         m_nodeArchType, m_iniConfigPath, m_genesisConfigPath, m_privateKeyPath, getLogPath());
-    auto rpcServiceName = m_nodeInitializer->nodeConfig()->rpcServiceName();
+    auto rpcServiceName = m_nodeInitializer->nodeConfig()->serviceConfig().rpcServiceName();
 
     auto withoutTarsFramework = m_nodeInitializer->nodeConfig()->withoutTarsFramework();
 
     std::vector<tars::TC_Endpoint> endPoints;
-    m_nodeInitializer->nodeConfig()->getTarsClientProxyEndpoints(
+    m_nodeInitializer->nodeConfig()->serviceConfig().getTarsClientProxyEndpoints(
         bcos::protocol::RPC_NAME, endPoints);
 
     auto rpcServicePrx = bcostars::createServantProxy<bcostars::RpcServicePrx>(

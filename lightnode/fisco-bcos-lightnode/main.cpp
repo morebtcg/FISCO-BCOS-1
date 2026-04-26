@@ -139,7 +139,7 @@ void starLightnode(bcos::tool::NodeConfig::Ptr nodeConfig, auto ledger, auto nod
 {
     LIGHTNODE_LOG(INFO) << "Init lightnode p2p client...";
     auto p2pClient = std::make_shared<bcos::p2p::P2PClientImpl>(
-        front, gateway, keyFactory, nodeConfig->groupId());
+        front, gateway, keyFactory, nodeConfig->chainConfig().groupID());
     auto remoteLedger = std::make_shared<bcos::ledger::LedgerClientImpl>(p2pClient);
     auto remoteTransactionPool =
         std::make_shared<bcos::transaction_pool::TransactionPoolClientImpl>(p2pClient);
@@ -181,7 +181,8 @@ void starLightnode(bcos::tool::NodeConfig::Ptr nodeConfig, auto ledger, auto nod
     LIGHTNODE_LOG(INFO) << "Init lightnode block syner...";
     auto stopToken = std::make_shared<std::atomic_bool>(false);
     auto syncer = startSyncerThread(
-        remoteLedger, ledger, wsService, nodeConfig->groupId(), nodeConfig->nodeName(), stopToken);
+        remoteLedger, ledger, wsService, nodeConfig->chainConfig().groupID(),
+        nodeConfig->serviceConfig().nodeName(), stopToken);
     syncer.join();
 }
 
@@ -209,7 +210,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char* argv[])
 
     auto protocolInitializer = bcos::initializer::ProtocolInitializer();
     protocolInitializer.init(nodeConfig);
-    protocolInitializer.loadKeyPair(nodeConfig->privateKeyPath());
+    protocolInitializer.loadKeyPair(nodeConfig->securityConfig().privateKeyPath());
     auto nodeID = protocolInitializer.keyPair()->publicKey()->hex();
 
     auto front = std::make_shared<bcos::front::FrontService>();
@@ -217,11 +218,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char* argv[])
     bcos::gateway::Gateway::Ptr gateway;
     try
     {
-        bcos::gateway::GatewayFactory gatewayFactory(nodeConfig->chainId(), "local", nullptr);
+        bcos::gateway::GatewayFactory gatewayFactory(
+            nodeConfig->chainConfig().chainID(), "local", nullptr);
         gateway = gatewayFactory.buildGateway(configFile, true, nullptr, "localGateway");
         auto protocolInfo = bcos::protocol::g_BCOSConfig.protocolInfo(
             bcos::protocol::ProtocolModuleID::GatewayService);
-        gateway->gatewayNodeManager()->registerNode(nodeConfig->groupId(),
+        gateway->gatewayNodeManager()->registerNode(nodeConfig->chainConfig().groupID(),
             protocolInitializer.keyPair()->publicKey(), bcos::protocol::NodeType::LIGHT_NODE, front,
             protocolInfo);
         gateway->start();
@@ -238,7 +240,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] const char* argv[])
 
     // front
     front->setMessageFactory(std::make_shared<bcos::front::FrontMessageFactory>());
-    front->setGroupID(nodeConfig->groupId());
+    front->setGroupID(nodeConfig->chainConfig().groupID());
     front->setNodeID(protocolInitializer.keyPair()->publicKey());
     front->setIoService(std::make_shared<boost::asio::io_context>());
     front->setGatewayInterface(gateway);
