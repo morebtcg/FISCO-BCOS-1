@@ -29,19 +29,46 @@ template <class KeyType, class ValueType, Resolver<KeyType> KeyResolver,
 class RocksDBStorage2
 {
 private:
-    std::reference_wrapper<::rocksdb::DB> m_rocksDB;
+    std::variant<std::reference_wrapper<::rocksdb::DB>, std::unique_ptr<::rocksdb::DB>> m_rocksDB;
     [[no_unique_address]] KeyResolver m_keyResolver;
     [[no_unique_address]] ValueResolver m_valueResolver;
 
+    ::rocksdb::DB& rocksDBRef() noexcept
+    {
+        return std::visit(
+            [](auto& handle) -> ::rocksdb::DB& {
+                using Handle = std::decay_t<decltype(handle)>;
+                if constexpr (std::is_same_v<Handle, std::reference_wrapper<::rocksdb::DB>>)
+                {
+                    return handle.get();
+                }
+                else
+                {
+                    return *handle;
+                }
+            },
+            m_rocksDB);
+    }
+
 public:
     RocksDBStorage2(::rocksdb::DB& rocksDB) : m_rocksDB(rocksDB) {}
+    RocksDBStorage2(std::unique_ptr<::rocksdb::DB> rocksDB) : m_rocksDB(std::move(rocksDB)) {}
     RocksDBStorage2(::rocksdb::DB& rocksDB, KeyResolver keyResolver, ValueResolver valueResolver)
       : m_rocksDB(rocksDB),
         m_keyResolver(std::move(keyResolver)),
         m_valueResolver(std::move(valueResolver))
     {}
+    RocksDBStorage2(std::unique_ptr<::rocksdb::DB> rocksDB, KeyResolver keyResolver,
+        ValueResolver valueResolver)
+      : m_rocksDB(std::move(rocksDB)),
+        m_keyResolver(std::move(keyResolver)),
+        m_valueResolver(std::move(valueResolver))
+    {}
     using Key = KeyType;
     using Value = ValueType;
+
+    ::rocksdb::DB& rocksDB() noexcept { return rocksDBRef(); }
+    ::rocksdb::DB const& rocksDB() const noexcept { return rocksDBRef(); }
 
     auto readSomeRaw(::ranges::input_range auto keys, auto&&... /*args*/)
         -> task::Task<std::vector<StorageValueType<ValueType>>>
@@ -56,7 +83,7 @@ public:
         auto rocksDBKeys = encodedKeys | ::ranges::views::transform([](const auto& encodedKey) {
             return ::rocksdb::Slice(::ranges::data(encodedKey), ::ranges::size(encodedKey));
         }) | ::ranges::to<std::vector>();
-        m_rocksDB.get().MultiGet(::rocksdb::ReadOptions(), m_rocksDB.get().DefaultColumnFamily(),
+        rocksDBRef().MultiGet(::rocksdb::ReadOptions(), rocksDBRef().DefaultColumnFamily(),
             rocksDBKeys.size(), rocksDBKeys.data(), results.data(), status.data());
 
         auto values =
@@ -84,8 +111,7 @@ public:
 
         auto encodedKey = m_keyResolver.encode(std::move(key));
         ::rocksdb::PinnableSlice result;
-        auto status = m_rocksDB.get().Get(::rocksdb::ReadOptions(),
-            m_rocksDB.get().DefaultColumnFamily(),
+        auto status = rocksDBRef().Get(::rocksdb::ReadOptions(), rocksDBRef().DefaultColumnFamily(),
             ::rocksdb::Slice(::ranges::data(encodedKey), ::ranges::size(encodedKey)), &result);
 
         if (!status.ok())
@@ -94,7 +120,8 @@ public:
             {
                 co_return StorageValueType<ValueType>{};
             }
-            BOOST_THROW_EXCEPTION(RocksDBException{} << bcos::Error::ErrorMessage(status.ToString()));
+            BOOST_THROW_EXCEPTION(
+                RocksDBException{} << bcos::Error::ErrorMessage(status.ToString()));
         }
 
         co_return StorageValueType<ValueType>{m_valueResolver.decode(result.ToStringView())};
@@ -103,8 +130,7 @@ public:
     auto readSome(::ranges::input_range auto keys, auto&&... args)
         -> task::Task<std::vector<std::optional<ValueType>>>
     {
-        auto values =
-            co_await readSomeRaw(std::move(keys), std::forward<decltype(args)>(args)...);
+        auto values = co_await readSomeRaw(std::move(keys), std::forward<decltype(args)>(args)...);
         co_return ::ranges::views::transform(values, [](auto&& value) -> std::optional<ValueType> {
             if (auto* entry = std::get_if<ValueType>(std::addressof(value)))
             {
@@ -136,8 +162,7 @@ public:
         }
 
         ::rocksdb::WriteOptions options;
-        auto status = m_rocksDB.get().Write(options, std::addressof(writeBatch));
-        if (!status.ok())
+        if (auto status = rocksDBRef().Write(options, std::addressof(writeBatch)); !status.ok())
         {
             BOOST_THROW_EXCEPTION(RocksDBException{} << errinfo_comment(status.ToString()));
         }
@@ -146,19 +171,30 @@ public:
 
     task::AwaitableValue<void> writeOne(auto key, auto value)
     {
-        auto rocksDBKey = m_keyResolver.encode(key);
-        auto rocksDBValue = m_valueResolver.encode(value);
-
-        ::rocksdb::WriteOptions options;
-        auto status = m_rocksDB.get().Put(options,
-            ::rocksdb::Slice(::ranges::data(rocksDBKey), ::ranges::size(rocksDBKey)),
-            ::rocksdb::Slice(::ranges::data(rocksDBValue), ::ranges::size(rocksDBValue)));
-
-        if (!status.ok())
+        if constexpr (std::is_same_v<std::decay_t<decltype(value)>, storage2::DELETED_TYPE>)
         {
-            BOOST_THROW_EXCEPTION(RocksDBException{} << errinfo_comment(status.ToString()));
+            return removeOne(key);
         }
-        return {};
+        else
+        {
+            auto rocksDBKey = m_keyResolver.encode(key);
+            auto rocksDBValue = m_valueResolver.encode(value);
+
+            ::rocksdb::WriteOptions options;
+            if (auto status = rocksDBRef().Put(options,
+                    ::rocksdb::Slice(::ranges::data(rocksDBKey), ::ranges::size(rocksDBKey)),
+                    ::rocksdb::Slice(::ranges::data(rocksDBValue), ::ranges::size(rocksDBValue)));
+                !status.ok())
+            {
+                BOOST_THROW_EXCEPTION(RocksDBException{} << errinfo_comment(status.ToString()));
+            }
+            return {};
+        }
+    }
+
+    task::AwaitableValue<void> removeOne(auto const& key, auto&&... /*args*/)
+    {
+        return removeSome(::ranges::single_view(key));
     }
 
     task::AwaitableValue<void> removeSome(::ranges::input_range auto keys)
@@ -173,8 +209,7 @@ public:
         }
 
         ::rocksdb::WriteOptions options;
-        auto status = m_rocksDB.get().Write(options, &writeBatch);
-        if (!status.ok())
+        if (auto status = rocksDBRef().Write(options, &writeBatch); !status.ok())
         {
             BOOST_THROW_EXCEPTION(RocksDBException{} << errinfo_comment(status.ToString()));
         }
@@ -215,7 +250,7 @@ public:
 
         co_await writeToBatch(*currentWriteBatch, fromStorage...);
         ::rocksdb::WriteOptions options;
-        auto status = m_rocksDB.get().Write(options, currentWriteBatch.get());
+        auto status = rocksDBRef().Write(options, currentWriteBatch.get());
 
         currentWriteBatch->Clear();
         if (!writeBatch || currentWriteBatch->Data().capacity() > writeBatch->Data().capacity())
@@ -234,7 +269,7 @@ public:
     private:
         const ::rocksdb::Snapshot* m_snapshot;
         std::unique_ptr<::rocksdb::Iterator> m_iterator;
-        const RocksDBStorage2* m_storage;
+        RocksDBStorage2* m_storage;
 
     public:
         Iterator(const Iterator&) = delete;
@@ -257,14 +292,14 @@ public:
             return *this;
         }
         Iterator(const ::rocksdb::Snapshot* snapshot, ::rocksdb::Iterator* iterator,
-            const RocksDBStorage2* storage)
+            RocksDBStorage2* storage)
           : m_snapshot(snapshot), m_iterator(iterator), m_storage(storage)
         {}
         ~Iterator() noexcept
         {
             if (m_snapshot != nullptr && m_storage != nullptr)
             {
-                m_storage->m_rocksDB.get().ReleaseSnapshot(m_snapshot);
+                m_storage->rocksDBRef().ReleaseSnapshot(m_snapshot);
             }
         }
 
@@ -286,10 +321,10 @@ public:
     static task::AwaitableValue<Iterator> rangeImpl(
         RocksDBStorage2& storage, const ::rocksdb::Slice* startSlice = nullptr)
     {
-        const auto* snapshot = storage.m_rocksDB.get().GetSnapshot();
+        const auto* snapshot = storage.rocksDBRef().GetSnapshot();
         ::rocksdb::ReadOptions readOptions;
         readOptions.snapshot = snapshot;
-        auto* iterator = storage.m_rocksDB.get().NewIterator(readOptions);
+        auto* iterator = storage.rocksDBRef().NewIterator(readOptions);
         if (startSlice != nullptr)
         {
             iterator->Seek(*startSlice);

@@ -4,6 +4,7 @@
  */
 
 #include "bcos-utilities/IOServicePool.h"
+#include "bcos-utilities/Common.h"
 
 using namespace bcos;
 
@@ -46,7 +47,7 @@ void IOServicePool::start()
     }
 }
 
-std::shared_ptr<IOServicePool::IOService> IOServicePool::getIOService()
+std::shared_ptr<IOServicePool::IOService>& IOServicePool::getIOService()
 {
     auto selectedIoService = (m_nextIOService.fetch_add(1) % m_ioServices.size());
     return m_ioServices.at(selectedIoService);
@@ -60,16 +61,21 @@ void IOServicePool::stop()
     }
     m_running = false;
 
+    // 1. Reset work to release keep-alive, allowing io_context to exit when no handlers remain
     for (auto& work : m_works)
     {
         work.reset();
     }
 
+    // 2. Signal all io_contexts to stop. This causes run() to return after finishing
+    //    currently queued handlers. Without this, recurring timers/callbacks would
+    //    keep run() alive indefinitely, causing join() to hang.
     for (auto& ioService : m_ioServices)
     {
         ioService->stop();
     }
 
+    // 3. Wait for all threads to exit
     for (auto& thread : m_threads)
     {
         if (thread.joinable())

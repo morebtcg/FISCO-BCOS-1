@@ -1,8 +1,8 @@
 {
     "name": "evmone",
-    "version-string": "0.11.0",
-    "homepage": "https://github.com/FISCO-BCOS/evmone",
-    "description": "evmone",
+    "version-string": "0.21.0",
+    "homepage": "https://github.com/ipsilon/evmone",
+    "description": "Fast Ethereum Virtual Machine implementation (EVMC merged)",
     "dependencies": [
         {
             "name": "vcpkg-cmake",
@@ -12,8 +12,7 @@
             "name": "vcpkg-cmake-config",
             "host": true
         },
-        "ethash",
         "intx",
-        "evmc"
+        "blst"
     ]
 }
