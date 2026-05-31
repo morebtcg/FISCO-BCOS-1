@@ -32,6 +32,7 @@
 #include "bcos-rpc/jsonrpc/Common.h"
 #include "bcos-rpc/validator/CallValidator.h"
 #include "bcos-rpc/web3jsonrpc/model/Web3Transaction.h"
+#include <bcos-task/Wait.h>
 #include "bcos-utilities/Base64.h"
 #include "bcos-utilities/BoostLog.h"
 #include <json/value.h>
@@ -1536,23 +1537,27 @@ void JsonRpcImpl_2_0::getLogs(
 void JsonRpcImpl_2_0::execCall(
     NodeService::Ptr nodeService, protocol::Transaction::Ptr _tx, bcos::rpc::RespFunc _respFunc)
 {
-    nodeService->scheduler()->call(
-        _tx, [m_to = std::string(_tx->to()), m_respFunc = std::move(_respFunc)](
-                 Error::Ptr&& _error, protocol::TransactionReceipt::Ptr&& _transactionReceiptPtr) {
+    auto m_to = std::string(_tx->to());
+    bcos::task::wait(
+        [scheduler = nodeService->scheduler(), _tx = std::move(_tx), m_to = std::move(m_to),
+            m_respFunc = std::move(_respFunc)]() -> bcos::task::Task<void> {
             Json::Value jResp;
-            if (!_error || (_error->errorCode() == bcos::protocol::CommonError::SUCCESS))
+            try
             {
-                jResp["blockNumber"] = _transactionReceiptPtr->blockNumber();
-                jResp["status"] = _transactionReceiptPtr->status();
-                jResp["output"] = toHexStringWithPrefix(_transactionReceiptPtr->output());
+                auto receipt = co_await scheduler->call(std::move(_tx));
+                jResp["blockNumber"] = receipt->blockNumber();
+                jResp["status"] = receipt->status();
+                jResp["output"] = toHexStringWithPrefix(receipt->output());
+                m_respFunc(nullptr, jResp);
             }
-            else
+            catch (bcos::Error& e)
             {
                 RPC_IMPL_LOG(INFO)
                     << LOG_BADGE("call failed") << LOG_KV("to", m_to)
-                    << LOG_KV("code", _error ? _error->errorCode() : 0)
-                    << LOG_KV("message", _error ? _error->errorMessage() : "success");
+                    << LOG_KV("code", e.errorCode())
+                    << LOG_KV("message", e.errorMessage());
+                m_respFunc(std::make_shared<bcos::Error>(e), jResp);
             }
-            m_respFunc(_error, jResp);
-        });
+            co_return;
+        }());
 }

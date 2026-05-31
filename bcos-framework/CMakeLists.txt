@@ -24,6 +24,7 @@ find_package(fmt CONFIG REQUIRED)
 find_package(TBB REQUIRED)
 
 set(BCOS_FRAMEWORK_SOURCES
+    bcos-framework/dispatcher/SchedulerInterface.cpp
     bcos-framework/ledger/Features.cpp
     bcos-framework/multigroup/ChainNodeInfo.cpp
     bcos-framework/multigroup/GroupInfo.cpp

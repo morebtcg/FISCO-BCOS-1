@@ -29,9 +29,9 @@
 #include "BfsInitializer.h"
 #include "GlobalStateStorageInitializer.h"
 #include "LedgerInitializer.h"
+#include "MemPoolInitializer.h"
 #include "SchedulerInitializer.h"
 #include "StorageInitializer.h"
-#include "MemPoolInitializer.h"
 #include "bcos-executor/src/executor/SwitchExecutorManager.h"
 #include "bcos-framework/dispatcher/SchedulerInterface.h"
 #include "bcos-framework/ledger/Ledger.h"
@@ -196,16 +196,15 @@ void Initializer::init(bcos::protocol::NodeArchitectureType _nodeArchType,
                 [](::rocksdb::DB*) { /* lifetime managed by GlobalStateStorage */ }),
             m_protocolInitializer->dataEncryption());
         schedulerStorage = m_storage;
-        consensusStorage =
-            StorageInitializer::build(StorageInitializer::createRocksDB(consensusStoragePath,
-                                          rocksDBOption),
-                m_protocolInitializer->dataEncryption());
+        consensusStorage = StorageInitializer::build(
+            StorageInitializer::createRocksDB(consensusStoragePath, rocksDBOption),
+            m_protocolInitializer->dataEncryption());
         airExecutorStorage = m_storage;
         if (m_nodeConfig->enableSeparateBlockAndState())
         {
-            m_blockStorage =
-                StorageInitializer::build(StorageInitializer::createRocksDB(blockDBPath, rocksDBOption),
-                    m_protocolInitializer->dataEncryption());
+            m_blockStorage = StorageInitializer::build(
+                StorageInitializer::createRocksDB(blockDBPath, rocksDBOption),
+                m_protocolInitializer->dataEncryption());
         }
     }
 #ifdef WITH_TIKV
@@ -537,18 +536,26 @@ void Initializer::initSysContract()
     if (block->transactionsSize() > 0) [[likely]]
     {
         std::promise<std::tuple<bcos::Error::Ptr, bcos::protocol::BlockHeader::Ptr>> executedHeader;
-        m_scheduler->executeBlock(block, false,
-            [&](bcos::Error::Ptr&& _error, bcos::protocol::BlockHeader::Ptr&& _header, bool) {
-                if (_error)
+        bcos::task::wait(
+            [](bcos::scheduler::SchedulerInterface::Ptr scheduler, bcos::protocol::Block::Ptr block,
+                std::reference_wrapper<
+                    std::promise<std::tuple<bcos::Error::Ptr, bcos::protocol::BlockHeader::Ptr>>>
+                    p) -> bcos::task::Task<void> {
+                try
                 {
-                    executedHeader.set_value({std::move(_error), nullptr});
-                    return;
+                    auto [header, sysBlock] =
+                        co_await scheduler->executeBlock(std::move(block), false);
+                    INITIALIZER_LOG(INFO) << LOG_BADGE("SysInitializer")
+                                          << LOG_DESC("scheduler execute block success!")
+                                          << LOG_KV("blockHash", header->hash().hex());
+                    p.get().set_value({nullptr, std::move(header)});
                 }
-                INITIALIZER_LOG(INFO)
-                    << LOG_BADGE("SysInitializer") << LOG_DESC("scheduler execute block success!")
-                    << LOG_KV("blockHash", block->blockHeader()->hash().hex());
-                executedHeader.set_value({nullptr, std::move(_header)});
-            });
+                catch (bcos::Error& e)
+                {
+                    p.get().set_value({std::make_shared<bcos::Error>(e), nullptr});
+                }
+            }(m_scheduler, block, std::ref(executedHeader)));
+
         auto [executeError, header] = executedHeader.get_future().get();
         if (executeError || header == nullptr) [[unlikely]]
         {
@@ -566,17 +573,25 @@ void Initializer::initSysContract()
         }
 
         std::promise<std::tuple<Error::Ptr, bcos::ledger::LedgerConfig::Ptr>> committedConfig;
-        m_scheduler->commitBlock(
-            header, [&](Error::Ptr&& _error, bcos::ledger::LedgerConfig::Ptr&& _config) {
-                if (_error)
+        bcos::task::wait(
+            [](bcos::scheduler::SchedulerInterface::Ptr scheduler,
+                bcos::protocol::BlockHeader::Ptr header,
+                std::reference_wrapper<
+                    std::promise<std::tuple<Error::Ptr, bcos::ledger::LedgerConfig::Ptr>>>
+                    p) -> bcos::task::Task<void> {
+                try
+                {
+                    auto config = co_await scheduler->commitBlock(std::move(header));
+                    p.get().set_value(std::make_tuple(nullptr, std::move(config)));
+                }
+                catch (bcos::Error& e)
                 {
                     INITIALIZER_LOG(ERROR)
-                        << LOG_BADGE("SysInitializer") << LOG_KV("msg", _error->errorMessage());
-                    committedConfig.set_value(std::make_tuple(std::move(_error), nullptr));
-                    return;
+                        << LOG_BADGE("SysInitializer") << LOG_KV("msg", e.errorMessage());
+                    p.get().set_value(std::make_tuple(std::make_shared<bcos::Error>(e), nullptr));
                 }
-                committedConfig.set_value(std::make_tuple(nullptr, std::move(_config)));
-            });
+            }(m_scheduler, header, std::ref(committedConfig)));
+
         auto [error, newConfig] = committedConfig.get_future().get();
         if (error != nullptr || newConfig->blockNumber() != SYS_CONTRACT_DEPLOY_NUMBER)
         {
@@ -1179,8 +1194,8 @@ bcos::Error::Ptr Initializer::importSnapshotToRocksDB(
         moveSSTFiles = false;
     }
     auto rocksdbOption = getRocksDBOption(nodeConfig, true);
-    auto rocksDB = StorageInitializer::createRocksDB(
-        stateDBPath, rocksdbOption, nodeConfig->keyPageSize());
+    auto rocksDB =
+        StorageInitializer::createRocksDB(stateDBPath, rocksdbOption, nodeConfig->keyPageSize());
     ingestIntoRocksDB(*rocksDB, sstFiles, moveSSTFiles);
     bcos::storage::TransactionalStorageInterface::Ptr stateStorage = nullptr;
     // import tx and receipt
@@ -1215,8 +1230,7 @@ bcos::Error::Ptr Initializer::importSnapshotToRocksDB(
         if (nodeConfig->enableSeparateBlockAndState())
         {
             auto blockDBPath = getBlockDBPath(true);
-            auto blockRocksDB = StorageInitializer::createRocksDB(
-                blockDBPath, rocksdbOption);
+            auto blockRocksDB = StorageInitializer::createRocksDB(blockDBPath, rocksdbOption);
             if (blockRocksDB)
             {
                 ingestIntoRocksDB(*blockRocksDB, blockSstFiles, moveSSTFiles);

@@ -23,6 +23,7 @@
 #include <bcos-framework/protocol/CommonError.h>
 #include <bcos-framework/protocol/ProtocolTypeDef.h>
 #include <bcos-framework/storage/Table.h>
+#include <bcos-task/Wait.h>
 
 using namespace bcos;
 using namespace bcos::consensus;
@@ -356,63 +357,80 @@ void LedgerStorage::commitStableCheckPoint(PBFTProposalInterface::Ptr _stablePro
 {
     auto self = weak_from_this();
     auto startT = utcTime();
-    m_scheduler->commitBlock(_blockHeader, [_stableProposal, _blockHeader, _blockInfo, startT,
-                                               self](Error::Ptr&& _error,
-                                               LedgerConfig::Ptr _ledgerConfig) {
-        try
-        {
-            auto ledgerStorage = self.lock();
-            if (!ledgerStorage)
-            {
-                return;
-            }
 
-            if (_error != nullptr)
+    bcos::task::wait(
+        [scheduler = m_scheduler, _stableProposal = std::move(_stableProposal),
+            _blockHeader = std::move(_blockHeader), _blockInfo = std::move(_blockInfo), startT,
+            self]() -> bcos::task::Task<void> {
+            try
             {
-                PBFT_STORAGE_LOG(ERROR) << LOG_DESC("commitStableCheckPoint failed")
-                                        << LOG_KV("code", _error->errorCode())
-                                        << LOG_KV("message", _error->errorMessage())
-                                        << LOG_KV("proposalIndex", _blockHeader->number())
-                                        << LOG_KV("timecost", utcTime() - startT);
-                ledgerStorage->m_onStableCheckPointCommitFailed(std::move(_error), _stableProposal);
-                return;
-            }
+                auto ledgerConfig = co_await scheduler->commitBlock(_blockHeader);
 
-            assert(_ledgerConfig);
-            if (auto executorVersion = _ledgerConfig->executorVersion(); executorVersion > 0)
+                auto ledgerStorage = self.lock();
+                if (!ledgerStorage)
+                {
+                    co_return;
+                }
+
+                assert(ledgerConfig);
+                if (auto executorVersion = ledgerConfig->executorVersion();
+                    executorVersion > 0)
+                {
+                    PBFT_STORAGE_LOG(INFO)
+                        << "Use executor version: " << executorVersion;
+                    ledgerStorage->m_scheduler->setVersion(
+                        executorVersion, ledgerConfig);
+                }
+
+                auto commitPerTx = (double)(utcTime() - startT) /
+                                   (double)(_blockInfo->transactionsHashSize());
+                PBFT_STORAGE_LOG(INFO)
+                    << METRIC << LOG_DESC("commitStableCheckPoint success")
+                    << LOG_KV("index", _blockHeader->number())
+                    << LOG_KV("hash", ledgerConfig->hash().abridged())
+                    << LOG_KV("txs", _blockInfo->transactionsHashSize())
+                    << LOG_KV("timeCost", utcTime() - startT)
+                    << LOG_KV("commitPerTx", commitPerTx);
+                auto txsSize = _blockInfo->transactionsHashSize();
+                // Note:Here the thread pool is used to asynchronize the operation of
+                // PBFT finalize to prevent the commitBlock from calling the callback
+                // synchronously and affecting the performance.
+                ledgerStorage->m_commitBlockWorker->enqueue(
+                    [self, txsSize, _blockHeader = std::move(_blockHeader),
+                        ledgerConfig = std::move(ledgerConfig)]() {
+                        auto storage = self.lock();
+                        if (!storage)
+                        {
+                            return;
+                        }
+                        storage->onStableCheckPointCommitted(
+                            txsSize, _blockHeader, ledgerConfig);
+                    });
+            }
+            catch (bcos::Error& e)
             {
-                PBFT_STORAGE_LOG(INFO) << "Use executor version: " << executorVersion;
-                ledgerStorage->m_scheduler->setVersion(executorVersion, _ledgerConfig);
-            }
+                auto ledgerStorage = self.lock();
+                if (!ledgerStorage)
+                {
+                    co_return;
+                }
 
-            auto commitPerTx =
-                (double)(utcTime() - startT) / (double)(_blockInfo->transactionsHashSize());
-            PBFT_STORAGE_LOG(INFO)
-                << METRIC << LOG_DESC("commitStableCheckPoint success")
-                << LOG_KV("index", _blockHeader->number())
-                << LOG_KV("hash", _ledgerConfig->hash().abridged())
-                << LOG_KV("txs", _blockInfo->transactionsHashSize())
-                << LOG_KV("timeCost", utcTime() - startT) << LOG_KV("commitPerTx", commitPerTx);
-            auto txsSize = _blockInfo->transactionsHashSize();
-            // Note:Here the thread pool is used to asynchronize the operation of PBFT finalize to
-            // prevent the commitBlock from calling the callback synchronously and affecting the
-            // performance.
-            ledgerStorage->m_commitBlockWorker->enqueue(
-                [self, txsSize, _blockHeader, _ledgerConfig]() {
-                    auto storage = self.lock();
-                    if (!storage)
-                    {
-                        return;
-                    }
-                    storage->onStableCheckPointCommitted(txsSize, _blockHeader, _ledgerConfig);
-                });
-        }
-        catch (std::exception const& e)
-        {
-            PBFT_STORAGE_LOG(WARNING) << LOG_DESC("commitStableCheckPoint exception")
-                                      << LOG_KV("message", boost::diagnostic_information(e));
-        }
-    });
+                PBFT_STORAGE_LOG(ERROR)
+                    << LOG_DESC("commitStableCheckPoint failed")
+                    << LOG_KV("code", e.errorCode())
+                    << LOG_KV("message", e.errorMessage())
+                    << LOG_KV("proposalIndex", _blockHeader->number())
+                    << LOG_KV("timecost", utcTime() - startT);
+                ledgerStorage->m_onStableCheckPointCommitFailed(
+                    std::make_shared<bcos::Error>(e), _stableProposal);
+            }
+            catch (std::exception const& e)
+            {
+                PBFT_STORAGE_LOG(WARNING)
+                    << LOG_DESC("commitStableCheckPoint exception")
+                    << LOG_KV("message", boost::diagnostic_information(e));
+            }
+        }());
 }
 
 void LedgerStorage::asyncRemoveStabledCheckPoint(size_t _stabledCheckPointIndex)

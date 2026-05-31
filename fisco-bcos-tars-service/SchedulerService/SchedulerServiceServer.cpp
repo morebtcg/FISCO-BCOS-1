@@ -26,6 +26,7 @@
 #include <bcos-tars-protocol/protocol/BlockImpl.h>
 #include <bcos-tars-protocol/protocol/TransactionImpl.h>
 #include <bcos-tars-protocol/protocol/TransactionReceiptImpl.h>
+#include <bcos-task/Wait.h>
 
 using namespace tars;
 using namespace bcostars;
@@ -36,17 +37,26 @@ bcostars::Error SchedulerServiceServer::call(
     current->setResponse(false);
     auto bcosTransaction = std::make_shared<bcostars::protocol::TransactionImpl>(
         [m_tx = _tx]() mutable { return &m_tx; });
-    m_scheduler->call(bcosTransaction,
-        [current](bcos::Error::Ptr&& _error, bcos::protocol::TransactionReceipt::Ptr&& _receipt) {
+    bcos::task::wait([scheduler = m_scheduler, bcosTransaction = std::move(bcosTransaction),
+                         current]() -> bcos::task::Task<void> {
+        try
+        {
+            auto receipt = co_await scheduler->call(std::move(bcosTransaction));
             bcostars::TransactionReceipt tarsReceipt;
-            if (_receipt)
+            if (receipt)
             {
                 tarsReceipt =
-                    std::dynamic_pointer_cast<bcostars::protocol::TransactionReceiptImpl>(_receipt)
+                    std::dynamic_pointer_cast<bcostars::protocol::TransactionReceiptImpl>(receipt)
                         ->inner();
             }
-            async_response_call(current, toTarsError(_error), tarsReceipt);
-        });
+            async_response_call(current, bcostars::Error(), tarsReceipt);
+        }
+        catch (bcos::Error& e)
+        {
+            async_response_call(current, toTarsError(std::make_shared<bcos::Error>(e)),
+                bcostars::TransactionReceipt());
+        }
+    }());
     return bcostars::Error();
 }
 
@@ -54,11 +64,18 @@ bcostars::Error SchedulerServiceServer::getCode(
     const std::string& contract, std::vector<tars::Char>& code, tars::TarsCurrentPtr current)
 {
     current->setResponse(false);
-    m_scheduler->getCode(contract, [current](bcos::Error::Ptr error, bcos::bytes code) {
-        std::vector<tars::Char> outCode(code.begin(), code.end());
-
-        async_response_getCode(current, toTarsError(error), outCode);
-    });
+    bcos::task::wait([scheduler = m_scheduler, contract, current]() -> bcos::task::Task<void> {
+        try
+        {
+            auto code = co_await scheduler->getCode(contract);
+            std::vector<tars::Char> outCode(code.begin(), code.end());
+            async_response_getCode(current, bcostars::Error(), outCode);
+        }
+        catch (bcos::Error& e)
+        {
+            async_response_getCode(current, toTarsError(std::make_shared<bcos::Error>(e)), {});
+        }
+    }());
 
     return bcostars::Error();
 }
@@ -67,9 +84,17 @@ bcostars::Error SchedulerServiceServer::getABI(
     const std::string& contract, std::string& abi, tars::TarsCurrentPtr current)
 {
     current->setResponse(false);
-    m_scheduler->getABI(contract, [current](bcos::Error::Ptr error, std::string abi) {
-        async_response_getABI(current, toTarsError(error), abi);
-    });
+    bcos::task::wait([scheduler = m_scheduler, contract, current]() -> bcos::task::Task<void> {
+        try
+        {
+            auto abi = co_await scheduler->getABI(contract);
+            async_response_getABI(current, bcostars::Error(), abi);
+        }
+        catch (bcos::Error& e)
+        {
+            async_response_getABI(current, toTarsError(std::make_shared<bcos::Error>(e)), {});
+        }
+    }());
 
     return bcostars::Error();
 }
@@ -79,14 +104,22 @@ bcostars::Error SchedulerServiceServer::executeBlock(bcostars::Block const& _blo
 {
     _current->setResponse(false);
     auto bcosBlock = std::make_shared<bcostars::protocol::BlockImpl>(_block);
-    m_scheduler->executeBlock(bcosBlock, _verify,
-        [_current](
-            bcos::Error::Ptr&& _error, bcos::protocol::BlockHeader::Ptr&& _header, bool _sysBlock) {
+    bcos::task::wait([scheduler = m_scheduler, bcosBlock = std::move(bcosBlock), _verify,
+                         _current]() -> bcos::task::Task<void> {
+        try
+        {
+            auto [header, sysBlock] =
+                co_await scheduler->executeBlock(std::move(bcosBlock), _verify);
             auto headerImpl =
-                std::dynamic_pointer_cast<bcostars::protocol::BlockHeaderImpl>(_header);
+                std::dynamic_pointer_cast<bcostars::protocol::BlockHeaderImpl>(header);
+            async_response_executeBlock(_current, bcostars::Error(), headerImpl->inner(), sysBlock);
+        }
+        catch (bcos::Error& e)
+        {
             async_response_executeBlock(
-                _current, toTarsError(_error), headerImpl->inner(), _sysBlock);
-        });
+                _current, toTarsError(std::make_shared<bcos::Error>(e)), {}, false);
+        }
+    }());
     return bcostars::Error();
 }
 
@@ -97,11 +130,19 @@ bcostars::Error SchedulerServiceServer::commitBlock(
     _current->setResponse(false);
     auto bcosHeader = std::make_shared<bcostars::protocol::BlockHeaderImpl>(
         [m_header = _header]() mutable { return &m_header; });
-    m_scheduler->commitBlock(bcosHeader,
-        [_current](bcos::Error::Ptr&& _error, bcos::ledger::LedgerConfig::Ptr&& _bcosLedgerConfig) {
+    bcos::task::wait([scheduler = m_scheduler, bcosHeader = std::move(bcosHeader),
+                         _current]() -> bcos::task::Task<void> {
+        try
+        {
+            auto ledgerConfig = co_await scheduler->commitBlock(std::move(bcosHeader));
             async_response_commitBlock(
-                _current, toTarsError(_error), toTarsLedgerConfig(_bcosLedgerConfig));
-        });
+                _current, bcostars::Error(), toTarsLedgerConfig(ledgerConfig));
+        }
+        catch (bcos::Error& e)
+        {
+            async_response_commitBlock(_current, toTarsError(std::make_shared<bcos::Error>(e)), {});
+        }
+    }());
     return bcostars::Error();
 }
 
@@ -110,8 +151,17 @@ bcostars::Error SchedulerServiceServer::preExecuteBlock(
 {
     _current->setResponse(false);
     auto bcosBlock = std::make_shared<bcostars::protocol::BlockImpl>(_block);
-    m_scheduler->preExecuteBlock(bcosBlock, _verify, [_current](bcos::Error::Ptr&& _error) {
-        async_response_preExecuteBlock(_current, toTarsError(_error));
-    });
+    bcos::task::wait([scheduler = m_scheduler, bcosBlock = std::move(bcosBlock), _verify,
+                         _current]() -> bcos::task::Task<void> {
+        try
+        {
+            co_await scheduler->preExecuteBlock(std::move(bcosBlock), _verify);
+            async_response_preExecuteBlock(_current, bcostars::Error());
+        }
+        catch (bcos::Error& e)
+        {
+            async_response_preExecuteBlock(_current, toTarsError(std::make_shared<bcos::Error>(e)));
+        }
+    }());
     return bcostars::Error();
 }

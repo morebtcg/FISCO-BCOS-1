@@ -1,4 +1,5 @@
 #include "SchedulerManager.h"
+#include <bcos-task/Wait.h>
 
 using namespace bcos::scheduler;
 
@@ -101,15 +102,21 @@ void SchedulerManager::executeBlock(bcos::protocol::Block::Ptr block, bool verif
         return;
     }
 
-    auto _holdSchedulerCallback =
-        [schedulerHolder = m_scheduler, callback = std::move(callback)](bcos::Error::Ptr&& error,
-            bcos::protocol::BlockHeader::Ptr&& blockHeader, bool _sysBlock) {
-            SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                                 << LOG_KV("ptr count", schedulerHolder.use_count());
-            callback(std::move(error), std::move(blockHeader), _sysBlock);
-        };
-
-    m_scheduler->executeBlock(block, verify, std::move(_holdSchedulerCallback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), block = std::move(block), verify,
+            callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                auto [header, sysBlock] =
+                    co_await scheduler->executeBlock(std::move(block), verify);
+                callback(nullptr, std::move(header), sysBlock);
+            }
+            catch (bcos::Error& e)
+            {
+                callback(
+                    std::make_shared<bcos::Error>(e), nullptr, false);
+            }
+        }());
 }
 
 // by pbft & sync
@@ -126,15 +133,19 @@ void SchedulerManager::commitBlock(bcos::protocol::BlockHeader::Ptr header,
         return;
     }
 
-    auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback = std::move(callback)](
-                                      bcos::Error::Ptr&& error,
-                                      bcos::ledger::LedgerConfig::Ptr&& ledger) {
-        SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                             << LOG_KV("ptr count", schedulerHolder.use_count());
-        callback(std::move(error), std::move(ledger));
-    };
-
-    m_scheduler->commitBlock(header, std::move(_holdSchedulerCallback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), header = std::move(header),
+            callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                auto config = co_await scheduler->commitBlock(std::move(header));
+                callback(nullptr, std::move(config));
+            }
+            catch (bcos::Error& e)
+            {
+                callback(std::make_shared<bcos::Error>(e), nullptr);
+            }
+        }());
 }
 
 // by console, query committed and committing executing
@@ -151,14 +162,18 @@ void SchedulerManager::status(
         return;
     }
 
-    auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback = std::move(callback)](
-                                      bcos::Error::Ptr&& error,
-                                      bcos::protocol::Session::ConstPtr&& session) {
-        SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                             << LOG_KV("ptr count", schedulerHolder.use_count());
-        callback(std::move(error), std::move(session));
-    };
-    m_scheduler->status(std::move(_holdSchedulerCallback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                auto session = co_await scheduler->status();
+                callback(nullptr, std::move(session));
+            }
+            catch (bcos::Error& e)
+            {
+                callback(std::make_shared<bcos::Error>(e), nullptr);
+            }
+        }());
 }
 
 // by rpc
@@ -174,15 +189,19 @@ void SchedulerManager::call(protocol::Transaction::Ptr tx,
         return;
     }
 
-    auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback = std::move(callback)](
-                                      bcos::Error::Ptr&& error,
-                                      protocol::TransactionReceipt::Ptr&& receipt) {
-        SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                             << LOG_KV("ptr count", schedulerHolder.use_count());
-        callback(std::move(error), std::move(receipt));
-    };
-
-    m_scheduler->call(tx, std::move(_holdSchedulerCallback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), tx = std::move(tx),
+            callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                auto receipt = co_await scheduler->call(std::move(tx));
+                callback(nullptr, std::move(receipt));
+            }
+            catch (bcos::Error& e)
+            {
+                callback(std::make_shared<bcos::Error>(e), nullptr);
+            }
+        }());
 }
 
 // clear all status
@@ -198,7 +217,19 @@ void SchedulerManager::reset(std::function<void(Error::Ptr)> callback)
         return;
     }
 
-    m_scheduler->reset(std::move(callback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler),
+            callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                co_await scheduler->reset();
+                callback(nullptr);
+            }
+            catch (bcos::Error& e)
+            {
+                callback(std::make_shared<bcos::Error>(e));
+            }
+        }());
 }
 
 void SchedulerManager::getCode(
@@ -215,16 +246,20 @@ void SchedulerManager::getCode(
             return;
         }
 
-        auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback =
-                                                                          std::move(callback)](
-                                          bcos::Error::Ptr&& error, bcos::bytes bytes) {
-            SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                                 << LOG_KV("ptr count", schedulerHolder.use_count());
-            callback(std::move(error), std::move(bytes));
-        };
-
-
-        m_scheduler->getCode(contract, std::move(_holdSchedulerCallback));
+        std::string contractStr(contract);
+        bcos::task::wait(
+            [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), contractStr = std::move(contractStr),
+                callback = std::move(callback)]() -> bcos::task::Task<void> {
+                try
+                {
+                    auto code = co_await scheduler->getCode(contractStr);
+                    callback(nullptr, std::move(code));
+                }
+                catch (bcos::Error& e)
+                {
+                    callback(std::make_shared<bcos::Error>(e), bcos::bytes());
+                }
+            }());
     }
     catch (std::exception const& e)
     {
@@ -253,15 +288,20 @@ void SchedulerManager::getABI(
             return;
         }
 
-        auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback =
-                                                                          std::move(callback)](
-                                          bcos::Error::Ptr&& error, std::string str) {
-            SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                                 << LOG_KV("ptr count", schedulerHolder.use_count());
-            callback(std::move(error), std::move(str));
-        };
-
-        m_scheduler->getABI(contract, std::move(_holdSchedulerCallback));
+        std::string contractStr(contract);
+        bcos::task::wait(
+            [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), contractStr = std::move(contractStr),
+                callback = std::move(callback)]() -> bcos::task::Task<void> {
+                try
+                {
+                    auto abi = co_await scheduler->getABI(contractStr);
+                    callback(nullptr, std::move(abi));
+                }
+                catch (bcos::Error& e)
+                {
+                    callback(std::make_shared<bcos::Error>(e), {});
+                }
+            }());
     }
     catch (std::exception const& e)
     {
@@ -305,14 +345,19 @@ void SchedulerManager::preExecuteBlock(
         return;
     }
 
-    auto _holdSchedulerCallback = [schedulerHolder = m_scheduler, callback = std::move(callback)](
-                                      bcos::Error::Ptr&& error) {
-        SCHEDULER_LOG(TRACE) << "Release scheduler holder"
-                             << LOG_KV("ptr count", schedulerHolder.use_count());
-        callback(std::move(error));
-    };
-
-    m_scheduler->preExecuteBlock(block, verify, std::move(_holdSchedulerCallback));
+    bcos::task::wait(
+        [scheduler = bcos::scheduler::SchedulerInterface::Ptr(m_scheduler), block = std::move(block), verify,
+            callback = std::move(callback)]() -> bcos::task::Task<void> {
+            try
+            {
+                co_await scheduler->preExecuteBlock(std::move(block), verify);
+                callback(nullptr);
+            }
+            catch (bcos::Error& e)
+            {
+                callback(std::make_shared<bcos::Error>(e));
+            }
+        }());
 }
 
 std::pair<bool, std::string> SchedulerManager::checkAndInit()

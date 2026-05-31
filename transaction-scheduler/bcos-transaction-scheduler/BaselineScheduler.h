@@ -581,102 +581,84 @@ public:
     BaselineScheduler& operator=(BaselineScheduler&&) noexcept = default;
     ~BaselineScheduler() noexcept override { m_asyncGroup.wait(); }
 
-    void executeBlock(bcos::protocol::Block::Ptr block, bool verify,
-        std::function<void(bcos::Error::Ptr, bcos::protocol::BlockHeader::Ptr, bool sysBlock)>
-            callback) override
+    task::Task<std::tuple<bcos::protocol::BlockHeader::Ptr, bool>> executeBlock(
+        bcos::protocol::Block::Ptr block, bool verify) override
     {
-        task::wait([](decltype(this) self, bcos::protocol::Block::Ptr block, bool verify,
-                       decltype(callback) callback) -> task::Task<void> {
-            std::apply(callback, co_await self->coExecuteBlock(std::move(block), verify));
-        }(this, std::move(block), verify, std::move(callback)));
+        auto [error, header, sysBlock] = co_await coExecuteBlock(std::move(block), verify);
+        if (error) BOOST_THROW_EXCEPTION(*error);
+        co_return std::make_tuple(std::move(header), sysBlock);
     }
 
-    void commitBlock(protocol::BlockHeader::Ptr header,
-        std::function<void(Error::Ptr, ledger::LedgerConfig::Ptr)> callback) override
+    task::Task<bcos::ledger::LedgerConfig::Ptr> commitBlock(
+        bcos::protocol::BlockHeader::Ptr header) override
     {
-        task::wait([](decltype(this) self, protocol::BlockHeader::Ptr blockHeader,
-                       decltype(callback) callback) -> task::Task<void> {
-            std::apply(callback, co_await self->coCommitBlock(std::move(blockHeader)));
-        }(this, std::move(header), std::move(callback)));
+        auto [error, config] = co_await coCommitBlock(std::move(header));
+        if (error) BOOST_THROW_EXCEPTION(*error);
+        co_return std::move(config);
     }
 
-    void status([[maybe_unused]] std::function<void(Error::Ptr, bcos::protocol::Session::ConstPtr)>
-            callback) override
+    task::Task<bcos::protocol::Session::ConstPtr> status() override
     {
-        callback({}, {});
+        co_return nullptr;
     }
 
-    void call(protocol::Transaction::Ptr transaction,
-        std::function<void(Error::Ptr, protocol::TransactionReceipt::Ptr)> callback) override
+    task::Task<bcos::protocol::TransactionReceipt::Ptr> call(
+        bcos::protocol::Transaction::Ptr transaction) override
     {
-        task::wait([](decltype(this) self, protocol::Transaction::Ptr transaction,
-                       decltype(callback) callback) -> task::Task<void> {
-            auto view = self->m_multiLayerStorage.get().fork();
-            view.newMutable();
-            auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
-            auto ledgerConfig =
-                co_await ledger::getLedgerConfig(view, blockNumber, self->m_blockFactory.get());
-            auto block = co_await ledger::getBlockData(
-                view, blockNumber, ledger::HEADER, self->m_blockFactory.get());
-            auto receipt = co_await self->m_executor.get().executeTransaction(
-                view, *block->blockHeader(), *transaction, 0, *ledgerConfig, true);
-
-            callback(nullptr, std::move(receipt));
-        }(this, std::move(transaction), std::move(callback)));
+        auto view = m_multiLayerStorage.get().fork();
+        view.newMutable();
+        auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
+        auto ledgerConfig =
+            co_await ledger::getLedgerConfig(view, blockNumber, m_blockFactory.get());
+        auto block = co_await ledger::getBlockData(
+            view, blockNumber, ledger::HEADER, m_blockFactory.get());
+        auto receipt = co_await m_executor.get().executeTransaction(
+            view, *block->blockHeader(), *transaction, 0, *ledgerConfig, true);
+        co_return std::move(receipt);
     }
 
-    void reset([[maybe_unused]] std::function<void(Error::Ptr)> callback) override
+    task::Task<void> reset() override
     {
-        callback(nullptr);
+        co_return;
     }
 
-    void getCode(
-        std::string_view contract, std::function<void(Error::Ptr, bcos::bytes)> callback) override
+    task::Task<bcos::bytes> getCode(std::string_view contract) override
     {
-        task::wait([](decltype(this) self, std::string_view contract,
-                       decltype(callback) callback) -> task::Task<void> {
-            auto view = self->m_multiLayerStorage.get().fork();
-            auto contractAddress = unhexAddress(contract);
-            auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
-            auto ledgerConfig =
-                co_await ledger::getLedgerConfig(view, blockNumber, self->m_blockFactory.get());
+        auto view = m_multiLayerStorage.get().fork();
+        auto contractAddress = unhexAddress(contract);
+        auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
+        auto ledgerConfig =
+            co_await ledger::getLedgerConfig(view, blockNumber, m_blockFactory.get());
 
-            ledger::account::EVMAccount account(view, contractAddress,
-                ledgerConfig->features().get(ledger::Features::Flag::feature_raw_address));
-            auto code = co_await account.code();
+        ledger::account::EVMAccount account(view, contractAddress,
+            ledgerConfig->features().get(ledger::Features::Flag::feature_raw_address));
+        auto code = co_await account.code();
 
-            if (!code)
-            {
-                callback(nullptr, {});
-                co_return;
-            }
-            auto bytesView = code->get();
-            callback(nullptr, bcos::bytes(bytesView.begin(), bytesView.end()));
-        }(this, contract, std::move(callback)));
+        if (!code)
+        {
+            co_return bcos::bytes{};
+        }
+        auto bytesView = code->get();
+        co_return bcos::bytes(bytesView.begin(), bytesView.end());
     }
 
-    void getABI(
-        std::string_view contract, std::function<void(Error::Ptr, std::string)> callback) override
+    task::Task<std::string> getABI(std::string_view contract) override
     {
-        task::wait([](decltype(this) self, std::string_view contract,
-                       decltype(callback) callback) -> task::Task<void> {
-            auto view = self->m_multiLayerStorage.get().fork();
-            auto contractAddress = unhexAddress(contract);
-            auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
-            auto ledgerConfig =
-                co_await ledger::getLedgerConfig(view, blockNumber, self->m_blockFactory.get());
+        auto view = m_multiLayerStorage.get().fork();
+        auto contractAddress = unhexAddress(contract);
+        auto blockNumber = co_await ledger::getCurrentBlockNumber(view, ledger::fromStorage);
+        auto ledgerConfig =
+            co_await ledger::getLedgerConfig(view, blockNumber, m_blockFactory.get());
 
-            ledger::account::EVMAccount account(view, contractAddress,
-                ledgerConfig->features().get(ledger::Features::Flag::feature_raw_address));
-            auto abi = co_await account.abi();
+        ledger::account::EVMAccount account(view, contractAddress,
+            ledgerConfig->features().get(ledger::Features::Flag::feature_raw_address));
+        auto abi = co_await account.abi();
 
-            if (!abi)
-            {
-                callback(nullptr, {});
-                co_return;
-            }
-            callback(nullptr, std::string(abi->get()));
-        }(this, contract, std::move(callback)));
+        if (!abi)
+        {
+            co_return std::string{};
+        }
+        co_return std::string(abi->get());
     }
 
     task::Task<std::optional<bcos::storage::Entry>> getPendingStorageAt(
@@ -690,11 +672,11 @@ public:
         co_return co_await account.storageEntry(key);
     }
 
-    void preExecuteBlock([[maybe_unused]] bcos::protocol::Block::Ptr block,
-        [[maybe_unused]] bool verify,
-        [[maybe_unused]] std::function<void(Error::Ptr)> callback) override
+    task::Task<void> preExecuteBlock(
+        [[maybe_unused]] bcos::protocol::Block::Ptr block,
+        [[maybe_unused]] bool verify) override
     {
-        callback(nullptr);
+        co_return;
     }
 
     void stop() override {};

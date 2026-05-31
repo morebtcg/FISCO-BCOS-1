@@ -20,6 +20,7 @@
  */
 #include "StateMachine.h"
 #include "Common.h"
+#include <bcos-task/Wait.h>
 
 using namespace bcos;
 using namespace bcos::consensus;
@@ -99,57 +100,68 @@ void StateMachine::apply(ssize_t, ProposalInterface::ConstPtr _lastAppliedPropos
 
     // calls dispatcher to execute the block
     auto startT = utcTime();
-    m_scheduler->executeBlock(block, false,
-        [startT, block, _onExecuteFinished, _proposal, _executedProposal](
-            Error::Ptr&& _error, BlockHeader::Ptr&& _blockHeader, bool _sysBlock) {
-            if (!_onExecuteFinished)
-            {
-                return;
-            }
-            auto blockHeader = block->blockHeader();
-            if (_error != nullptr)
-            {
-                CONSENSUS_LOG(WARNING) << LOG_DESC("asyncExecuteBlock failed")
-                                       << LOG_KV("number", blockHeader->number())
-                                       << LOG_KV("code", _error->errorCode())
-                                       << LOG_KV("message", _error->errorMessage());
-                _onExecuteFinished(_error->errorCode());
-                return;
-            }
-            auto execT = (double)(utcTime() - startT) / (double)(block->transactionsHashSize());
-            CONSENSUS_LOG(INFO) << METRIC << LOG_DESC("asyncExecuteBlock success")
-                                << LOG_KV("sysBlock", _sysBlock)
-                                << LOG_KV("number", _blockHeader->number())
-                                << LOG_KV("result", _blockHeader->hash().abridged())
-                                << LOG_KV("txsSize", block->transactionsHashSize())
-                                << LOG_KV("txsRoot", _blockHeader->txsRoot().abridged())
-                                << LOG_KV("receiptsRoot", _blockHeader->receiptsRoot().abridged())
-                                << LOG_KV("stateRoot", _blockHeader->stateRoot().abridged())
-                                << LOG_KV("timeCost", (utcTime() - startT))
-                                << LOG_KV("execPerTx", execT);
-            if (_blockHeader->number() != blockHeader->number())
-            {
-                CONSENSUS_LOG(WARNING) << LOG_DESC("asyncExecuteBlock exception")
-                                       << LOG_KV("expectedNumber", blockHeader->number())
-                                       << LOG_KV("number", _blockHeader->number())
-                                       << LOG_KV("timeCost", (utcTime() - startT));
-                // FIB-112: must call _onExecuteFinished on every exit path to avoid
-                // the consensus engine hanging indefinitely waiting for execution.
-                _onExecuteFinished(-1);
-                return;
-            }
-            _executedProposal->setIndex(_blockHeader->number());
-            _executedProposal->setHash(_blockHeader->hash());
 
-            bcos::bytes blockHeaderBuffer;
-            _blockHeader->encode(blockHeaderBuffer);
-            _executedProposal->setData(std::move(blockHeaderBuffer));
-            // the transactions hash list
-            _executedProposal->setExtraData(_proposal->data());
-            // The _onExecuteFinished callback itself does the asynchronous logic, so there is no
-            // need to use m_worker to re-synchronize it here.
-            _onExecuteFinished(0);
-        });
+    // capture values needed after co_await (block will be moved)
+    auto expectedNumber = blockHeader->number();
+    auto txsHashSize = block->transactionsHashSize();
+
+    bcos::task::wait(
+        [scheduler = m_scheduler, block = std::move(block), startT, expectedNumber, txsHashSize,
+            _onExecuteFinished = std::move(_onExecuteFinished),
+            _proposal = std::move(_proposal),
+            _executedProposal = std::move(_executedProposal)]() -> bcos::task::Task<void> {
+            try
+            {
+                auto [executedHeader, sysBlock] =
+                    co_await scheduler->executeBlock(std::move(block), false);
+
+                auto execT = (double)(utcTime() - startT) / (double)(txsHashSize);
+                CONSENSUS_LOG(INFO)
+                    << METRIC << LOG_DESC("asyncExecuteBlock success")
+                    << LOG_KV("sysBlock", sysBlock)
+                    << LOG_KV("number", executedHeader->number())
+                    << LOG_KV("result", executedHeader->hash().abridged())
+                    << LOG_KV("txsSize", txsHashSize)
+                    << LOG_KV("txsRoot", executedHeader->txsRoot().abridged())
+                    << LOG_KV("receiptsRoot", executedHeader->receiptsRoot().abridged())
+                    << LOG_KV("stateRoot", executedHeader->stateRoot().abridged())
+                    << LOG_KV("timeCost", (utcTime() - startT))
+                    << LOG_KV("execPerTx", execT);
+
+                if (executedHeader->number() != expectedNumber)
+                {
+                    CONSENSUS_LOG(WARNING)
+                        << LOG_DESC("asyncExecuteBlock exception")
+                        << LOG_KV("expectedNumber", expectedNumber)
+                        << LOG_KV("number", executedHeader->number())
+                        << LOG_KV("timeCost", (utcTime() - startT));
+                    // FIB-112: must call _onExecuteFinished on every exit path
+                    _onExecuteFinished(-1);
+                    co_return;
+                }
+
+                _executedProposal->setIndex(executedHeader->number());
+                _executedProposal->setHash(executedHeader->hash());
+
+                bcos::bytes blockHeaderBuffer;
+                executedHeader->encode(blockHeaderBuffer);
+                _executedProposal->setData(std::move(blockHeaderBuffer));
+                // the transactions hash list
+                _executedProposal->setExtraData(_proposal->data());
+                // The _onExecuteFinished callback itself does the asynchronous logic,
+                // so there is no need to use m_worker to re-synchronize it here.
+                _onExecuteFinished(0);
+            }
+            catch (bcos::Error& e)
+            {
+                CONSENSUS_LOG(WARNING)
+                    << LOG_DESC("asyncExecuteBlock failed")
+                    << LOG_KV("number", expectedNumber)
+                    << LOG_KV("code", e.errorCode())
+                    << LOG_KV("message", e.errorMessage());
+                _onExecuteFinished(e.errorCode());
+            }
+        }());
 }
 
 void StateMachine::preApply(
@@ -158,10 +170,12 @@ void StateMachine::preApply(
     auto block = m_blockFactory->createBlock(_proposal->data());
 
     auto startT = utcTime();
-    m_scheduler->preExecuteBlock(block, false,
-        [block, startT, _onPreApplyFinished = std::move(_onPreApplyFinished)](Error::Ptr&& error) {
-            if (!error)
+    bcos::task::wait(
+        [scheduler = m_scheduler, block, startT,
+            _onPreApplyFinished = std::move(_onPreApplyFinished)]() -> bcos::task::Task<void> {
+            try
             {
+                co_await scheduler->preExecuteBlock(block, false);
                 CONSENSUS_LOG(DEBUG)
                     << LOG_BADGE("prepareBlockExecutive") << LOG_DESC("preApply")
                     << LOG_KV("blockNumber", block->blockHeader()->number())
@@ -169,17 +183,17 @@ void StateMachine::preApply(
                     << LOG_KV("timeCost", (utcTime() - startT));
                 _onPreApplyFinished(true);
             }
-            else
+            catch (bcos::Error& e)
             {
                 CONSENSUS_LOG(ERROR)
                     << LOG_BADGE("prepareBlockExecutive") << LOG_DESC("preApply failed!")
-                    << LOG_KV("code", error->errorCode())
+                    << LOG_KV("code", e.errorCode())
                     // FIB-113: removed duplicate LOG_KV("message", ...) entry
-                    << LOG_KV("message", error->errorMessage())
+                    << LOG_KV("message", e.errorMessage())
                     << LOG_KV("blockNumber", block->blockHeader()->number())
                     << LOG_KV("blockHeader.timestamps", block->blockHeader()->timestamp())
                     << LOG_KV("timeCost", (utcTime() - startT));
                 _onPreApplyFinished(false);
             }
-        });
+        }());
 }

@@ -54,36 +54,36 @@ bcostars::Error bcos::rpc::RPCServer::call(const bcostars::Transaction& request,
             return &inner;
         });
 
-    m_params.node->scheduler()->call(std::move(transaction),
-        [current](Error::Ptr const& error,
-            protocol::TransactionReceipt::Ptr const& transactionReceiptPtr) {
+    bcos::task::wait(
+        [scheduler = m_params.node->scheduler(), transaction = std::move(transaction),
+            current]() -> bcos::task::Task<void> {
             bcostars::Error tarsError;
             try
             {
-                if (error)
-                {
-                    RPC_LOG(ERROR)
-                        << "call got bcos::Error: " << boost::diagnostic_information(*error);
-                    tarsError.errorCode = static_cast<int32_t>(error->errorCode());
-                    tarsError.errorMessage = error->errorMessage();
+                auto receipt = co_await scheduler->call(std::move(transaction));
 
-                    bcos::rpc::RPCServer::async_response_call(current, tarsError, {});
-                    return;
-                }
-
-                auto const& receipt =
-                    dynamic_cast<bcostars::protocol::TransactionReceiptImpl const&>(
-                        *transactionReceiptPtr);
-                bcos::rpc::RPCServer::async_response_call(current, tarsError, receipt.inner());
+                auto const& tarsReceipt =
+                    dynamic_cast<bcostars::protocol::TransactionReceiptImpl const&>(*receipt);
+                bcos::rpc::RPCServer::async_response_call(
+                    current, tarsError, tarsReceipt.inner());
+            }
+            catch (bcos::Error& e)
+            {
+                RPC_LOG(ERROR)
+                    << "call got bcos::Error: " << boost::diagnostic_information(e);
+                tarsError.errorCode = static_cast<int32_t>(e.errorCode());
+                tarsError.errorMessage = e.errorMessage();
+                bcos::rpc::RPCServer::async_response_call(current, tarsError, {});
             }
             catch (std::exception& e)
             {
-                RPC_LOG(ERROR) << "call got std::exception: " << boost::diagnostic_information(e);
+                RPC_LOG(ERROR)
+                    << "call got std::exception: " << boost::diagnostic_information(e);
                 tarsError.errorCode = -1;
                 tarsError.errorMessage = e.what();
                 bcos::rpc::RPCServer::async_response_call(current, tarsError, {});
             }
-        });
+        }());
 
     return {};
 }

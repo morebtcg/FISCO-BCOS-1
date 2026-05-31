@@ -26,9 +26,11 @@
 #include "bcos-task/Task.h"
 #include <bcos-crypto/interfaces/crypto/CommonType.h>
 #include <bcos-utilities/Error.h>
+#include <boost/throw_exception.hpp>
 #include <functional>
 #include <memory>
 #include <string_view>
+#include <tuple>
 
 namespace bcos::scheduler
 {
@@ -73,5 +75,26 @@ public:
 
     virtual void stop() {};
     virtual void setVersion(int version, ledger::LedgerConfig::Ptr ledgerConfig) {};
+
+    // ---- Task-based coroutine API (virtual, default impl bridges to callback overloads) ----
+
+    virtual task::Task<std::tuple<bcos::protocol::BlockHeader::Ptr, bool>> executeBlock(
+        bcos::protocol::Block::Ptr block, bool verify);
+
+    virtual task::Task<bcos::ledger::LedgerConfig::Ptr> commitBlock(
+        bcos::protocol::BlockHeader::Ptr header);
+
+    virtual task::Task<bcos::protocol::TransactionReceipt::Ptr> call(
+        bcos::protocol::Transaction::Ptr tx);
+
+    virtual task::Task<bcos::bytes> getCode(std::string_view contract);
+
+    virtual task::Task<std::string> getABI(std::string_view contract);
+
+    virtual task::Task<bcos::protocol::Session::ConstPtr> status();
+
+    virtual task::Task<void> reset();
+
+    virtual task::Task<void> preExecuteBlock(bcos::protocol::Block::Ptr block, bool verify);
 };
 }  // namespace bcos::scheduler
