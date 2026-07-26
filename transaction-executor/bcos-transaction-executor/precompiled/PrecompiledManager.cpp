@@ -65,6 +65,13 @@ bcos::executor_v1::PrecompiledManager::PrecompiledManager(crypto::Hash::Ptr hash
                            executor::PrecompiledRegistrar::executor("blake2_compression")),
                0});
 
+    // EIP-4844 point evaluation precompile (Cancun+, 0x0a)
+    m_address2Precompiled.emplace_back(0x0a,
+        Precompiled{
+            executor::PrecompiledContract(executor::PrecompiledRegistrar::pricer("point_evaluation"),
+                executor::PrecompiledRegistrar::executor("point_evaluation")),
+            ledger::Features::Flag::feature_evm_cancun});
+
     // EIP-2537 BLS12-381 precompiles (Prague, 0x0b–0x11)
     static const std::pair<int, const char*> blsPrecompiles[] = {
         {0x0b, "bls12_g1add"},

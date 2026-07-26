@@ -21,6 +21,7 @@
 #include "bcos-executor/src/Common.h"
 #include "bcos-framework/ledger/EVMAccount.h"
 #include "bcos-framework/ledger/Features.h"
+#include "bcos-framework/ledger/LedgerTypeDef.h"
 #include "bcos-framework/protocol/Protocol.h"
 #include "bcos-tars-protocol/protocol/BlockHeaderImpl.h"
 #include "bcos-tars-protocol/protocol/TransactionFactoryImpl.h"
@@ -28,6 +29,7 @@
 #include "bcos-tars-protocol/protocol/TransactionReceiptFactoryImpl.h"
 #include <evmc/evmc.h>
 #include <tbb/concurrent_vector.h>
+#include <boost/lexical_cast.hpp>
 #include <boost/log/core.hpp>
 
 // Use TBB-aware syncWait so coroutines cooperate with the TBB scheduler
@@ -197,7 +199,7 @@ public:
         // g_hashImpl initialized once in main() — do NOT set here (data race in parallel mode)
     }
 
-    void configureFork(std::string const& forkName)
+    void configureFork(std::string const& forkName, int64_t chainId = 1)
     {
         auto const rev = test::forkNameToRevision(forkName);
         m_currentRevision = rev;
@@ -214,6 +216,7 @@ public:
 
         m_ledgerConfig.setFeatures(features);
         m_ledgerConfig.setEVMCRevision(rev);
+        m_ledgerConfig.setChainId(bcos::toEvmC(bcos::u256(chainId)));
     }
 
     void configureEnvironment(test::EESTEnvironment const& env)
@@ -472,7 +475,7 @@ public:
                 }
 
                 // balance
-                if (!expectedAcc.balance.empty() && expectedAcc.balance != "0x")
+                if (!expectedAcc.balance.empty())
                 {
                     auto storedBal = co_await evmAccount.balance();
                     auto expBal = test::hexToU256(expectedAcc.balance);
@@ -486,7 +489,7 @@ public:
                     }
                 }
 
-                // code
+                // code (skip "0x" which means empty code in EEST fixtures)
                 if (!expectedAcc.code.empty() && expectedAcc.code != "0x")
                 {
                     auto codeEntry = co_await evmAccount.code();
@@ -547,7 +550,7 @@ public:
     bool runFixture(::test::EESTFixture const& fixture, std::string const& forkName,
         ::test::EESTForkPost const& post)
     {
-        configureFork(forkName);
+        configureFork(forkName, fixture.chainId);
         configureEnvironment(fixture.env);
 
         MutableStorage storage;
@@ -688,7 +691,7 @@ public:
         auto forkName = extractForkFromName(fixture.name);
         if (forkName.empty())
             forkName = "Cancun";  // default
-        configureFork(forkName);
+        configureFork(forkName, fixture.chainId);
 
         // Set up pre-state once
         MutableStorage storage;
@@ -699,24 +702,38 @@ public:
 
         // Compute block reward based on fork
         auto const rev = m_currentRevision;
+        // Compute block reward based on fork (matching evmone's mining_reward()).
+        // Reference: evmone test/blockchaintest/blockchaintest_runner.cpp
         u256 blockReward = 0;
-        if (rev < EVMC_PARIS)
-        {
-            // Pre-merge forks have block rewards
-            if (rev <= EVMC_FRONTIER)
-                blockReward = u256(5000000000000000000ULL);  // 5 ETH (Frontier)
-            else if (rev <= EVMC_HOMESTEAD)
-                blockReward = u256(5000000000000000000ULL);  // 5 ETH (Homestead)
-            else if (rev <= EVMC_SPURIOUS_DRAGON)
-                blockReward = u256(5000000000000000000ULL);  // 5 ETH
-            else if (rev < EVMC_CONSTANTINOPLE)
-                blockReward = u256(3000000000000000000ULL);  // 3 ETH (Byzantium)
-            else
-                blockReward = u256(2000000000000000000ULL);  // 2 ETH (Constantinople+)
-        }
+        if (rev < EVMC_BYZANTIUM)
+            blockReward = u256(5000000000000000000ULL);  // 5 ETH (Frontier..SpuriousDragon)
+        else if (rev < EVMC_PETERSBURG)
+            blockReward = u256(3000000000000000000ULL);  // 3 ETH (Byzantium..Constantinople)
+        else if (rev < EVMC_PARIS)
+            blockReward = u256(2000000000000000000ULL);  // 2 ETH (Petersburg..London)
+        // else: Paris+ → 0 (no block reward after merge)
 
         // Execute each block's transactions sequentially
         int txIndex = 0;
+
+        // Store genesis block hash for BLOCKHASH opcode (block 0)
+        {
+            auto genesisHashHex = fixture.genesisBlockHeader.hash;
+            if (!genesisHashHex.empty())
+            {
+                auto genesisHashBytes = test::hexToBytes(genesisHashHex);
+                if (genesisHashBytes.size() == 32)
+                {
+                    task::tbb::syncWait([&]() -> task::Task<void> {
+                        co_await storage2::writeOne(storage,
+                            executor_v1::StateKey{ledger::SYS_NUMBER_2_HASH, "0"},
+                            storage::Entry{std::string_view{
+                                reinterpret_cast<const char*>(genesisHashBytes.data()), 32}});
+                    }());
+                }
+            }
+        }
+
         for (auto const& block : fixture.blocks)
         {
             configureEnvironment(block.blockHeader);
@@ -791,20 +808,18 @@ public:
             if (rev >= EVMC_CANCUN)
             {
                 // BEACON_ROOTS address: 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
-                static constexpr std::array<uint8_t, 20> BEACON_ROOTS_ADDR_BYTES = {
-                    0x00, 0x0f, 0x3d, 0xf6, 0xd7, 0x32, 0x80, 0x7e, 0xf1, 0x31,
-                    0x9f, 0xb7, 0xb8, 0xbb, 0x85, 0x22, 0xd0, 0xbe, 0xac, 0x02};
+                static constexpr std::array<uint8_t, 20> BEACON_ROOTS_ADDR_BYTES = {0x00, 0x0f,
+                    0x3d, 0xf6, 0xd7, 0x32, 0x80, 0x7e, 0xf1, 0x31, 0x9f, 0xb7, 0xb8, 0xbb, 0x85,
+                    0x22, 0xd0, 0xbe, 0xac, 0x02};
                 evmc_address beaconRootsAddr{};
-                std::copy(
-                    BEACON_ROOTS_ADDR_BYTES.begin(), BEACON_ROOTS_ADDR_BYTES.end(),
+                std::copy(BEACON_ROOTS_ADDR_BYTES.begin(), BEACON_ROOTS_ADDR_BYTES.end(),
                     beaconRootsAddr.bytes);
 
                 ledger::account::EVMAccount<MutableStorage> beaconRootsAccount(
                     storage, beaconRootsAddr, false);
 
                 auto const timestamp = test::hexToInt64(block.blockHeader.timestamp);
-                auto const parentBeaconRoot = test::hexToBytes(
-                    block.blockHeader.parentBeaconRoot);
+                auto const parentBeaconRoot = test::hexToBytes(block.blockHeader.parentBeaconRoot);
 
                 static constexpr uint64_t BEACON_ROOTS_HISTORICAL_INDEX = 98304;
                 auto const timestampIndex = timestamp % BEACON_ROOTS_HISTORICAL_INDEX;
@@ -818,8 +833,7 @@ public:
                     auto hexStr = oss.str();
                     auto raw = test::hexToBytes("0x" + hexStr);
                     if (raw.size() <= 32)
-                        std::copy(raw.begin(), raw.end(),
-                            result.bytes + 32 - raw.size());
+                        std::copy(raw.begin(), raw.end(), result.bytes + 32 - raw.size());
                     return result;
                 };
 
@@ -837,7 +851,11 @@ public:
                 bool hasNonZeroRoot = false;
                 for (auto const b : parentBeaconRoot)
                 {
-                    if (b != 0) { hasNonZeroRoot = true; break; }
+                    if (b != 0)
+                    {
+                        hasNonZeroRoot = true;
+                        break;
+                    }
                 }
                 if (hasNonZeroRoot && parentBeaconRoot.size() >= 32)
                 {
@@ -856,12 +874,12 @@ public:
             // in the history contract at 0x0000F90827F1C53A10cB7a02335B175320002935.
             if (rev >= EVMC_PRAGUE)
             {
-                static constexpr std::array<uint8_t, 20> HISTORY_STORAGE_ADDR_BYTES = {
-                    0x00, 0x00, 0xf9, 0x08, 0x27, 0xf1, 0xc5, 0x3a, 0x10, 0xcb,
-                    0x7a, 0x02, 0x33, 0x5b, 0x17, 0x53, 0x20, 0x00, 0x29, 0x35};
+                static constexpr std::array<uint8_t, 20> HISTORY_STORAGE_ADDR_BYTES = {0x00, 0x00,
+                    0xf9, 0x08, 0x27, 0xf1, 0xc5, 0x3a, 0x10, 0xcb, 0x7a, 0x02, 0x33, 0x5b, 0x17,
+                    0x53, 0x20, 0x00, 0x29, 0x35};
                 evmc_address historyAddr{};
-                std::copy(HISTORY_STORAGE_ADDR_BYTES.begin(),
-                    HISTORY_STORAGE_ADDR_BYTES.end(), historyAddr.bytes);
+                std::copy(HISTORY_STORAGE_ADDR_BYTES.begin(), HISTORY_STORAGE_ADDR_BYTES.end(),
+                    historyAddr.bytes);
 
                 // The genesis block hash is the parent of the first block.
                 // Store it at slot 0 (block number 1 means parent block 0 → slot 0).
@@ -881,6 +899,26 @@ public:
                             if (!co_await historyAccount.exists())
                                 co_await historyAccount.create();
                             co_await historyAccount.setStorage(slot0, rootValue);
+                        }());
+                    }
+                }
+            }
+
+            // Store this block's hash for BLOCKHASH opcode (block.number → hash)
+            {
+                auto blockHashHex = block.blockHeader.hash;
+                if (!blockHashHex.empty())
+                {
+                    auto blockHashBytes = test::hexToBytes(blockHashHex);
+                    if (blockHashBytes.size() == 32)
+                    {
+                        auto blockNumStr = boost::lexical_cast<std::string>(
+                            test::hexToInt64(block.blockHeader.number));
+                        task::tbb::syncWait([&]() -> task::Task<void> {
+                            co_await storage2::writeOne(storage,
+                                executor_v1::StateKey{ledger::SYS_NUMBER_2_HASH, blockNumStr},
+                                storage::Entry{std::string_view{
+                                    reinterpret_cast<const char*>(blockHashBytes.data()), 32}});
                         }());
                     }
                 }

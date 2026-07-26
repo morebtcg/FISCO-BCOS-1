@@ -92,7 +92,8 @@ public:
             static_cast<size_t>(std::count(input.begin(), input.end(), static_cast<uint8_t>(0)));
         const size_t numNonzero = input.size() - numZero;
         const size_t nonzeroMult = rev >= EVMC_ISTANBUL ? 4 : 17;
-        const auto dataCost = static_cast<int64_t>(nonzeroMult * numNonzero + numZero) * DATA_TOKEN_COST;
+        const auto dataCost =
+            static_cast<int64_t>(nonzeroMult * numNonzero + numZero) * DATA_TOKEN_COST;
 
         const auto createCost = (isCreate && rev >= EVMC_HOMESTEAD) ? TX_CREATE_COST : 0;
 
@@ -299,6 +300,9 @@ public:
             std::shared_ptr<executor::Eip2929AccessState> m_eip2929Access;
             // EIP-6780: track addresses created in this transaction (shared across nested contexts)
             std::shared_ptr<std::set<evmc_address>> m_createdInTx;
+            // EIP-2200: track original (pre-transaction) storage values per slot
+            // Shared across nested HostContexts so sub-calls see the same originals.
+            std::shared_ptr<hostcontext::OriginalStorageMap> m_originalStorage;
             hostcontext::HostContext<decltype(m_rollbackableStorage),
                 decltype(m_rollbackableTransientStorage)>
                 m_hostContext;
@@ -328,12 +332,14 @@ public:
                 m_web3AccessListResolved(executor::resolveWeb3AccessList(transaction)),
                 m_eip2929Access(std::make_shared<executor::Eip2929AccessState>()),
                 m_createdInTx(std::make_shared<std::set<evmc_address>>()),
+                m_originalStorage(std::make_shared<hostcontext::OriginalStorageMap>()),
                 m_hostContext(m_rollbackableStorage, m_rollbackableTransientStorage, blockHeader,
                     newEVMCMessage(m_blockHeader.get().number(), transaction, m_gasLimit, m_origin),
                     m_origin, transaction.abi(), contextID, m_seq, executor.m_precompiledManager,
                     ledgerConfig, *executor.m_hashImpl, transaction.type() != 0, m_nonce,
                     task::syncWait, m_web3AccessListResolved.accessList,
-                    m_web3AccessListResolved.web3TypedTxKind, m_eip2929Access, m_createdInTx)
+                    m_web3AccessListResolved.web3TypedTxKind, m_eip2929Access, m_createdInTx,
+                    m_originalStorage)
             {}
         };
         std::unique_ptr<Data> m_data;
@@ -384,8 +390,8 @@ public:
                         if (coinbaseBytes.size() == sizeof(evmc_address))
                         {
                             evmc_address coinbaseAddr{};
-                            std::copy(coinbaseBytes.begin(), coinbaseBytes.end(),
-                                coinbaseAddr.bytes);
+                            std::copy(
+                                coinbaseBytes.begin(), coinbaseBytes.end(), coinbaseAddr.bytes);
                             (void)eip2929.warmUpAddressNoJournal(coinbaseAddr);
                         }
                     }
@@ -393,13 +399,12 @@ public:
                     // EIP-2930: warm access-list entries
                     if (m_data->m_web3AccessListResolved.accessList)
                     {
-                        eip2929.warmUpAccessList(
-                            *m_data->m_web3AccessListResolved.accessList,
+                        eip2929.warmUpAccessList(*m_data->m_web3AccessListResolved.accessList,
                             [](bcos::Address const& addr) -> evmc_address {
                                 evmc_address evmcAddr{};
                                 std::copy_n(addr.begin(),
-                                    std::min(static_cast<size_t>(addr.size()),
-                                        sizeof(evmc_address)),
+                                    std::min(
+                                        static_cast<size_t>(addr.size()), sizeof(evmc_address)),
                                     evmcAddr.bytes);
                                 return evmcAddr;
                             });
@@ -580,6 +585,9 @@ public:
                             effectiveGasPrice > baseFee ? effectiveGasPrice - baseFee : u256{0};
                     }
 
+                    // Set tx gas price on host context for GASPRICE opcode (EIP-1559 aware)
+                    m_data->m_hostContext.setTxGasPrice(effectiveGasPrice);
+
                     if (!m_data->m_call && effectiveGasPrice > 0)
                     {
                         auto const txMaxCost =
@@ -621,8 +629,7 @@ public:
                                 auto const blobBaseFee = u256{1};  // TODO: proper formula
                                 auto const maxBlobFee = u256{tx.maxFeePerBlobGas().value_or(
                                     u256{std::numeric_limits<uint64_t>::max()})};
-                                auto const effectiveBlobFee =
-                                    std::min(blobBaseFee, maxBlobFee);
+                                auto const effectiveBlobFee = std::min(blobBaseFee, maxBlobFee);
                                 auto const blobFee = u256(blobGasUsed) * effectiveBlobFee;
                                 if (blobFee > 0)
                                 {
@@ -643,9 +650,9 @@ public:
                         {
                             for (auto const& [_, keys] :
                                 *m_data->m_web3AccessListResolved.accessList)
-                                accessListCostForIntrinsic += ACCESS_LIST_ADDRESS_COST +
-                                    static_cast<int64_t>(keys.size()) *
-                                        ACCESS_LIST_STORAGE_KEY_COST;
+                                accessListCostForIntrinsic +=
+                                    ACCESS_LIST_ADDRESS_COST + static_cast<int64_t>(keys.size()) *
+                                                                   ACCESS_LIST_STORAGE_KEY_COST;
                         }
                         auto const intrinsicGas =
                             computeTxIntrinsicCostPure(rev, tx, accessListCostForIntrinsic);
@@ -757,8 +764,7 @@ public:
                     // discarded (evmone already handled that).
                     // In BCOS mode (non-Ethereum), rollback to preserve
                     // backward-compatible consensus semantics.
-                    if (!isEthereumMode &&
-                        evmcResult.status_code != EVMC_SUCCESS &&
+                    if (!isEthereumMode && evmcResult.status_code != EVMC_SUCCESS &&
                         evmcResult.status_code != EVMC_REVERT &&
                         evmcResult.status_code != EVMC_STACK_OVERFLOW &&
                         evmcResult.status_code != EVMC_STACK_UNDERFLOW)

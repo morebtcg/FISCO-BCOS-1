@@ -65,6 +65,7 @@
 #include <functional>
 #include <intx/intx.hpp>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <range/v3/algorithm/equal.hpp>
@@ -121,6 +122,22 @@ task::Task<std::shared_ptr<Executable>> getExecutable(
     co_return {};
 }
 
+// EIP-2200: storage original-value key type (address + slot key).
+// Shared across nested HostContexts so sub-calls see the same transaction-original values.
+struct StorageOriginalKey
+{
+    evmc_address addr{};
+    evmc_bytes32 key{};
+    bool operator<(StorageOriginalKey const& o) const
+    {
+        int c = std::memcmp(addr.bytes, o.addr.bytes, sizeof(addr.bytes));
+        if (c != 0)
+            return c < 0;
+        return std::memcmp(key.bytes, o.key.bytes, sizeof(key.bytes)) < 0;
+    }
+};
+using OriginalStorageMap = std::map<StorageOriginalKey, evmc_bytes32>;
+
 template <class Storage, class TransientStorage>
 class HostContext
 {
@@ -160,6 +177,14 @@ private:
 
     // EIP-6780: track addresses created in this transaction (shared across nested contexts)
     std::shared_ptr<std::set<evmc_address>> m_createdInTx;
+
+    // Transaction effective gas price for GASPRICE opcode.
+    // If 0, falls back to ledger config gasPrice().
+    u256 m_txGasPrice = 0;
+
+    // EIP-2200: shared map of original (pre-transaction) storage values.
+    // Created in TransactionExecutorImpl::ExecuteContext::Data.
+    std::shared_ptr<OriginalStorageMap> m_originalStorage;
 
     constexpr auto buildLegacyExternalCaller()
     {
@@ -239,6 +264,7 @@ private:
         m_eip2930AccessList(std::move(accessList)),
         m_web3TypedTxKindForAccessList(web3TypedTxKind),
         m_createdInTx(std::move(createdInTx))
+    // m_originalStorage is set by caller (TransactionExecutorImpl or externalCall)
     {
         // W1 warm at top-level construction (sync). Nested HostContext (m_level>0) skips.
         // prepare() handles prepareCall/Create only; see TransactionExecutorImpl executeStep<0>.
@@ -255,13 +281,16 @@ public:
         std::shared_ptr<const executor::Eip2930AccessList> accessList = nullptr,
         uint8_t web3TypedTxKind = 0,
         std::shared_ptr<executor::Eip2929AccessState> eip2929Access = nullptr,
-        std::shared_ptr<std::set<evmc_address>> createdInTx = nullptr)
+        std::shared_ptr<std::set<evmc_address>> createdInTx = nullptr,
+        std::shared_ptr<OriginalStorageMap> originalStorage = nullptr)
       : HostContext(innerConstructor, storage, transientStorage, blockHeader, message, origin, abi,
             contextID, seq, precompiledManager, ledgerConfig, hashImpl, web3Tx, nonce,
             getHostInterface<HostContext>(std::forward<decltype(waitOperator)>(waitOperator)),
             std::move(accessList), web3TypedTxKind, std::move(eip2929Access),
             std::move(createdInTx))
-    {}
+    {
+        m_originalStorage = std::move(originalStorage);
+    }
 
     ~HostContext() noexcept = default;
     HostContext(HostContext const&) = default;
@@ -292,6 +321,23 @@ public:
     task::Task<void> set(const evmc_bytes32* key, const evmc_bytes32* value, auto&&... /*unused*/)
     {
         co_await m_recipientAccount.setStorage(*key, *value);
+    }
+
+    /// EIP-2200: Lazily record and return the original (pre-transaction) value of a storage slot.
+    /// On first call for a given (addr, key), reads current value from storage and caches it.
+    /// Subsequent calls return the cached original. Thread-safe via shared_ptr to per-tx map.
+    evmc_bytes32 recordOriginalStorage(const evmc_address& addr, const evmc_bytes32& key)
+    {
+        StorageOriginalKey k{addr, key};
+        auto it = m_originalStorage->find(k);
+        if (it != m_originalStorage->end())
+        {
+            return it->second;
+        }
+        auto account = getAccount(*this, addr);
+        auto current = task::syncWait(account.storage(key));
+        (*m_originalStorage)[k] = current;
+        return current;
     }
 
     task::Task<u256> balance(evmc_address addr, auto&&... /*unused*/)
@@ -403,7 +449,15 @@ public:
     }
     evmc_address const& origin() const { return m_origin; }
     int64_t blockGasLimit() const { return std::get<0>(m_ledgerConfig.get().gasLimit()); }
-    u256 gasPrice() const { return u256(std::get<0>(m_ledgerConfig.get().gasPrice())); }
+    u256 gasPrice() const
+    {
+        // txGasPrice takes precedence when explicitly set (Ethereum mode).
+        if (m_txGasPrice != 0)
+            return m_txGasPrice;
+        return u256(std::get<0>(m_ledgerConfig.get().gasPrice()));
+    }
+    void setTxGasPrice(u256 price) { m_txGasPrice = price; }
+    evmc_revision evmcRevision() const { return m_revision; }
     u256 blockBaseFee() const
     {
         // EIP-1559: BASEFEE opcode returns the block's base fee.
@@ -436,7 +490,7 @@ public:
             toHex<decltype(view), bcos::bytes>(view), std::move(topics), data.toBytes());
     }
 
-    void suicide()
+    void suicide(const evmc_address& beneficiaryAddr)
     {
         // suicide(m_myContractTable); // TODO: add suicide
 
@@ -447,14 +501,24 @@ public:
 
         // --- Ethereum-native SELFDESTRUCT (EIP-6780) ---
         // Reference: bcos-evm/bcos-evm/eth/state/host.cpp Host::selfdestruct()
-        auto& ref = message();
-        auto const& selfAddr = ref.code_address;
-        auto const& beneficiary = ref.recipient;
+        auto const& selfAddr = message().code_address;
+        auto const& beneficiary = beneficiaryAddr;
 
         auto selfAccount = getAccount(*this, selfAddr);
-        auto beneficiaryAccount = getAccount(*this, beneficiary);
-
         auto selfBalance = task::syncWait(selfAccount.balance());
+
+        // SUICIDE_TO_ITSELF: funds are destroyed (matches evmone behaviour
+        // where get(self) and get(beneficiary) return the same reference,
+        // and "beneficiary += balance; self = 0" sets balance to 0).
+        if (::ranges::equal(selfAddr.bytes, beneficiary.bytes))
+        {
+            task::syncWait(selfAccount.setBalance(u256{0}));
+            HOST_CONTEXT_LOG(TRACE) << "Ethereum SELFDESTRUCT (to self, balance destroyed)"
+                                    << LOG_KV("addr", selfAddr) << LOG_KV("balance", selfBalance);
+            return;
+        }
+
+        auto beneficiaryAccount = getAccount(*this, beneficiary);
         auto benBalance = task::syncWait(beneficiaryAccount.balance());
 
         // EIP-6780 (Cancun+): contracts NOT created in the current transaction
@@ -462,9 +526,8 @@ public:
         bool const justCreated = m_createdInTx && m_createdInTx->count(selfAddr) > 0;
         if (m_revision >= EVMC_CANCUN && !justCreated)
         {
-            auto newBenBalance = benBalance + selfBalance;
             task::syncWait(selfAccount.setBalance(u256{0}));
-            task::syncWait(beneficiaryAccount.setBalance(newBenBalance));
+            task::syncWait(beneficiaryAccount.setBalance(benBalance + selfBalance));
             HOST_CONTEXT_LOG(TRACE)
                 << "Ethereum SELFDESTRUCT (EIP-6780, not same-tx create)"
                 << LOG_KV("addr", selfAddr) << LOG_KV("beneficiary", beneficiary)
@@ -473,9 +536,8 @@ public:
         }
 
         // Pre-Cancun or same-tx create: full selfdestruct with SELFDESTRUCT refund
-        auto newBenBalance = benBalance + selfBalance;
         task::syncWait(selfAccount.setBalance(u256{0}));
-        task::syncWait(beneficiaryAccount.setBalance(newBenBalance));
+        task::syncWait(beneficiaryAccount.setBalance(benBalance + selfBalance));
 
         HOST_CONTEXT_LOG(TRACE) << "Ethereum SELFDESTRUCT (registered, refund eligible)"
                                 << LOG_KV("addr", selfAddr) << LOG_KV("beneficiary", beneficiary)
@@ -562,8 +624,7 @@ public:
                     if ((ref->kind == EVMC_CALL && (ref->flags & EVMC_STATIC) == 0) ||
                         ref->kind == EVMC_CREATE || ref->kind == EVMC_CREATE2)
                     {
-                        if (!::ranges::equal(
-                                ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes))
+                        if (!::ranges::equal(ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes))
                         {
                             // EIP-7610: skip value transfer for CREATE/CREATE2
                             // collision.  The collision will be detected in
@@ -576,23 +637,20 @@ public:
                                 {
                                     auto codeHash = co_await m_recipientAccount.codeHash();
                                     static const bcos::h256 EMPTY_CODE_HASH{};
-                                    auto existingNonce =
-                                        co_await m_recipientAccount.nonce();
-                                    auto existingNonceVal =
-                                        u256(existingNonce.value_or("0"));
+                                    auto existingNonce = co_await m_recipientAccount.nonce();
+                                    auto existingNonceVal = u256(existingNonce.value_or("0"));
                                     bool isCollision;
                                     if (m_revision >= EVMC_PARIS)
                                     {
-                                        isCollision = (codeHash != EMPTY_CODE_HASH ||
-                                                       existingNonceVal != 0);
+                                        isCollision =
+                                            (codeHash != EMPTY_CODE_HASH || existingNonceVal != 0);
                                     }
                                     else
                                     {
                                         auto existingBalance =
                                             co_await m_recipientAccount.balance();
                                         isCollision =
-                                            (codeHash != EMPTY_CODE_HASH ||
-                                                existingNonceVal != 0 ||
+                                            (codeHash != EMPTY_CODE_HASH || existingNonceVal != 0 ||
                                                 existingBalance != 0);
                                     }
                                     skipTransfer = isCollision;
@@ -613,8 +671,7 @@ public:
                     {
                         if (((ref->kind == EVMC_CALL && (ref->flags & EVMC_STATIC) == 0) ||
                                 (ref->kind == EVMC_CREATE) || ref->kind == EVMC_CREATE2) &&
-                            !::ranges::equal(
-                                ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes) &&
+                            !::ranges::equal(ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes) &&
                             m_ledgerConfig.get().balanceTransfer())
                         {
                             co_await transferBalance(*ref);
@@ -622,8 +679,7 @@ public:
                     }
                     else
                     {
-                        if (!::ranges::equal(
-                                ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes) &&
+                        if (!::ranges::equal(ref->value.bytes, executor::EMPTY_EVM_BYTES32.bytes) &&
                             m_ledgerConfig.get().balanceTransfer())
                         {
                             co_await transferBalance(*ref);
@@ -785,6 +841,9 @@ public:
             m_seq, m_precompiledManager.get(), m_ledgerConfig, m_hashImpl, m_web3Tx, nonce,
             m_hostInterface, m_eip2930AccessList, m_web3TypedTxKindForAccessList, m_eip2929Access,
             m_createdInTx);
+
+        // Inherit parent's original storage map so EIP-2200 status works across sub-calls
+        hostcontext.m_originalStorage = m_originalStorage;
 
         co_await hostcontext.prepare();
 
@@ -1037,10 +1096,9 @@ private:
             // Must be checked BEFORE storing code — Frontier returns EVMC_SUCCESS
             // when code deposit runs OOG, but does NOT store the code.
             // Reference: bcos-evm/bcos-evm/eth/state/host.cpp Host::create().
-            const auto codeDepositGas = isEthereum ?
-                                            static_cast<int64_t>(code.size()) * 200 :
-                                            static_cast<int64_t>(code.size()) *
-                                                bcos::executor::VMSchedule().createDataGas;
+            const auto codeDepositGas = isEthereum ? static_cast<int64_t>(code.size()) * 200 :
+                                                     static_cast<int64_t>(code.size()) *
+                                                         bcos::executor::VMSchedule().createDataGas;
             if (codeDepositGas > result.gas_left)
             {
                 // Frontier: transaction succeeds but code is NOT stored.
@@ -1209,8 +1267,7 @@ private:
         // Sub-calls must transfer here (inside the savepoint so it rolls
         // back on REVERT/exception, matching evmone behaviour).
         // Only EVMC_CALL transfers value; CALLCODE/DELEGATECALL/STATICCALL do not.
-        if (isEthereum && m_level > 0 && ref.kind == EVMC_CALL &&
-            (ref.flags & EVMC_STATIC) == 0 &&
+        if (isEthereum && m_level > 0 && ref.kind == EVMC_CALL && (ref.flags & EVMC_STATIC) == 0 &&
             !::ranges::equal(ref.value.bytes, executor::EMPTY_EVM_BYTES32.bytes))
         {
             auto value = fromEvmC(ref.value);

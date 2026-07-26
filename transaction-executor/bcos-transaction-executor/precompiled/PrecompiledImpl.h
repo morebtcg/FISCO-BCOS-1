@@ -87,9 +87,15 @@ inline EVMCResult callBuiltinPrecompiled(executor::PrecompiledContract const& pr
         auto [success, output] =
             precompiledContract.execute({origMsg.input_data, origMsg.input_size});
         auto gasLeft = origMsg.gas - gasCost;
-        // Ethereum mode: return 0 gas on precompile failure
-        if (features.get(ledger::Features::Flag::feature_ethereum_executor) && !success)
-            gasLeft = 0;
+        // Ethereum mode: precompiles never revert the call, even on invalid input.
+        // Always return EVMC_SUCCESS (matching evmone behaviour). Set gasLeft=0
+        // on failure so the caller pays the full precompile gas cost.
+        if (features.get(ledger::Features::Flag::feature_ethereum_executor))
+        {
+            if (!success)
+                gasLeft = 0;
+            return buildBuiltinPrecompiledResult(true, output, gasLeft);
+        }
         return buildBuiltinPrecompiledResult(success, output, gasLeft);
     }
 
@@ -97,8 +103,13 @@ inline EVMCResult callBuiltinPrecompiled(executor::PrecompiledContract const& pr
     auto [success, output] = precompiledContract.execute({origMsg.input_data, origMsg.input_size});
     const auto gas = precompiledContract.cost({origMsg.input_data, origMsg.input_size});
     auto gasLeft = origMsg.gas - gas.template convert_to<int64_t>();
-    if (features.get(ledger::Features::Flag::feature_ethereum_executor) && !success)
-        gasLeft = 0;
+    // Ethereum mode: precompiles never revert, always return EVMC_SUCCESS.
+    if (features.get(ledger::Features::Flag::feature_ethereum_executor))
+    {
+        if (!success)
+            gasLeft = 0;
+        return buildBuiltinPrecompiledResult(true, output, gasLeft);
+    }
     return buildBuiltinPrecompiledResult(success, output, gasLeft);
 }
 

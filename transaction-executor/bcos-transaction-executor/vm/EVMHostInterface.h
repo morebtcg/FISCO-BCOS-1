@@ -75,26 +75,53 @@ struct EVMHostInterface
         if (hostContext.ledgerConfig().features().get(
                 ledger::Features::Flag::bugfix_evm_storage_status))
         {
-            // TODO: full EIP-2200 support — also report the 5 dirty-slot statuses
-            // (DELETED_ADDED, MODIFIED_DELETED, DELETED_RESTORED, ADDED_DELETED,
-            // MODIFIED_RESTORED). Requires tracking the transaction-original value
-            // per slot to distinguish clean (o == c) from dirty (o != c) writes.
+            // Full EIP-2200 storage status tracking.
+            // Track original (pre-transaction) value per slot to distinguish
+            // clean (o == c) from dirty (o != c) writes.
             //
-            // bypass-read-set read: this lookup is for status metadata only and must not be
-            // registered in the parallel scheduler's read set, otherwise pure SSTORE
-            // writes would create false RAW edges against any earlier writer of the
-            // same slot.
+            // o = original value (at transaction start), lazily recorded
+            // c = current value (may have been modified this tx)
+            // v = new value (being written now)
+            //
+            // Ref: evmone state/host.cpp Host::set_storage()
+            evmc_bytes32 original = hostContext.recordOriginalStorage(*addr, *key);
+
+            // Read current value (bypass read-set to avoid false RAW edges)
             auto existingValue = syncWait(
                 hostContext.get(key, storage2::BYPASS_READ_SET, storage2::BYPASS_MULTILAYER));
-            const bool existingIsZero = concepts::bytebuffer::equalTo(
+            const bool currentIsZero = concepts::bytebuffer::equalTo(
                 existingValue.bytes, executor::EMPTY_EVM_BYTES32.bytes);
-            if (newIsZero)
+            const bool dirty = !concepts::bytebuffer::equalTo(original.bytes, existingValue.bytes);
+            const bool restored = concepts::bytebuffer::equalTo(original.bytes, value->bytes);
+
+            status = EVMC_STORAGE_ASSIGNED;  // default: all other cases
+            if (!dirty && !restored)
             {
-                status = existingIsZero ? EVMC_STORAGE_ASSIGNED : EVMC_STORAGE_DELETED;
+                // Clean slot, not restoring to original
+                if (currentIsZero)
+                    status = EVMC_STORAGE_ADDED;  // 0 → 0 → Z (first write)
+                else if (newIsZero)
+                    status = EVMC_STORAGE_DELETED;  // X → X → 0 (clear)
+                else
+                    status = EVMC_STORAGE_MODIFIED;  // X → X → Z (overwrite)
             }
-            else
+            else if (dirty && !restored)
             {
-                status = existingIsZero ? EVMC_STORAGE_ADDED : EVMC_STORAGE_MODIFIED;
+                // Dirty slot, not restoring
+                if (currentIsZero && !newIsZero)
+                    status = EVMC_STORAGE_DELETED_ADDED;  // X → 0 → Z
+                else if (!currentIsZero && newIsZero)
+                    status = EVMC_STORAGE_MODIFIED_DELETED;  // X → Y → 0
+            }
+            else if (dirty)
+            {
+                // dirty && restored: restoring to original
+                if (currentIsZero)
+                    status = EVMC_STORAGE_DELETED_RESTORED;  // X → 0 → X
+                else if (newIsZero)
+                    status = EVMC_STORAGE_ADDED_DELETED;  // 0 → Y → 0
+                else
+                    status = EVMC_STORAGE_MODIFIED_RESTORED;  // X → Y → X
             }
         }
         else
@@ -153,16 +180,15 @@ struct EVMHostInterface
     }
 
     static bool selfdestruct(evmc_host_context* context, [[maybe_unused]] const evmc_address* addr,
-        [[maybe_unused]] const evmc_address* beneficiary) noexcept
+        const evmc_address* beneficiary) noexcept
     {
         auto& hostContext = *reinterpret_cast<HostContextType*>(context);
-        hostContext.suicide();  // FISCO BCOS has no _beneficiary
+        hostContext.suicide(*beneficiary);
         // EIP-3529 (London): SELFDESTRUCT gas refund is removed entirely.
+        // Pre-London: return true for 24,000 gas refund.
         // EIP-6780 (Cancun+): account deletion only when created in same tx;
         //   no gas refund in either case ("Note that no refund is given since EIP-3529").
-        // Returning false (no refund) is the correct behavior for all cases.
-        // TODO(evmone-eip6780): implement same-tx creation tracking for account deletion.
-        return false;
+        return hostContext.evmcRevision() < EVMC_LONDON;
     }
 
     static void log(evmc_host_context* context, const evmc_address* addr, uint8_t const* data,
