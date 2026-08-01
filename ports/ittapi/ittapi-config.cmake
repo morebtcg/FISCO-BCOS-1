@@ -5,7 +5,8 @@ set(ITTAPI_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../include")
 # - WITH_VTUNE_ITT=OFF (default): INTERFACE library (no symbols, headers only)
 # This avoids duplicate symbol errors with TBB's built-in ITT stubs (itt_notify.cpp.o)
 if(WITH_VTUNE_ITT)
-    set(ITTAPI_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/../../lib/${CMAKE_STATIC_LIBRARY_PREFIX}ittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    # ittapi's CMake target sets PREFIX "lib", so the file is libittnotify.<ext>
+    set(ITTAPI_LIBRARY "${CMAKE_CURRENT_LIST_DIR}/../../lib/libittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
     add_library(ittapi STATIC IMPORTED GLOBAL)
     set_target_properties(ittapi PROPERTIES
         IMPORTED_LOCATION "${ITTAPI_LIBRARY}"

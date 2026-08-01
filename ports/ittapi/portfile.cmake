@@ -12,15 +12,17 @@ vcpkg_cmake_configure(
 
 vcpkg_cmake_build()
 
-# Manually install: ittapi doesn't have an install target
-# Libraries are in the build directory's bin/ subdirectory
+# Manually install: ittapi doesn't have an install target.
+# Libraries are in the build directory's bin/ subdirectory. The ittnotify CMake
+# target explicitly sets PREFIX "lib", so the output is libittnotify.lib on
+# Windows and libittnotify.a elsewhere (the platform prefix must NOT be applied).
 set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg")
-if(NOT EXISTS "${BUILD_DIR}/bin/${CMAKE_STATIC_LIBRARY_PREFIX}ittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
+if(NOT EXISTS "${BUILD_DIR}/bin/libittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
     set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel")
 endif()
 
 file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/lib")
-file(INSTALL "${BUILD_DIR}/bin/${CMAKE_STATIC_LIBRARY_PREFIX}ittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}"
+file(INSTALL "${BUILD_DIR}/bin/libittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}"
     DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
 
 # Install headers

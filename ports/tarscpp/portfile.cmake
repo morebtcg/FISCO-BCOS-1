@@ -6,6 +6,16 @@ vcpkg_from_github(
     HEAD_REF master
 )
 
+# TarsCpp headers declare no dllexport/dllimport macros, so on Windows a shared
+# tarsutil/tarsservant/tarsparse cannot export symbols and the tools fail to
+# link with LNK2019. Force static libraries on Windows (matches FISCO-BCOS usage
+# and the x64-windows-static CI triplet). Setting VCPKG_LIBRARY_LINKAGE here is
+# required because vcpkg_cmake_configure otherwise appends
+# "-DBUILD_SHARED_LIBS=ON" (for the dynamic triplet) after our OPTIONS.
+if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
+    set(VCPKG_LIBRARY_LINKAGE "static")
+endif()
+
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS -DTARS_MYSQL=OFF

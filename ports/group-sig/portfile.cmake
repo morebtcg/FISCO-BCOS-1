@@ -6,13 +6,25 @@ vcpkg_from_git(
 
 # Fix pbc_sig CMakeLists.txt: original tarball has backslash line continuations
 # that produce invalid ninja build files.
-# Copy fix script to cmake/ subdir, then run inject script
-find_package(Python3 REQUIRED)
+# Copy fix script to cmake/ subdir, then run inject script.
+# Use vcpkg_find_acquire_program (instead of find_package(Python3)) because the
+# vcpkg build environment does not put a python interpreter on PATH / in the
+# CMake package registry, which made find_package(Python3) fail with
+# "Could NOT find Python3 (missing: Python3_EXECUTABLE Interpreter)".
+vcpkg_find_acquire_program(PYTHON3)
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/fix_pbc_sig_cmake.py" DESTINATION "${SOURCE_PATH}/cmake")
 vcpkg_execute_build_process(
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/inject_pbc_sig_fix.py"
+    COMMAND "${PYTHON3}" "${CMAKE_CURRENT_LIST_DIR}/inject_pbc_sig_fix.py"
     WORKING_DIRECTORY "${SOURCE_PATH}"
     LOGNAME "patch-${TARGET_TRIPLET}"
+)
+
+# FindGMP.cmake only searches for "libgmp.a" (the Unix name), so it fails on
+# Windows where vcpkg's GMP produces gmp.lib. Search for the plain "gmp" name
+# (resolves to gmp.lib on MSVC and libgmp.a/.so on Unix).
+vcpkg_replace_string("${SOURCE_PATH}/cmake/FindGMP.cmake"
+    "find_library( GMP_LIBRARIES NAMES \"libgmp.a\" )"
+    "find_library( GMP_LIBRARIES NAMES gmp libgmp )"
 )
 
 # ProjectPbc.cmake/ProjectPbcSig.cmake use PREFIX ${CMAKE_SOURCE_DIR}/deps (an
