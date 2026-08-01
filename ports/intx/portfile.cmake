@@ -6,7 +6,11 @@ vcpkg_from_github(
     HEAD_REF master
 )
 
-vcpkg_cmake_configure(SOURCE_PATH ${SOURCE_PATH} OPTIONS -DINTX_TESTING=OFF -DHUNTER_ENABLED=OFF)
+vcpkg_cmake_configure(
+    SOURCE_PATH ${SOURCE_PATH}
+    OPTIONS -DINTX_TESTING=OFF -DHUNTER_ENABLED=OFF
+    MAYBE_UNUSED_VARIABLES HUNTER_ENABLED
+)
 vcpkg_cmake_build()
 vcpkg_cmake_install()
 

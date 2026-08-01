@@ -6,6 +6,22 @@ vcpkg_from_github(
     HEAD_REF master
 )
 
+# TarsCpp's Windows-only bundled curl is used by the optional upload tools.
+# Its curl 7.69.1 CMake checks are not compatible with current MSVC, while the
+# TarsCpp libraries built by this port do not require that bundled copy.
+if(VCPKG_TARGET_IS_WINDOWS)
+    vcpkg_replace_string(
+        "${SOURCE_PATH}/cmake/Thirdparty.cmake"
+        "if(WIN32)\n\n    ExternalProject_Add(ADD_CURL"
+        "if(FALSE)\n\n    ExternalProject_Add(ADD_CURL"
+    )
+    vcpkg_replace_string(
+        "${SOURCE_PATH}/cmake/Thirdparty.cmake"
+        "    INSTALL(DIRECTORY \${CMAKE_BINARY_DIR}/src/curl/ DESTINATION thirdparty)"
+        "    # Bundled curl is disabled on Windows."
+    )
+endif()
+
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS -DTARS_MYSQL=OFF

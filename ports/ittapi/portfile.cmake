@@ -1,3 +1,5 @@
+set(VCPKG_POLICY_MISMATCHED_NUMBER_OF_BINARIES enabled)
+
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
     URL "https://github.com/intel/ittapi.git"
@@ -14,13 +16,13 @@ vcpkg_cmake_build()
 
 # Manually install: ittapi doesn't have an install target
 # Libraries are in the build directory's bin/ subdirectory
-set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg")
-if(NOT EXISTS "${BUILD_DIR}/bin/${CMAKE_STATIC_LIBRARY_PREFIX}ittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel")
+set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel")
+if(NOT EXISTS "${BUILD_DIR}/bin/libittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(BUILD_DIR "${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg")
 endif()
 
 file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/lib")
-file(INSTALL "${BUILD_DIR}/bin/${CMAKE_STATIC_LIBRARY_PREFIX}ittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}"
+file(INSTALL "${BUILD_DIR}/bin/libittnotify${CMAKE_STATIC_LIBRARY_SUFFIX}"
     DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
 
 # Install headers
