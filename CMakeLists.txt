@@ -12,12 +12,13 @@ include(Options)
 configure_project()
 
 if (WIN32)
-# to fix boost log link error in Windows8 API
-# https://github.com/microsoft/vcpkg/discussions/22762
-#    add_definitions(-D_WIN32_WINNT=0x0601)
-#    set(VCPKG_C_FLAGS -D_WIN32_WINNT=0x0601 -DWINVER=0x0601)
-#    set(VCPKG_CXX_FLAGS -D_WIN32_WINNT=0x0601 -DWINVER=0x0601)
-    add_definitions(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN7)
+# boost.log's namespace encodes the target Windows API version: with
+# BOOST_USE_WINAPI_VERSION >= WIN8 it is "v2_mt_nt62", while WIN7 gives
+# "v2_mt_nt6". The vcpkg boost_log DLL (boost_log-vc145-mt-x64-1_88) is built
+# with WIN8 (its exports live in boost::log::v2_mt_nt62), so the project must
+# use the SAME value or the header-only symbols reference a different namespace
+# and the final link fails with undefined boost::log::v2_mt_nt6 symbols.
+    add_definitions(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN8)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS "ON")
 endif ()
 
@@ -30,6 +31,20 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
 endif()
 
 project(FISCO-BCOS VERSION ${VERSION})
+
+# jsoncpp: FISCO-BCOS links the bare name "jsoncpp_static", which the vcpkg
+# static triplet exposes as an imported target. With the dynamic (shared)
+# triplet the jsoncpp config only provides jsoncpp_lib; alias jsoncpp_static to
+# it so all bare-name references resolve to a full path (otherwise lld-link
+# gets a bare "jsoncpp_static.lib" it cannot locate).
+if(WIN32 AND NOT TARGET jsoncpp_static)
+    find_package(jsoncpp CONFIG QUIET)
+    if(TARGET jsoncpp_lib)
+        add_library(jsoncpp_static INTERFACE IMPORTED)
+        set_target_properties(jsoncpp_static PROPERTIES
+            INTERFACE_LINK_LIBRARIES jsoncpp_lib)
+    endif()
+endif()
 
 include(CompilerSettings)
 include(BuildInfoGenerator)

@@ -24,7 +24,12 @@
 #include <csignal>
 #include <cstring>
 #include <ctime>
+#ifdef _WIN32
+#include <cstdio>
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 // clang-format on
 
 
@@ -39,7 +44,11 @@ public:
         // because signal number 0 is not a real signal and can trigger
         // undefined behaviour in the previously installed handler.
         const char* msg = "[ExitHandler] normal exit requested...\n";
+#ifdef _WIN32
+        [[maybe_unused]] auto _ret = _write(_fileno(stderr), msg, (unsigned)sizeof(msg) - 1);
+#else
         [[maybe_unused]] auto _ret = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+#endif
         ExitHandler::c_shouldExit.store(true);
         ExitHandler::c_shouldExit.notify_all();
     }
@@ -55,7 +64,11 @@ public:
         const char* msg = "[ExitHandler] received signal, exiting...\n";
         // write() is tagged warn_unused_result on Linux; a void-cast does
         // not suppress the warning, but a real use (assignment) does.
+#ifdef _WIN32
+        [[maybe_unused]] auto _ret = _write(_fileno(stderr), msg, (unsigned)sizeof(msg) - 1);
+#else
         [[maybe_unused]] auto _ret = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+#endif
 
         // Set the flag first — this is the critical path that unblocks main().
         ExitHandler::c_shouldExit.store(true);
@@ -63,6 +76,14 @@ public:
 
         // Chain to the previously registered handler so that frameworks
         // such as TARS can perform their own internal graceful shutdown.
+#ifdef _WIN32
+        auto old = getOldHandler(signal);
+        if (old != nullptr && old != SIG_DFL && old != SIG_IGN &&
+            old != &ExitHandler::exitHandler)
+        {
+            old(signal);
+        }
+#else
         auto& old = getOldHandler(signal);
         if ((old.sa_flags & SA_SIGINFO) && old.sa_sigaction != nullptr)
         {
@@ -73,6 +94,7 @@ public:
         {
             old.sa_handler(signal);
         }
+#endif
     }
 
     /// Register (or re-register) our signal handler, saving the previously
@@ -83,6 +105,13 @@ public:
     /// RPC, etc.) may have installed their own handlers in the meantime.
     static void registerSignalHandlers()
     {
+#ifdef _WIN32
+        // Windows 无 sigaction，用 C 标准 signal() 保存旧 handler（函数指针）
+        s_oldTERM = std::signal(SIGTERM, &ExitHandler::exitHandler);
+        s_oldABRT = std::signal(SIGABRT, &ExitHandler::exitHandler);
+        s_oldINT = std::signal(SIGINT, &ExitHandler::exitHandler);
+        s_oldSEGV = std::signal(SIGSEGV, &ExitHandler::exitHandler);
+#else
         // clang-format off
         struct sigaction sa{};
         // clang-format on
@@ -94,6 +123,7 @@ public:
         sigaction(SIGABRT, &sa, &s_oldABRT);
         sigaction(SIGINT, &sa, &s_oldINT);
         sigaction(SIGSEGV, &sa, &s_oldSEGV);
+#endif
     }
 
     static bool shouldExit() { return ExitHandler::c_shouldExit.load(); }
@@ -101,6 +131,30 @@ public:
     static boost::atomic_bool c_shouldExit;
 
 private:
+#ifdef _WIN32
+    using OldHandler = void (*)(int);
+    static OldHandler getOldHandler(int signal)
+    {
+        switch (signal)
+        {
+        case SIGTERM:
+            return s_oldTERM;
+        case SIGINT:
+            return s_oldINT;
+        case SIGABRT:
+            return s_oldABRT;
+        case SIGSEGV:
+            return s_oldSEGV;
+        default:
+            return s_oldTERM;  // fallback
+        }
+    }
+
+    static OldHandler s_oldTERM;
+    static OldHandler s_oldINT;
+    static OldHandler s_oldABRT;
+    static OldHandler s_oldSEGV;
+#else
     static struct sigaction& getOldHandler(int signal)
     {
         switch (signal)
@@ -122,6 +176,7 @@ private:
     static struct sigaction s_oldINT;
     static struct sigaction s_oldABRT;
     static struct sigaction s_oldSEGV;
+#endif
 };
 
 // setDefaultOrCLocale() is defined in Common.cpp.

@@ -39,7 +39,8 @@ public:
         bcostars::TransactionReceipt& response, tars::TarsCurrentPtr current) override;
     bcostars::Error sendTransaction(const bcostars::Transaction& request,
         bcostars::TransactionReceipt& response, tars::TarsCurrentPtr current) override;
-    bcostars::Error blockNumber(long& number, tars::TarsCurrentPtr current) override;
+    // Windows 上 long 是 32 位，必须用 tars::Int64 才能匹配基类的 virtual 签名（C3668）
+    bcostars::Error blockNumber(tars::Int64& number, tars::TarsCurrentPtr current) override;
 
     int doClose(tars::CurrentPtr current) override;
 

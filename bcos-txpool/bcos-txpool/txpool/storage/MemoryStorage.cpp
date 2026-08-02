@@ -665,7 +665,7 @@ void MemoryStorage::batchRemoveSealedTxs(
     m_config->txPoolNonceChecker()->batchRemove(*nonceListPtr);
     auto updateTxPoolNonceT = utcTime() - startT;
 
-    tbb::parallel_for(tbb::blocked_range(0UL, results.size()), [&](const auto& range) {
+    tbb::parallel_for(tbb::blocked_range<std::size_t>(0, results.size()), [&](const auto& range) {
         for (auto i = range.begin(); i != range.end(); ++i)
         {
             auto& [tx, txResult] = results[i];

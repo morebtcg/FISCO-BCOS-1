@@ -1,67 +1,33 @@
-vcpkg_from_git(
-    OUT_SOURCE_PATH SOURCE_PATH
-    URL "https://github.com/FISCO-BCOS/group-signature-lib.git"
-    REF b9f3e2589b477c2cbe25472e3e30e49bf842a062
-)
+# group-sig portfile - builds the vendored group-signature-lib stack
+# (group-signature-lib + pbc-0.5.14 + pbc_sig-0.0.8) directly with the host
+# compiler (MSVC on Windows).
+#
+# The upstream project builds pbc/pbc_sig through autotools
+# (./configure + make + a Unix shell), which cannot run on Windows/MSVC. The
+# sources are therefore vendored under ${VENDOR_DIR} and built by a dedicated
+# MSVC-friendly CMakeLists.txt that compiles the (portable) C sources directly.
+set(VENDOR_DIR "${CMAKE_CURRENT_LIST_DIR}/../../thirdparty/group-sig")
 
-# Fix pbc_sig CMakeLists.txt: original tarball has backslash line continuations
-# that produce invalid ninja build files.
-# Copy fix script to cmake/ subdir, then run inject script.
-# Use vcpkg_find_acquire_program (instead of find_package(Python3)) because the
-# vcpkg build environment does not put a python interpreter on PATH / in the
-# CMake package registry, which made find_package(Python3) fail with
-# "Could NOT find Python3 (missing: Python3_EXECUTABLE Interpreter)".
-vcpkg_find_acquire_program(PYTHON3)
-file(COPY "${CMAKE_CURRENT_LIST_DIR}/fix_pbc_sig_cmake.py" DESTINATION "${SOURCE_PATH}/cmake")
-vcpkg_execute_build_process(
-    COMMAND "${PYTHON3}" "${CMAKE_CURRENT_LIST_DIR}/inject_pbc_sig_fix.py"
-    WORKING_DIRECTORY "${SOURCE_PATH}"
-    LOGNAME "patch-${TARGET_TRIPLET}"
-)
+set(SOURCE_PATH "${CURRENT_BUILDTREES_DIR}/src/group-sig-vendored")
+file(REMOVE_RECURSE "${SOURCE_PATH}")
+file(COPY "${VENDOR_DIR}/" DESTINATION "${SOURCE_PATH}")
 
-# FindGMP.cmake only searches for "libgmp.a" (the Unix name), so it fails on
-# Windows where vcpkg's GMP produces gmp.lib. Search for the plain "gmp" name
-# (resolves to gmp.lib on MSVC and libgmp.a/.so on Unix).
-vcpkg_replace_string("${SOURCE_PATH}/cmake/FindGMP.cmake"
-    "find_library( GMP_LIBRARIES NAMES \"libgmp.a\" )"
-    "find_library( GMP_LIBRARIES NAMES gmp libgmp )"
-)
-
-# ProjectPbc.cmake/ProjectPbcSig.cmake use PREFIX ${CMAKE_SOURCE_DIR}/deps (an
-# absolute path in the shared source tree). CMake 3.30's ExternalProject writes
-# deps/tmp/<name>-mkdirs.cmake before that dir exists, so pre-create it.
-file(MAKE_DIRECTORY "${SOURCE_PATH}/deps/tmp")
-
-# DISABLE_PARALLEL_CONFIGURE: debug and release configures share that same
-# absolute deps/ PREFIX. Running them in parallel (vcpkg's default) races on the
-# shared tree and intermittently fails in ExternalProject _ep_set_directories
-# ("configure_file: No such file or directory"). Configure them sequentially.
 vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
-    DISABLE_PARALLEL_CONFIGURE
     OPTIONS
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 )
 
 vcpkg_cmake_install()
 
-# Manually install pbc and pbc_sig libraries (the project doesn't install them)
-file(INSTALL "${SOURCE_PATH}/deps/lib/${CMAKE_STATIC_LIBRARY_PREFIX}pbc${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
-file(INSTALL "${SOURCE_PATH}/deps/src/pbc_sig/${CMAKE_STATIC_LIBRARY_PREFIX}pbc_sig${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/lib")
-
-# Also install debug variants
-file(INSTALL "${SOURCE_PATH}/deps/lib/${CMAKE_STATIC_LIBRARY_PREFIX}pbc${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/debug/lib")
-file(INSTALL "${SOURCE_PATH}/deps/src/pbc_sig/${CMAKE_STATIC_LIBRARY_PREFIX}pbc_sig${CMAKE_STATIC_LIBRARY_SUFFIX}"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/debug/lib")
+# Install the hand-written config that creates the GroupSig/Pbc/PbcSig/Gmp
+# imported targets that FISCO-BCOS consumers (bcos-executor) expect.
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/group-sig-config.cmake"
+    DESTINATION "${CURRENT_PACKAGES_DIR}/share/group-sig")
 
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/include")
 file(REMOVE_RECURSE "${CURRENT_PACKAGES_DIR}/debug/share")
 
-# Install custom cmake config
-file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/group-sig-config.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/group-sig")
-
 # Install copyright
-file(INSTALL "${SOURCE_PATH}/LICENSE" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+file(INSTALL "${VENDOR_DIR}/group-signature-lib/LICENSE"
+    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)

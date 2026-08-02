@@ -17,6 +17,20 @@
 
 #pragma once
 
+#ifdef _WIN32
+// MSVC 不提供 POSIX 的 ssize_t（FISCO-BCOS 全量节点代码大量使用）。
+// 用 Windows SDK 的 SSIZE_T 提供等价类型；tarscpp 头以 #ifndef ssize_t 保护，
+// 若其在 Common.h 之前包含而定义了 ssize_t 宏，这里先 #undef 再 typedef，避免冲突。
+#include <BaseTsd.h>
+#ifdef ssize_t
+#undef ssize_t
+#endif
+#ifndef FISCO_BCOS_SSIZE_T_DEFINED
+#define FISCO_BCOS_SSIZE_T_DEFINED
+typedef SSIZE_T ssize_t;
+#endif
+#endif
+
 #include "RefDataContainer.h"
 #include <boost/algorithm/hex.hpp>
 #include <boost/algorithm/string.hpp>

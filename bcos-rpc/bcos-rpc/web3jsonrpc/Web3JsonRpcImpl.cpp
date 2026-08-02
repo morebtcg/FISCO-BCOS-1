@@ -236,8 +236,10 @@ void Web3JsonRpcImpl::onRPCRequest(std::string_view _requestBody,
         }
 
         // parse json
+        // MSVC 的 string_view::iterator 不是裸指针，jsoncpp 的 parse(const char*, ...) 不接受迭代器
         if (Json::Reader jsonReader;
-            !jsonReader.parse(_requestBody.begin(), _requestBody.end(), request))
+            !jsonReader.parse(
+                _requestBody.data(), _requestBody.data() + _requestBody.size(), request))
         {
             BOOST_THROW_EXCEPTION(JsonRpcException(InvalidRequest, "Parse json failed"));
         }

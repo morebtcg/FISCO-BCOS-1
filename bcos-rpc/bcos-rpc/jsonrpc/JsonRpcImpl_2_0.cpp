@@ -157,7 +157,9 @@ void JsonRpcImpl_2_0::parseRpcResponseJson(
     {
         do
         {
-            if (!jsonReader.parse(_responseBody.begin(), _responseBody.end(), root))
+            // MSVC 的 string_view::iterator 不是裸指针，jsoncpp 的 parse(const char*, ...) 不接受迭代器
+            if (!jsonReader.parse(
+                    _responseBody.data(), _responseBody.data() + _responseBody.size(), root))
             {
                 errorMessage = "invalid response json object";
                 break;

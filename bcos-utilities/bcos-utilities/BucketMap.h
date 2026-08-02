@@ -293,7 +293,9 @@ public:
         if constexpr (parallel)
         {
             auto chunksVec = ::ranges::to<std::vector>(chunks);
-            tbb::parallel_for(tbb::blocked_range(0LU, chunksVec.size()), [&](auto const& range) {
+            // blocked_range 的 CTAD 在 0LU 与 size_t 间推导失败，显式指定元素类型
+            tbb::parallel_for(
+                tbb::blocked_range<std::size_t>(0, chunksVec.size()), [&](auto const& range) {
                 for (auto i = range.begin(); i != range.end(); ++i)
                 {
                     auto& chunk = chunksVec[i];

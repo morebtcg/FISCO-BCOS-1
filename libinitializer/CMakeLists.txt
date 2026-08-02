@@ -17,7 +17,10 @@ target_link_libraries(protocol_init PUBLIC
 # pbft_init: used by fisco-bcos-air, NodeService, storage-tool, archive-tool, hsm-tool
 add_library(pbft_init PBFTInitializer.cpp ProPBFTInitializer.cpp)
 target_link_libraries(pbft_init PUBLIC protocol_init ledger tool sealer rpbft pbft sync storage)
-set_target_properties(pbft_init PROPERTIES UNITY_BUILD "ON")
+# clang-cl (Windows) ICE: the merged unity TU (PBFTInitializer + ProPBFTInitializer)
+# crashes the clang-cl 22.1.3 frontend with a signal. Compile the two files
+# separately to avoid the crash (same workaround as the init target).
+set_target_properties(pbft_init PROPERTIES UNITY_BUILD "OFF")
 add_dependencies(pbft_init BuildInfo.h)
 if(WITH_LEDGER_ELECTION)
     target_link_libraries(pbft_init PUBLIC leader_election)
@@ -52,5 +55,8 @@ if(WITH_LIGHTNODE)
     target_sources(init PRIVATE LightNodeInitializer.cpp LightNodeInitializer.h)
     target_link_libraries(init PUBLIC bcos-lightnode bcos-concepts bcos-legacy)
 endif()
-set_target_properties(init PROPERTIES UNITY_BUILD "ON")
+# FIB-fix (Windows/MSVC): UNITY_BUILD OFF — merging the 9 large initializer TUs into a
+# single unity TU triggers MSVC C1001 ICE in storage2/Storage.h (RemoveOne decltype).
+# Per-file compilation is slower but avoids the compiler crash.
+set_target_properties(init PROPERTIES UNITY_BUILD "OFF")
 add_dependencies(init BuildInfo.h)

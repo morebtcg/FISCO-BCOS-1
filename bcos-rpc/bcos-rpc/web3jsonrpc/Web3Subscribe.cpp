@@ -222,13 +222,14 @@ void Web3Subscribe::onNewBlock(int64_t blockNumber)
 std::string Web3Subscribe::generateSubscriptionId()
 {
     std::mt19937 gen{std::random_device{}()};
-    std::uniform_int_distribution<uint8_t> dis(0, 255);
+    // MSVC 的 <random> 不允许 uniform_int_distribution<uint8_t>（char 系列，C2338）
+    std::uniform_int_distribution<int> dis(0, 255);
 
     std::stringstream ss;
     ss << "0x";
     for (int i = 0; i < SUBSCRIPTION_ID_LENGTH; ++i)
     {
-        uint8_t byte = dis(gen);
+        uint8_t byte = static_cast<uint8_t>(dis(gen));
         ss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(byte);
     }
 

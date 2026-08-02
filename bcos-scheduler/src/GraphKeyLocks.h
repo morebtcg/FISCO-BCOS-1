@@ -84,4 +84,8 @@ bool operator<(const GraphKeyLocks::Vertex& lhs,
 bool operator<(const GraphKeyLocks::KeyLockView& lhs,
     const GraphKeyLocks::Vertex& rhs);
 
+// std::map<Vertex, ...> 透明比较器 std::less<> 需要（MSVC 下 std::variant 的
+// operator< 不会自动用于派生类 Vertex）
+bool operator<(const GraphKeyLocks::Vertex& lhs, const GraphKeyLocks::Vertex& rhs);
+
 }  // namespace bcos::scheduler

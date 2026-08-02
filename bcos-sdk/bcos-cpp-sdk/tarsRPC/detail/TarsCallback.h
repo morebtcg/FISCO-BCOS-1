@@ -21,7 +21,8 @@ private:
     std::promise<tars::ReqMessagePtr> m_promise;
     int m_seq;
 
-    std::variant<long, protocol::TransactionReceipt::Ptr> m_response;
+    // Windows 上 long 是 32 位，tars::Int64 才是 64 位；blockNumber 返回值用 tars::Int64 存储
+    std::variant<tars::Int64, protocol::TransactionReceipt::Ptr> m_response;
 
 public:
     TarsCallback(

@@ -31,10 +31,20 @@ if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR("${CMAKE_CXX_COMPILER_ID}" MATC
         set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CCACHE_PROGRAM}")
     endif()
 
-    add_compile_options(-Werror)
-    add_compile_options(-Wall)
-    add_compile_options(-pedantic)
-    add_compile_options(-Wextra)
+    if(WIN32)
+        # FIB-fix (clang-cl): FISCO-BCOS hasn't been warning-clean under clang-cl yet;
+        # -Werror would turn every pre-existing warning into a hard error. Keep the
+        # diagnostics but don't promote them to errors. Skip -pedantic to reduce noise
+        # coming from MSVC/Windows SDK headers.
+        add_compile_options(-Wall)
+        add_compile_options(-Wextra)
+        add_compile_options(-Wno-error)
+    else()
+        add_compile_options(-Werror)
+        add_compile_options(-Wall)
+        add_compile_options(-pedantic)
+        add_compile_options(-Wextra)
+    endif()
 
     # Ignore warnings
     add_compile_options(-Wno-unused-parameter)
@@ -133,6 +143,15 @@ if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR("${CMAKE_CXX_COMPILER_ID}" MATC
             add_compile_options(-fdiagnostics-all-candidates)
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+        if(WIN32)
+            # FIB-fix (clang-cl): wingdi.h 的无条件 #define ERROR 0 以及 min/max 宏会
+            # 破坏 bcos::LogLevel::ERROR 与 std::min/std::max，与 MSVC 分支保持一致禁用。
+            add_compile_definitions(NOGDI)
+            add_compile_definitions(NOMINMAX)
+            # FIB-fix (clang-cl): fmt 的 consteval format-string 编译期检查在 clang-cl
+            # 下报 "call to consteval function 'fmt::basic_format_string'"，禁用编译期检查。
+            add_compile_definitions(FMT_COMPILE_TIME_CHECKS=0)
+        endif()
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.0)
             set(CMAKE_CXX_FLAGS_DEBUG "-O -g")
         endif()
@@ -177,6 +196,9 @@ if(("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU") OR("${CMAKE_CXX_COMPILER_ID}" MATC
     endif()
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
     add_compile_definitions(NOMINMAX)
+    # NOGDI 排除 wingdi.h：否则其无条件的 #define ERROR 0 会把
+    # bcos::LogLevel::ERROR 展开成 bcos::LogLevel::0（MSVC C2589）。
+    add_compile_definitions(NOGDI)
     add_compile_options(/std:c++latest)
     add_compile_options(-bigobj)
     add_compile_options(/utf-8)

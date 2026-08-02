@@ -26,7 +26,8 @@ bcos::txpool::TransactionData::TransactionData(protocol::Transaction::Ptr transa
   : m_transaction(std::move(transaction)), m_nonce([&]() {
         int64_t nonce;
         auto view = m_transaction->nonce();
-        if (auto result = std::from_chars(view.begin(), view.end(), nonce);
+        // MSVC 的 string_view::iterator 不是裸指针，from_chars 需要 const char*
+        if (auto result = std::from_chars(view.data(), view.data() + view.size(), nonce);
             result.ec != std::errc{})
         {
             bcos::throwTrace(InvalidNonce{} << bcos::errinfo_comment(std::string{view}));

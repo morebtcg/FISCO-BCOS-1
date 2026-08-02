@@ -402,7 +402,8 @@ public:
 
     auto begin() { return m_data.begin(); }
     auto end() { return m_data.end(); }
-    auto size() const { return SIZE; }
+    // 返回 size_t 而非匿名枚举 SIZE，避免聚合初始化（如 {.len = fb.size()}）中的收缩转换错误（C2397/C2398）
+    constexpr size_t size() const { return SIZE; }
     void clear() { m_data.fill(0); }
 
 private:

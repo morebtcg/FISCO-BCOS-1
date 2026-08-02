@@ -28,7 +28,9 @@
 #include <bcos-crypto/signature/key/KeyFactoryImpl.h>
 #include <bcos-tool/NodeConfig.h>
 #include <bcos-utilities/BoostLogInitializer.h>
+#ifndef _WIN32
 #include <execinfo.h>
+#endif
 
 using namespace bcos::node;
 using namespace bcos::initializer;
@@ -45,6 +47,7 @@ int main(int argc, const char* argv[])
     // exceptions (that would hide unrelated crashes), it only prints a backtrace then aborts.
     std::set_terminate([]() {
         std::cerr << "terminate handler called, print stacks" << std::endl;
+#ifndef _WIN32
         void* trace_elems[50];
         int trace_elem_count(backtrace(trace_elems, 50));
         char** stack_syms(backtrace_symbols(trace_elems, trace_elem_count));
@@ -53,6 +56,7 @@ int main(int argc, const char* argv[])
             std::cout << stack_syms[i] << "\n";
         }
         free(stack_syms);
+#endif
         std::cerr << "terminate handler called, print stack end" << std::endl;
         abort();
     });

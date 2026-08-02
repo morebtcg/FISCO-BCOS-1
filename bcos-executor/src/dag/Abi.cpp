@@ -86,7 +86,9 @@ std::unique_ptr<FunctionAbi> FunctionAbi::deserialize(
 
         Json::Reader reader;
         Json::Value root;
-        if (!reader.parse(abiStr.begin(), abiStr.end(), root))
+        // MSVC 的 string_view::iterator 不是裸指针，jsoncpp 的 parse(const char*, const char*, ...)
+        // 不接受迭代器；改用 data()+size()。
+        if (!reader.parse(abiStr.data(), abiStr.data() + abiStr.size(), root))
         {
             BCOS_LOG(TRACE) << LOG_BADGE("EXECUTOR") << LOG_DESC("unable to parse contract ABI")
                             << LOG_KV("abiStr", abiStr);

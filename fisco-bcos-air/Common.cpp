@@ -27,10 +27,17 @@ namespace bcos::node
 // Static member definitions — defined here rather than in the header to
 // uphold the One Definition Rule.
 boost::atomic_bool ExitHandler::c_shouldExit = {false};
+#ifdef _WIN32
+ExitHandler::OldHandler ExitHandler::s_oldTERM = nullptr;
+ExitHandler::OldHandler ExitHandler::s_oldINT = nullptr;
+ExitHandler::OldHandler ExitHandler::s_oldABRT = nullptr;
+ExitHandler::OldHandler ExitHandler::s_oldSEGV = nullptr;
+#else
 struct sigaction ExitHandler::s_oldTERM = {};
 struct sigaction ExitHandler::s_oldINT = {};
 struct sigaction ExitHandler::s_oldABRT = {};
 struct sigaction ExitHandler::s_oldSEGV = {};
+#endif
 
 void setDefaultOrCLocale()
 {

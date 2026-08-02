@@ -208,7 +208,9 @@ void bcos::rpc::parseRpcRequestJson(std::string_view _requestBody, JsonRequest& 
         int64_t id = 0;
         do
         {
-            if (!jsonReader.parse(_requestBody.begin(), _requestBody.end(), root))
+            // MSVC 的 string_view::iterator 不是裸指针，jsoncpp 的 parse(const char*, ...) 不接受迭代器
+            if (!jsonReader.parse(
+                    _requestBody.data(), _requestBody.data() + _requestBody.size(), root))
             {
                 errorMessage = "invalid request json object";
                 break;

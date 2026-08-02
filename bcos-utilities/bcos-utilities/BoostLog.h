@@ -21,28 +21,11 @@
  */
 #pragma once
 
+#include <compare>   // std::operator<=> (three-way comparison)
+#include <concepts>  // std::same_as, std::integral
+
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
-#endif
-
-#ifdef ERROR
-#undef ERROR
-#endif
-
-#ifdef TRACE
-#undef TRACE
-#endif
-
-#ifdef INFO
-#undef INFO
-#endif
-
-#ifdef WARNING
-#undef WARNING
-#endif
-
-#ifdef FATAL
-#undef FATAL
 #endif
 
 #include <boost/log/attributes/constant.hpp>

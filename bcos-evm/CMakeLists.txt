@@ -28,6 +28,7 @@ target_link_libraries(bcos-evm-eth PUBLIC evmone::evmone evmone::precompiles int
 # 移植文件按上游原样编译；并入本仓后会继承全局 -Werror -Wall -Wextra -pedantic
 # （cmake/CompilerSettings.cmake），AppleClang 对上游代码报 missing-field-initializers。
 # vendored 代码不受本仓告警策略约束——抑制仅限移植源文件，FISCO 自有代码保持全 -Werror。
+# -Wno-missing-field-initializers 是 GCC/Clang 专用选项，MSVC 不识别（D8021），仅对非 MSVC 生效。
 set_source_files_properties(
     bcos-evm/eth/state/block.cpp
     bcos-evm/eth/state/bloom_filter.cpp
@@ -36,7 +37,7 @@ set_source_files_properties(
     bcos-evm/eth/state/requests.cpp
     bcos-evm/eth/state/state.cpp
     bcos-evm/eth/state/system_contracts.cpp
-    PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers")
+    PROPERTIES COMPILE_OPTIONS "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wno-missing-field-initializers>")
 
 # 集成构建（主工程 add_subdirectory）下跟随主工程的 TESTS 开关，独立构建恒默认 ON；
 # 否则整树 TESTS=ON 构建/CI 也不会编译 bcos-evm-eth-tests，回归无从暴露。

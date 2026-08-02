@@ -9,6 +9,7 @@
       "host": true
     },
     "gmp",
-    "cryptopp"
+    "cryptopp",
+    "jsoncpp"
   ]
 }

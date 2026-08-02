@@ -10,7 +10,7 @@ set(SRC_LIST bcos-storage/Common.cpp)
 list(APPEND SRC_LIST bcos-storage/RocksDBStorage.cpp)
 list(APPEND SRC_LIST bcos-storage/CheckpointRocksDBStorage.cpp)
 
-set(LIB_LIST table bcos-framework Boost::serialization Boost::filesystem zstd::libzstd_static RocksDB::rocksdb ittapi)
+set(LIB_LIST table bcos-framework Boost::serialization Boost::filesystem zstd::libzstd RocksDB::rocksdb ittapi)
 
 if (WITH_TIKV)
     find_package(tikv-client-cpp CONFIG REQUIRED)

@@ -682,8 +682,10 @@ std::shared_ptr<Service> GatewayFactory::buildService(const GatewayConfig::Ptr& 
 
     GatewayP2PReloadHandler::config = _config;
     GatewayP2PReloadHandler::service = service;
-    // register SIGUSR1 for reload connected p2p nodes config
+    // register SIGUSR1 for reload connected p2p nodes config (Windows 无 SIGUSR1)
+#ifndef _WIN32
     signal(GATEWAY_RELOAD_P2P_CONFIG, GatewayP2PReloadHandler::handle);
+#endif
 
     BCOS_LOG(INFO) << LOG_DESC("register SIGUSR1 sig for reload p2p connected nodes config");
 
