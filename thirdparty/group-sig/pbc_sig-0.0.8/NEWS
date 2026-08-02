@@ -1,0 +1,46 @@
+PBC_sig signatures library. See COPYING for license.
+
+Changes between PBC_sig version 0.0.8 and PBC_sig 0.0.7
+
+* Replaced a straggler 'bilinear_map' by 'element_pairing'.
+  Reported by Mauricio G.
+
+Changes between PBC_sig version 0.0.7 and PBC_sig 0.0.6
+
+* Upgraded to PBC 0.5.4 API, thanks to David Jao.
+
+Changes between PBC_sig version 0.0.6 and PBC_sig 0.0.5
+
+* Fix some includes. Thanks to Jeff W.
+* Upgraded GPL to v3
+
+Changes between PBC_sig version 0.0.5 and PBC_sig 0.0.4
+
+* Look for pbc/pbc.h instead of pbc.h during configuration.
+
+Changes between PBC_sig version 0.0.4 and PBC_sig 0.0.3
+
+* Fixed include statement. Thanks to Adam McLaurin for noticing this.
+
+Changes between PBC_sig version 0.0.3 and PBC_sig 0.0.2
+
+* Applied Daniel Peebles' patch to fix compilation errors
+
+Changes between PBC_sig version 0.0.2 and PBC_sig 0.0.1
+
+* Had removed wrong branch of #ifdef LITTLE_ENDIAN
+
+Changes between PBC_sig version 0.0.1 and PBC_sig 0.0.0
+
+* Autotools can be used to build system
+* Identity-based signature scheme API changes
+* Removed #ifdef LITTLE_ENDIAN from hash.c (conflicts with stdlib.h in Linux)
+
+Changes between PBC_sig version 0.0.0 and PBC 0.3.17
+
+* Boneh-Boyen-Shacham group signatures code moved into library.
+* Fixed Boneh-Boyen signature bug.
+* Plugged memory leak in Boneh-Lynn-Shacham scheme.
+* New functions: bls_clear_sys_param, bls_clear_public_key,
+  bls_clear_private_key.
+* Minor fixes reflecting changes in PBC 0.4.0.

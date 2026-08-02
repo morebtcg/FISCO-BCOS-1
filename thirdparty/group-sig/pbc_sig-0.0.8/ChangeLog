@@ -1,0 +1,159 @@
+commit d5a0a652b2f070e7884fb889841fd31573b9cde4
+Author: Ben Lynn <benlynn@gmail.com>
+Date:   Tue Oct 19 17:55:34 2010 -0700
+
+    pbc_sig-0.0.8
+
+commit 8ee9558c0409116a27c6ee523294850da6d6cb3b
+Author: Ben Lynn <benlynn@gmail.com>
+Date:   Thu Jul 15 20:44:25 2010 -0700
+
+    Renamed bilinear_map() to element_pairing().
+    
+    Reported by Mauro.
+
+commit b0a6d7dec51e2099fedde0184199a70e7e0be448
+Author: Ben Lynn <benlynn@gmail.com>
+Date:   Thu Sep 17 02:08:12 2009 -0700
+
+    pbc_sig-0.0.7
+
+commit 818d992355d4575bf950dc590f5a817070efd747
+Author: Ben Lynn <benlynn@gmail.com>
+Date:   Thu Sep 17 01:20:49 2009 -0700
+
+    David Jao's patch.
+
+commit 9501fb161f2223b2557b94b1d7f2bbad2a1c2f62
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Sat Mar 15 15:55:20 2008 -0700
+
+    pbc_sig-0.0.6
+
+commit 9ff0c0571160f8713e37ef375d90cc311a9c06fb
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Sat Mar 15 15:54:48 2008 -0700
+
+    Fixed includes
+    
+    Upgraded GPL to v3
+
+commit 6e15548bd884625cb11f1b900ee9b5f655abda91
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Sun Mar 2 23:31:26 2008 -0800
+
+    pbc_sig-0.0.5
+
+commit 2e2552b4476d6964bf018e8dd0e489ae15dd982a
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Sun Mar 2 23:30:13 2008 -0800
+
+    Update pbc header file detection
+
+commit 0b8f38f56e1607173f9317843f26862a3218f27b
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Wed Feb 20 07:51:05 2008 -0800
+
+    pbc_sig-0.0.4
+
+commit 6159fdea0a4841d481450ce987e1c6a97cbbfd6a
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Wed Feb 20 07:35:16 2008 -0800
+
+    Fix include statement, thanks to Adam McLaurin
+
+commit 1a67acf3ea8598f36ea7e4eca81b411de0a56d13
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Tue Feb 19 23:50:37 2008 -0800
+
+    pbc_sig-0.0.3
+
+commit 990e69f8d655f985952bbf8977094af6a2fc9cab
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Tue Feb 19 23:49:03 2008 -0800
+
+    Updates to makerelease and setup
+
+commit 9bbb00569f1d62bb0f61d3de83807e7b817c4550
+Author: Ben Lynn <blynn@monkey.corp.google.com>
+Date:   Tue Feb 19 23:38:50 2008 -0800
+
+    Applied Daniel Peebles' fixes
+
+commit 98e086a5ae8529b5bfeb17139433707a690617c9
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Fri Feb 9 00:21:13 2007 -0800
+
+    pbc_sig-0.0.2
+
+commit 9fde268741fc9f9c558ad50014156f139c227853
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Fri Feb 9 00:20:16 2007 -0800
+
+    Had removed wrong branch of #ifdef LITTLE_ENDIAN
+
+commit b44f4c7f7788f339d69a43632d5d5dbff64e3d17
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Feb 8 15:30:23 2007 -0800
+
+    pbc_sig-0.0.1
+
+commit 91e1071c9c0abcdae64fa6a1a0452c4b7effc3e5
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Feb 8 06:05:15 2007 -0800
+
+    Pushed wrong copy last time
+    
+    Minor fixes
+
+commit 0d51477aaabf8e38a146e6fc8a82beb9926ec05c
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Feb 8 05:42:09 2007 -0800
+
+    Identity-based signature scheme init and clear functions
+    
+    Removed LITTLE_ENDIAN #define in hash.c (conflicts with Linux stdlib.h)
+
+commit 5c2de241b658af3346ca59b3cf9dff59abaceff5
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Wed Feb 7 23:42:57 2007 -0800
+
+    Can build with autotools (copied from Joe Cooley's files)
+    
+    Renamed test programs
+
+commit 352329a2bd1edfe44323ac3fcf5799e45979741d
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Sun Jan 21 02:22:04 2007 -0800
+
+    SHA1 doesn't mangle input data by default now
+
+commit 653fc801c0d34b999713dafeb5a9232e27354145
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Nov 23 14:29:23 2006 -0800
+
+    pbc_sig-0.0.0
+
+commit 065e95db4a1f11d8ee03d2ba5d0c354287327ce8
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Nov 23 14:20:32 2006 -0800
+
+    Added memory-freeing functions to BLS scheme
+    
+    Fixed memory leak in BLS scheme
+
+commit 7f3a5755b6b3b82b344e8375618043be23b296e3
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Nov 23 14:11:41 2006 -0800
+
+    Split testbbs.c in two, part of it now lies in the library
+    
+    Fixed Boneh-Boyen signatures, testbb.c works again
+    
+    Other fixes
+
+commit 6b10448436b15942a27e55967ad369b65be0b877
+Author: Ben Lynn <blynn@cs.stanford.edu>
+Date:   Thu Nov 23 07:36:36 2006 -0800
+
+    Initial commit

@@ -1,0 +1,16 @@
+THE PBC_sig LIBARY
+
+The PBC_sig library is a C library providing implementations of various
+signature schemes:
+
+Boneh-Boyen signatures
+Boneh-Boyen-Shacham group signatures
+Boneh-Lynn-Shacham signatures
+Cha-Cheon identity-based signatures
+
+PBC_sig requires the PBC library:
+
+    http://crypto.stanford.edu/pbc/
+
+------------------------------------------------------------------------------
+Ben Lynn <blynn@cs.stanford.edu>

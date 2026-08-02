@@ -1,0 +1,35 @@
+#!/bin/bash
+VER=`grep AC_INIT configure.ac | sed 's/.*\[\([0-9]*\.[0-9]*\.[0-9]*\)\].*/\1/'`
+echo making pbc_sig-$VER
+GREPVER=${VER//\./\\.}
+echo git diff: ideally should do nothing...
+git diff
+git log > ChangeLog
+cat ChangeLog | head -20 | grep pbc_sig-$GREPVER > /dev/null || {
+    echo git log does not mention release
+    exit 1
+}
+TMPDIR=`mktemp -d` || {
+    echo Error creating temp directory
+    exit 1
+}
+WORKDIR=$TMPDIR/pbc_sig-$VER
+echo Running setup...
+git archive --format=tar --prefix=pbc_sig-$VER/ HEAD | tar xvC $TMPDIR
+HERE=`pwd`
+cp ChangeLog $WORKDIR
+cd $WORKDIR
+grep $GREPVER NEWS > /dev/null || {
+    echo NEWS does not mention release 
+    cd $HERE
+    rm -rf $TMPDIR
+    exit 1
+}
+./setup || {
+    echo ./setup error
+    rm -rf $TMPDIR
+    exit 1
+}
+cd $TMPDIR
+echo Creating tarball...
+tar cvfz $HERE/pbc_sig-$VER.tar.gz pbc_sig-$VER

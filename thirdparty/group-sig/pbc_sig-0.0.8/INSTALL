@@ -1,0 +1,14 @@
+INSTALLING THE PBC_BCE LIBRARY
+==============================
+
+First install the PBC library:
+
+    http://crypto.stanford.edu/pbc/
+
+The PBC library needs the GMP library:
+
+    http://www.swox.com/gmp/
+
+Currently the only easy way to compile this library is to use the
+relatively obscure CMake system: install CMake, run "cmake ." and then "make".
+I hope to fix this soon.
