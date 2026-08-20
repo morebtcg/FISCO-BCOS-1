@@ -19,14 +19,14 @@
  */
 
 #pragma once
-#include "bcos-tars-protocol/protocol/TransactionImpl.h"
+#include "TransactionImpl.h"
 #include <bcos-codec/rlp/Common.h>
 #include <bcos-codec/rlp/RLPDecode.h>
 #include <bcos-codec/rlp/RLPEncode.h>
 #include <bcos-crypto/interfaces/crypto/CommonType.h>
 #include <bcos-crypto/signature/secp256k1/Secp256k1Crypto.h>
-#include <bcos-rpc/web3jsonrpc/utils/util.h>
-#include <bcos-tars-protocol/protocol/BlockFactoryImpl.h>
+#include <bcos-utilities/DataConvertUtility.h>
+#include "BlockFactoryImpl.h"
 #include <bcos-utilities/FixedBytes.h>
 #include <magic_enum/magic_enum.hpp>
 #include <ostream>
@@ -129,6 +129,15 @@ public:
     bcos::bytes signatureS;
     uint64_t signatureV{0};
 };
+
+/// Decode raw EIP-2718 transaction bytes (legacy or 0x01/0x02/0x03/0x04 typed) into a
+/// ready-to-execute bcostars TransactionImpl: fields, extraTransactionBytes (the signing
+/// payload), the 65-byte r||s||yParity signature, the canonical tx hash, and the sender
+/// recovered from the signature. Throws std::invalid_argument on malformed input.
+/// This is the shared raw->Transaction path for eth_sendRawTransaction, the devp2p sync
+/// path and the external-block verifier.
+std::shared_ptr<bcostars::protocol::TransactionImpl> decodeWeb3RawTransaction(
+    bcos::bytesConstRef raw, const bcos::crypto::Hash& hashImpl);
 }  // namespace rpc
 namespace codec::rlp
 {

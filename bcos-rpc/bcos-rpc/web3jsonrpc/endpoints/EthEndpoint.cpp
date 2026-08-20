@@ -46,7 +46,7 @@
 #include <bcos-rpc/web3jsonrpc/model/CallRequest.h>
 #include <bcos-rpc/web3jsonrpc/model/ReceiptResponse.h>
 #include <bcos-rpc/web3jsonrpc/model/TransactionResponse.h>
-#include <bcos-rpc/web3jsonrpc/model/Web3Transaction.h>
+#include <bcos-tars-protocol/protocol/Web3Transaction.h>
 #include <bcos-rpc/web3jsonrpc/utils/Common.h>
 #include <bcos-rpc/web3jsonrpc/utils/util.h>
 #include <bcos-tars-protocol/protocol/TransactionImpl.h>

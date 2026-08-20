@@ -1,0 +1,653 @@
+/**
+ *  Copyright (C) 2026 FISCO BCOS.
+ *  SPDX-License-Identifier: Apache-2.0
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ * @file EthereumBlockVerifier.h
+ * @brief External Ethereum block verification core: executes an incoming block
+ *        (from devp2p sync or the Engine API) against the local state, checks
+ *        the deterministic roots (txsRoot/receiptsRoot/gasUsed/logsBloom), the
+ *        withdrawals root and the state root, then commits the block + ledger
+ *        rows atomically (FIB-104 prewriteBlockToBuffer pattern).
+ * @date 2026/8/18
+ */
+#pragma once
+
+#include "bcos-framework/ledger/LedgerConfig.h"
+#include "bcos-framework/ledger/EVMAccount.h"
+#include "bcos-framework/protocol/Block.h"
+#include "bcos-framework/protocol/BlockFactory.h"
+#include "bcos-framework/protocol/BlockHeader.h"
+#include "bcos-framework/protocol/ProtocolTypeDef.h"
+#include "bcos-framework/protocol/Transaction.h"
+#include "bcos-framework/protocol/TransactionReceipt.h"
+#include "bcos-framework/transaction-executor/TransactionExecutor.h"
+#include "bcos-ledger/LedgerMethods.h"
+#include "bcos-ledger/mpt/EthTrieRoots.h"
+#include "bcos-ledger/mpt/MPTBuilder.h"
+#include "bcos-rlp-protocol/EthBlockHeader.h"
+#include "bcos-rlp-protocol/EthReceipt.h"
+#include "bcos-task/Task.h"
+#include "bcos-utilities/Bloom.h"
+#include "bcos-utilities/Common.h"
+#include "bcos-utilities/DataConvertUtility.h"
+#include "MPTNodeStorage.h"
+#include <evmc/evmc.h>
+#include <boost/exception/diagnostic_information.hpp>
+#include <boost/throw_exception.hpp>
+#include <functional>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace bcos::scheduler_v1
+{
+
+// Timestamp-based Ethereum fork schedule (Sepolia / Holesky / Mainnet PoS chains).
+// A zero timestamp means the fork is active from genesis.
+struct EvmcForkTimestamps
+{
+    uint64_t parisTime{0};     // The Merge (PoS)
+    uint64_t shanghaiTime{0};  // EIP-4895 withdrawals
+    uint64_t cancunTime{0};    // EIP-4844 blobs
+    uint64_t pragueTime{0};    // EIP-7702 etc.
+    uint64_t osakaTime{0};
+};
+
+inline constexpr uint64_t kSecondsToMilliseconds = 1000;
+inline constexpr size_t kHashBytes = 32;
+inline constexpr size_t kChainIdBytes = 8;
+
+/// The EVMC revision active for a block with the given timestamp. A zero fork
+/// timestamp means "active from genesis" (consistent with HeaderValidator's
+/// isForkActive semantics).
+inline evmc_revision evmcRevisionForTimestamp(
+    EvmcForkTimestamps const& schedule, int64_t timestamp)
+{
+    const uint64_t timestampValue = static_cast<uint64_t>(timestamp);
+    auto active = [timestampValue](uint64_t forkTime) {
+        return forkTime == 0 || timestampValue >= forkTime;
+    };
+    if (active(schedule.osakaTime))
+    {
+        return EVMC_OSAKA;
+    }
+    if (active(schedule.pragueTime))
+    {
+        return EVMC_PRAGUE;
+    }
+    if (active(schedule.cancunTime))
+    {
+        return EVMC_CANCUN;
+    }
+    if (active(schedule.shanghaiTime))
+    {
+        return EVMC_SHANGHAI;
+    }
+    if (active(schedule.parisTime))
+    {
+        return EVMC_PARIS;
+    }
+    return EVMC_BERLIN;  // pre-Paris fallback (external PoS chains never go below Paris)
+}
+
+/// u256 -> "0x"-prefixed lowercase hex string (the format buildBlockInfo parses).
+inline std::string u256ToHexString(u256 const& value)
+{
+    std::ostringstream oss;
+    oss << "0x" << std::hex << value;
+    return oss.str();
+}
+
+/// Build the execution BlockHeader from an external Ethereum header. The timestamp is
+/// converted seconds -> milliseconds (buildBlockInfo divides by 1000). The roots/gasUsed
+/// are what we are about to verify, so they are left at their defaults here.
+inline protocol::BlockHeader::Ptr makeExecutionBlockHeader(
+    protocol::EthBlockHeaderData const& ethHeader, protocol::BlockFactory& blockFactory,
+    uint32_t blockVersion)
+{
+    auto header = blockFactory.blockHeaderFactory()->createBlockHeader();
+    header->setNumber(ethHeader.number);
+    header->setTimestamp(static_cast<int64_t>(ethHeader.timestamp) *
+                         static_cast<int64_t>(kSecondsToMilliseconds));
+    header->setVersion(blockVersion);
+    protocol::ParentInfo parentInfo{
+        .blockNumber = ethHeader.number - 1, .blockHash = ethHeader.parentInfo.blockHash};
+    header->setParentInfo(parentInfo);
+    header->setCoinbase(ethHeader.coinbase);
+    header->setPrevRandao(ethHeader.prevRandao);
+    header->setGasLimit(ethHeader.gasLimit);
+    // Carry the FULL Ethereum header in the Tars header so the committed ledger
+    // block round-trips back to the exact same RLP on resume (the resume anchor
+    // re-encodes the stored header and must reproduce the chain's header hash).
+    header->setStateRoot(ethHeader.stateRoot);
+    header->setTxsRoot(ethHeader.txsRoot);
+    header->setReceiptsRoot(ethHeader.receiptsRoot);
+    header->setLogsBloom(bcos::bytesConstRef(ethHeader.logsBloom.data(), ethHeader.logsBloom.size()));
+    header->setDifficulty(ethHeader.difficulty);
+    header->setGasUsed(ethHeader.gasUsed);
+    header->setNonce(ethHeader.nonce);
+    header->setExtraData(ethHeader.extraData);
+    header->setUncleHash(ethHeader.uncleHash);
+    if (ethHeader.baseFee)
+    {
+        header->setBaseFee(*ethHeader.baseFee);
+    }
+    if (ethHeader.withdrawalsHash)
+    {
+        header->setWithdrawalsRoot(*ethHeader.withdrawalsHash);
+    }
+    if (ethHeader.blobGasUsed)
+    {
+        header->setBlobGasUsed(*ethHeader.blobGasUsed);
+    }
+    if (ethHeader.excessBlobGas)
+    {
+        header->setExcessBlobGas(*ethHeader.excessBlobGas);
+    }
+    if (ethHeader.parentBeaconRoot)
+    {
+        header->setParentBeaconBlockRoot(*ethHeader.parentBeaconRoot);
+    }
+    if (ethHeader.requestsHash)
+    {
+        header->setRequestsHash(*ethHeader.requestsHash);
+    }
+    return header;
+}
+
+/// Overlay the per-block Ethereum EVM context (base fee, blob gas, prevRandao,
+/// difficulty, chain id, revision) onto a LedgerConfig fetched from storage via
+/// ledger::getLedgerConfig. The overlay wins over the system-config values.
+inline void fillExecutionLedgerConfig(protocol::EthBlockHeaderData const& ethHeader,
+    ledger::LedgerConfig& config, EvmcForkTimestamps const& schedule, uint64_t chainId)
+{
+    config.setExecutorVersion(ledger::ETHEREUM_EXECUTOR_VERSION);
+    config.setEVMCRevision(evmcRevisionForTimestamp(schedule, ethHeader.timestamp));
+    config.setDifficulty(0);  // PoS
+
+    evmc::bytes32 randao{};
+    std::memcpy(randao.bytes, ethHeader.prevRandao.data(), kHashBytes);
+    config.setPrevRandao(randao);
+
+    // EIP-1559 base fee; "0x0" when absent (pre-London, though PoS chains are London+).
+    config.setGasPrice(
+        {ethHeader.baseFee ? u256ToHexString(*ethHeader.baseFee) : "0x0", ethHeader.number});
+
+    // EIP-4844 blob gas (Cancun+).
+    if (ethHeader.excessBlobGas)
+    {
+        config.setExcessBlobGas(static_cast<uint64_t>(*ethHeader.excessBlobGas));
+    }
+    if (ethHeader.blobGasUsed)
+    {
+        config.setBlobGasUsed(static_cast<uint64_t>(*ethHeader.blobGasUsed));
+    }
+
+    // chain id -> big-endian evmc_uint256be.
+    evmc_uint256be cid{};
+    bcos::bytes chainIdBytes(kChainIdBytes, 0);
+    bcos::toBigEndian(chainId, chainIdBytes);
+    std::memcpy(cid.bytes + (kHashBytes - kChainIdBytes), chainIdBytes.data(), kChainIdBytes);
+    config.setChainId(cid);
+}
+
+/// The deterministic post-execution block values that must match the header.
+struct EthereumBlockComputation
+{
+    crypto::HashType txsRoot;
+    crypto::HashType receiptsRoot;
+    u256 gasUsed;
+    Bloom logsBloom;
+};
+
+// PoW (pre-merge) block reward: 2 ETH per block (Constantinople+), plus 1/32 ETH
+// per included uncle for the coinbase, and (uncle.number + 8 - block.number) * 2
+// ETH / 8 for each uncle's miner (geth's accumulateRewards).
+inline constexpr u256 kPoWBlockReward{2000000000000000000ull};  // 2 * 10^18 wei
+
+/// Accumulate PoW block rewards (coinbase + uncles) into `view`, exactly like
+/// geth's `accumulateRewards`. Only meaningful for pre-merge (PoW) blocks; PoS
+/// blocks pay no rewards (the CL handles them via withdrawals).
+template <class ViewType>
+task::Task<void> accumulatePoWBlockRewards(ViewType& view,
+    protocol::EthBlockHeaderData const& ethHeader,
+    std::vector<bcos::bytes> const& rawUncles, ledger::LedgerConfig const& ledgerConfig)
+{
+    using namespace bcos::ledger::account;
+    const bool binaryAddress =
+        ledgerConfig.features().get(ledger::Features::Flag::feature_raw_address);
+
+    auto addBalance = [&](bcos::Address const& address, u256 const& amount) -> task::Task<void> {
+        EVMAccount<ViewType> account(view, address, binaryAddress);
+        // Register the account table (SYS_TABLES) so the executor's
+        // readAccountImpl can see it: it decides existence via the flat fields,
+        // but the write-back path (applyToStorage) still needs a registered
+        // table for the account to persist. A coinbase/uncle address that only
+        // ever received block rewards would otherwise stay unregistered.
+        if (!co_await account.exists())
+        {
+            co_await account.create();
+        }
+        u256 balance = co_await account.balance();
+        co_await account.setBalance(balance + amount);
+    };
+
+    // Uncle inclusion rewards: the miner of each uncle gets
+    // (uncle.number + 8 - block.number) * blockReward / 8; the coinbase gets
+    // blockReward / 32 per included uncle.
+    u256 coinbaseReward = kPoWBlockReward;
+    for (auto const& uncleRlp : rawUncles)
+    {
+        protocol::EthBlockHeader uncle;
+        if (auto err = uncle.rlpDecode(bcos::bytesConstRef(uncleRlp.data(), uncleRlp.size())))
+        {
+            continue;  // malformed uncle: skip (a real block never carries one)
+        }
+        auto const& uncleHeader = uncle.data();
+        u256 uncleReward = (u256(static_cast<uint64_t>(uncleHeader.number)) + 8 -
+                              u256(static_cast<uint64_t>(ethHeader.number))) *
+                           kPoWBlockReward / 8;
+        co_await addBalance(uncleHeader.coinbase, uncleReward);
+        coinbaseReward += kPoWBlockReward / 32;
+    }
+    co_await addBalance(ethHeader.coinbase, coinbaseReward);
+}
+
+struct EthereumBlockVerificationResult
+{
+    bool valid{false};
+    std::string error;
+    protocol::BlockHeader::Ptr header;                       ///< the FISCO execution header
+    std::vector<protocol::TransactionReceipt::Ptr> receipts;
+    std::vector<protocol::Transaction::Ptr> transactions;
+    EthereumBlockComputation computation;
+    crypto::HashType stateRoot;
+};
+
+/// Verifies and commits one external Ethereum block. Shared by the devp2p sync path
+/// and the Engine API external-payload path.
+///
+/// The state root is computed over the Ethereum world state (accounts + storage) via the
+/// ledger MPT builder when the executor version is >= ETHEREUM_EXECUTOR_VERSION (v2); the
+/// injected calculator is only a fallback for legacy (v1) executions.
+///
+/// NOTE: the MPT build is INCREMENTAL — it needs the parent block's trie nodes resolvable
+/// through the executed view (persisted by the previous block's commit), so blocks must be
+/// verified strictly in order from a known state root.
+template <class Scheduler, class Executor>
+class EthereumBlockVerifier
+{
+public:
+    using TransactionDecoder = std::function<protocol::Transaction::Ptr(bcos::bytes const&)>;
+    template <class Storage>
+    using StateRootCalculator = std::function<task::Task<crypto::HashType>(Storage&, uint32_t)>;
+
+    EthereumBlockVerifier(Scheduler& scheduler, Executor& executor,
+        protocol::BlockFactory& blockFactory)
+      : m_scheduler(scheduler), m_executor(executor), m_blockFactory(blockFactory)
+    {}
+
+    /// MPT state root over the executed view's Ethereum world state, built incrementally
+    /// from the parent block's state root. Accounts and their storage sub-tries enter the
+    /// trie; ledger metadata (SYS_* rows) never does.
+    template <class ViewType>
+    static task::Task<crypto::HashType> computeMptStateRoot(ViewType& view,
+        crypto::HashType const& parentStateRoot, ledger::LedgerConfig const& ledgerConfig)
+    {
+        ViewNodeStorage<ViewType> nodeStorage(view);
+        bool const l2Mode =
+            ledgerConfig.features().get(ledger::Features::Flag::feature_l2_ethereum_compat);
+        auto delta =
+            co_await ledger::mpt::buildAndCollect(nodeStorage, parentStateRoot, view, l2Mode);
+        co_return delta.stateRoot;
+    }
+    /// Execute `ethHeader` (child of `parentHeader`) with the given raw EIP-2718
+    /// transactions, verify the deterministic roots + state root against the header,
+    /// and on success commit block/state/ledger rows atomically.
+    ///
+    /// @tparam GlobalStateStorage MultiLayerStorage-like: fork()/pushView()/mergeBackStorage()
+    /// @param rawUncles raw uncle-header RLP elements (PoW blocks only; empty on PoS)
+    /// @param mergeBlock first PoS (merge) block number; blocks below it are PoW and
+    ///        receive coinbase/uncle rewards, blocks at or above it pay none
+    /// @param stateRootCalculator computes the block's state root over the executed view
+    template <class GlobalStateStorage>
+    task::Task<EthereumBlockVerificationResult> verifyAndCommit(GlobalStateStorage& globalStateStorage,
+        ledger::LedgerInterface& ledger, protocol::EthBlockHeaderData const& ethHeader,
+        protocol::EthBlockHeaderData const& parentHeader,
+        std::vector<bcos::bytes> const& rawTransactions,
+        std::optional<std::vector<bcos::bytes>> const& rawWithdrawals,
+        EvmcForkTimestamps const& forkSchedule, uint64_t chainId,
+        std::vector<bcos::bytes> const& rawUncles, uint64_t mergeBlock,
+        TransactionDecoder const& decoder,
+        StateRootCalculator<typename GlobalStateStorage::ViewType> const& stateRootCalculator)
+    {
+        EthereumBlockVerificationResult result;
+        auto fail = [&](std::string message) -> task::Task<EthereumBlockVerificationResult> {
+            result.valid = false;
+            result.error = std::move(message);
+            co_return std::move(result);
+        };
+
+        // 1. Ledger config (system config) + per-block EVM overlay.
+        ledger::LedgerConfig ledgerConfig;
+        auto view = globalStateStorage.fork();
+        view.newMutable();
+        co_await ledger::getLedgerConfig(
+            view, ledgerConfig, ethHeader.number - 1, m_blockFactory.get());
+        fillExecutionLedgerConfig(ethHeader, ledgerConfig, forkSchedule, chainId);
+
+        // 2. Execution header carrying the block context for the EVM.
+        auto blockHeader = makeExecutionBlockHeader(
+            ethHeader, m_blockFactory.get(), ledgerConfig.compatibilityVersion());
+        result.header = blockHeader;
+
+        // 3. Decode every raw transaction. A failure is a hard invalid: a real block has
+        //    exactly one receipt per transaction, so we cannot skip any.
+        std::vector<protocol::Transaction::Ptr> transactions;
+        transactions.reserve(rawTransactions.size());
+        std::exception_ptr decodeFailure;
+        std::string decodeDiag;
+        for (auto const& raw : rawTransactions)
+        {
+            try
+            {
+                auto tx = decoder(raw);
+                if (!tx)
+                {
+                    co_return co_await fail(
+                        "EthereumBlockVerifier: decoder returned null for a transaction");
+                }
+                transactions.push_back(std::move(tx));
+            }
+            catch (...)
+            {
+                // Capture the diagnostic INSIDE the catch block: an exception is only
+                // "active" there, and current_exception_diagnostic_information rethrows
+                // internally (rethrow on no active exception => terminate).
+                decodeFailure = std::current_exception();
+                try
+                {
+                    std::rethrow_exception(decodeFailure);
+                }
+                catch (std::exception const& e)
+                {
+                    decodeDiag = e.what();
+                }
+                catch (...)
+                {
+                    decodeDiag = boost::current_exception_diagnostic_information();
+                }
+                break;
+            }
+        }
+        if (decodeFailure)
+        {
+            // Surface the underlying decode error (which transaction, what failed)
+            // so a new EIP-2718 type or malformed raw cannot hide behind a generic
+            // message.
+            auto failedIndex = transactions.size();
+            auto const& badRaw = rawTransactions[failedIndex];
+            co_return co_await fail(
+                "EthereumBlockVerifier: transaction decode failed at index " +
+                std::to_string(failedIndex) + " of " + std::to_string(rawTransactions.size()) +
+                " (malformed EIP-2718 or unsupported type): " + decodeDiag +
+                " raw=" + bcos::toHexStringWithPrefix(bytesConstRef(badRaw.data(), badRaw.size()))
+                      .substr(0, 400));
+        }
+        result.transactions = transactions;
+
+        // 4. Execute the block.
+        std::vector<protocol::TransactionReceipt::Ptr> receipts;
+        std::exception_ptr executeFailure;
+        try
+        {
+            receipts = co_await m_scheduler.get().executeBlock(view, m_executor.get(), *blockHeader,
+                transactions | ::ranges::views::indirect, ledgerConfig);
+        }
+        catch (...)
+        {
+            executeFailure = std::current_exception();
+        }
+        if (executeFailure)
+        {
+            co_return co_await fail("EthereumBlockVerifier: execution failed");
+        }
+        result.receipts = receipts;
+
+        // 4b. PoW (pre-merge) blocks pay the coinbase block reward (2 ETH) plus
+        //     uncle rewards, exactly like geth's accumulateRewards. PoS blocks
+        //     (at/above mergeBlock) pay none. This mutates the executed view, so
+        //     it must happen before the state root is computed. mergeBlock == 0
+        //     means the chain has no PoW phase (pure PoS): no rewards are paid.
+        //
+        // NOTE: computeMptStateRoot is an INCREMENTAL build that writes MPT nodes
+        // into the view, so it must be called EXACTLY ONCE per block (in step 6).
+        if (mergeBlock > 0 && static_cast<uint64_t>(ethHeader.number) < mergeBlock)
+        {
+            co_await accumulatePoWBlockRewards(view, ethHeader, rawUncles, ledgerConfig);
+        }
+
+        // 5. Fill cumulativeGasUsed + logsBloom (v2) and compute the deterministic roots.
+        auto computation = co_await computeEthereumRoots(
+            receipts, transactions | ::ranges::views::indirect, rawTransactions);
+        result.computation = computation;
+
+        // 6. State root over the executed view. v2: the Ethereum world-state MPT root
+        //    (accounts + storage, incrementally from the parent root); v1: the injected
+        //    legacy fold.
+        crypto::HashType stateRoot;
+        if (ledgerConfig.executorVersion() >= ledger::ETHEREUM_EXECUTOR_VERSION)
+        {
+            stateRoot =
+                co_await computeMptStateRoot(view, parentHeader.stateRoot, ledgerConfig);
+        }
+        else
+        {
+            stateRoot = co_await stateRootCalculator(view, blockHeader->version());
+        }
+        result.stateRoot = stateRoot;
+
+        // 7. Verify against the header.
+        if (auto error = verifyAgainstHeader(ethHeader, computation, result.stateRoot, rawWithdrawals);
+            error.has_value())
+        {
+            co_return co_await fail(std::move(*error));
+        }
+
+        // 8. Commit: FIB-104 pattern — push the executed view, then merge the ledger
+        //    prewrite buffer atomically.
+        globalStateStorage.pushView(std::move(view));
+        typename GlobalStateStorage::MutableStorage prewriteStorage;
+        auto block = m_blockFactory.get().createBlock();
+        // The execution header carries no Tars dataHash; prewriteBlockToBuffer
+        // needs header->hash() to write SYS_NUMBER_2_HASH / SYS_HASH_2_NUMBER.
+        // For an Ethereum header the canonical block hash is keccak256(rlp(header)),
+        // which is exactly the value verified against the chain — inject it so the
+        // ledger metadata (and the resume point) are written with the real hash.
+        //
+        // NOTE: BlockImpl::setBlockHeader COPIES the header's inner data, so the
+        // RLP hash must be set on blockHeader BEFORE it is copied into the block.
+        {
+            bcos::bytes headerRlp;
+            bcos::codec::rlp::encode(headerRlp, ethHeader);
+            blockHeader->setRLPHash(bcos::crypto::keccak256Hash(
+                bcos::bytesConstRef(headerRlp.data(), headerRlp.size())));
+        }
+        block->setBlockHeader(blockHeader);
+        auto const& bloom = computation.logsBloom;
+        block->setLogsBloom(bcos::bytesConstRef(bloom.data(), bloom.size()));
+        for (auto const& tx : transactions)
+        {
+            block->appendTransaction(tx);
+        }
+        for (auto const& receipt : receipts)
+        {
+            block->appendReceipt(receipt);
+        }
+        auto blockTxs = std::make_shared<protocol::ConstTransactions>(
+            transactions | ::ranges::views::transform([](auto const& transaction) {
+                return protocol::Transaction::ConstPtr(transaction);
+            }) | ::ranges::to<std::vector>());
+        co_await ledger::prewriteBlockToBuffer(ledger, blockTxs, block, prewriteStorage);
+        co_await globalStateStorage.mergeBackStorage(prewriteStorage);
+
+        result.valid = true;
+        co_return std::move(result);
+    }
+
+    /// Execute the block and compute the deterministic roots, without committing.
+    /// Exposed for the Engine API external-payload path that needs the computation
+    /// before deciding to commit.
+    static task::Task<EthereumBlockComputation> computeEthereumRoots(
+        std::vector<protocol::TransactionReceipt::Ptr>& receipts,
+        ::ranges::input_range auto const& transactions,
+        std::vector<bcos::bytes> const& rawTransactions)
+    {
+        EthereumBlockComputation computation;
+        const bool ethereumRoots = true;  // v2 executor only
+
+        // Step 2e-0: per-receipt cumulativeGasUsed + logsBloom.
+        u256 cumulativeGasUsed;
+        for (auto& receipt : receipts)
+        {
+            if (!receipt)
+            {
+                BOOST_THROW_EXCEPTION(
+                    std::runtime_error{"EthereumBlockVerifier: null receipt returned by scheduler"});
+            }
+            auto logBloom = bcos::getLogsBloom(receipt->logEntries());
+            receipt->setLogsBloom({logBloom.data(), logBloom.size()});
+            cumulativeGasUsed += receipt->gasUsed();
+            receipt->setCumulativeGasUsed(cumulativeGasUsed.str());
+        }
+
+        // txsRoot over the raw EIP-2718 encodings (index-keyed trie).
+        std::vector<bcos::bytesConstRef> txRaws;
+        txRaws.reserve(rawTransactions.size());
+        for (auto const& raw : rawTransactions)
+        {
+            txRaws.emplace_back(bcos::ref(raw));
+        }
+        computation.txsRoot = ledger::mpt::calculateTransactionsRoot(txRaws);
+
+        // receiptsRoot over EthReceipt RLP, typed by the executed transaction at the
+        // same index.
+        std::vector<uint8_t> txTypes;
+        txTypes.reserve(transactions.size());
+        for (auto const& transaction : transactions)
+        {
+            txTypes.push_back(transaction.web3TypedTxKind());
+        }
+        std::vector<bcos::bytes> receiptRlps;
+        receiptRlps.reserve(receipts.size());
+        size_t index = 0;
+        for (auto const& receipt : receipts)
+        {
+            auto eth = protocol::toEthReceiptData(*receipt, txTypes[index]);
+            bcos::bytes encoded;
+            protocol::EthReceipt ethReceipt(std::move(eth));
+            ethReceipt.rlpEncode(encoded);
+            receiptRlps.push_back(std::move(encoded));
+            ++index;
+        }
+        std::vector<bcos::bytesConstRef> refs;
+        refs.reserve(receiptRlps.size());
+        for (auto const& rlp : receiptRlps)
+        {
+            refs.emplace_back(bcos::ref(rlp));
+        }
+        computation.receiptsRoot = ledger::mpt::calculateReceiptsRoot(refs);
+
+        // gasUsed + block-level bloom.
+        u256 totalGasUsed;
+        Bloom logsBloom{};
+        for (auto const& receipt : receipts)
+        {
+            totalGasUsed += receipt->gasUsed();
+            if (!receipt->logsBloom().empty())
+            {
+                bcos::orBloom(logsBloom, receipt->logsBloom());
+            }
+        }
+        computation.gasUsed = totalGasUsed;
+        computation.logsBloom = logsBloom;
+        co_return computation;
+    }
+
+    /// Compare the computed values against the external header's commitments.
+    static std::optional<std::string> verifyAgainstHeader(
+        protocol::EthBlockHeaderData const& ethHeader, EthereumBlockComputation const& computation,
+        crypto::HashType const& stateRoot,
+        std::optional<std::vector<bcos::bytes>> const& rawWithdrawals)
+    {
+        if (computation.txsRoot != ethHeader.txsRoot)
+        {
+            return "transactionsRoot mismatch";
+        }
+        if (computation.receiptsRoot != ethHeader.receiptsRoot)
+        {
+            return "receiptsRoot mismatch (computed=" + computation.receiptsRoot.hex() +
+                   " header=" + ethHeader.receiptsRoot.hex() + " gasUsed=" +
+                   computation.gasUsed.str() + "/" + ethHeader.gasUsed.str() +
+                   " logsBloom=" + toHex(computation.logsBloom).substr(0, 64) + "/" +
+                   toHex(ethHeader.logsBloom).substr(0, 64) + ")";
+        }
+        if (computation.gasUsed != ethHeader.gasUsed)
+        {
+            return "gasUsed mismatch (computed=" + computation.gasUsed.str() +
+                   " header=" + ethHeader.gasUsed.str() + ")";
+        }
+        if (computation.logsBloom != ethHeader.logsBloom)
+        {
+            return "logsBloom mismatch (computed=" + toHex(computation.logsBloom).substr(0, 64) +
+                   " header=" + toHex(ethHeader.logsBloom).substr(0, 64) + ")";
+        }
+        if (stateRoot != ethHeader.stateRoot)
+        {
+            return "stateRoot mismatch (computed=" + stateRoot.hex() +
+                   " header=" + ethHeader.stateRoot.hex() + ")";
+        }
+        if (ethHeader.withdrawalsHash.has_value())
+        {
+            if (!rawWithdrawals)
+            {
+                return "withdrawalsHash present but the block carries no withdrawals";
+            }
+            std::vector<bcos::bytesConstRef> refs;
+            refs.reserve(rawWithdrawals->size());
+            for (auto const& withdrawal : *rawWithdrawals)
+            {
+                refs.emplace_back(bcos::ref(withdrawal));
+            }
+            if (ledger::mpt::calculateWithdrawalsRoot(refs) != *ethHeader.withdrawalsHash)
+            {
+                return "withdrawalsRoot mismatch";
+            }
+        }
+        else if (rawWithdrawals && !rawWithdrawals->empty())
+        {
+            return "block carries withdrawals but the header has no withdrawalsHash";
+        }
+        return std::nullopt;
+    }
+
+private:
+    std::reference_wrapper<Scheduler> m_scheduler;
+    std::reference_wrapper<Executor> m_executor;
+    std::reference_wrapper<protocol::BlockFactory> m_blockFactory;
+};
+
+}  // namespace bcos::scheduler_v1

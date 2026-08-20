@@ -6,6 +6,7 @@
 #include "bcos-framework/protocol/TransactionReceipt.h"
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-task/TBBWait.h"
+#include "bcos-utilities/ITTAPI.h"
 #include <oneapi/tbb/cache_aligned_allocator.h>
 #include <oneapi/tbb/parallel_pipeline.h>
 #include <oneapi/tbb/partitioner.h>

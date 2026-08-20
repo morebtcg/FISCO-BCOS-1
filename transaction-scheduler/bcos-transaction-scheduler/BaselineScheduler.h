@@ -28,7 +28,10 @@
 #include "bcos-framework/transaction-scheduler/TransactionScheduler.h"
 #include "bcos-framework/txpool/TxPoolInterface.h"
 #include "bcos-ledger/mpt/CommitObserver.h"
+#include "bcos-ledger/mpt/EthTrieRoots.h"
 #include "bcos-ledger/mpt/MPTBuilder.h"
+#include "bcos-rlp-protocol/EthReceipt.h"
+#include "bcos-tars-protocol/protocol/Web3RawTransaction.h"
 #include "bcos-task/TBBWait.h"
 #include "bcos-task/Wait.h"
 #include "bcos-utilities/Bloom.h"
@@ -49,6 +52,7 @@
 #include <range/v3/algorithm/any_of.hpp>
 #include <range/v3/iterator/operations.hpp>
 #include <range/v3/view/enumerate.hpp>
+#include <span>
 #include <type_traits>
 
 namespace bcos::scheduler_v1
@@ -151,6 +155,48 @@ h256 calculateReceiptRoot(
     return receiptRoot;
 }
 
+/// Ethereum transactions trie root (txsRoot) for executor_version >= 2 chains: reassembles
+/// each transaction's full EIP-2718 wire bytes (Web3RawTransaction::reassembleWeb3RawTransaction)
+/// and commits to the tx trie (ledger::mpt::calculateTransactionsRoot). Defined in
+/// BaselineScheduler.cpp (block is a concrete protocol::Block). Empty block -> emptyRootHash().
+h256 calculateEthereumTransactionRoot(protocol::Block const& block);
+
+/// Ethereum receipts trie root (receiptsRoot) for executor_version >= 2 chains, computed AFTER
+/// finishExecute's receipt-processing phase (it reads cumulativeGasUsed + logsBloom, which that
+/// phase fills). Each receipt is converted via EthReceipt::toEthReceiptData (status remapped to
+/// EIP-658 0/1) and committed to the receipts trie; `transactions` is parallel to `receipts` by
+/// index and supplies the EIP-2718 type per receipt. Empty -> emptyRootHash().
+template <::ranges::range ReceiptsRange, ::ranges::input_range TransactionsRange>
+h256 calculateEthereumReceiptRoot(
+    ReceiptsRange&& receipts, TransactionsRange&& transactions)
+{
+    std::vector<bcos::bytes> receiptRlps;
+    std::vector<uint8_t> txTypes;
+    for (auto const& transaction : transactions)
+    {
+        txTypes.push_back(transaction->web3TypedTxKind());
+    }
+
+    size_t index = 0;
+    for (auto const& receipt : receipts)
+    {
+        auto eth = protocol::toEthReceiptData(*receipt, txTypes[index]);
+        bcos::bytes encoded;
+        protocol::EthReceipt ethReceipt(std::move(eth));
+        ethReceipt.rlpEncode(encoded);
+        receiptRlps.push_back(std::move(encoded));
+        ++index;
+    }
+
+    std::vector<bcos::bytesConstRef> refs;
+    refs.reserve(receiptRlps.size());
+    for (auto const& rlp : receiptRlps)
+    {
+        refs.emplace_back(bcos::ref(rlp));
+    }
+    return ledger::mpt::calculateReceiptsRoot(refs);
+}
+
 /**
  * @brief Finishes the execution of a transaction and updates the block header and block.
  *
@@ -160,11 +206,15 @@ h256 calculateReceiptRoot(
  * @param newBlockHeader The updated block header.
  * @param newBlock The updated block.
  * @param hashImpl The hash implementation used to calculate the block hash.
+ * @param executorVersion The chain's executor version: >= ETHEREUM_EXECUTOR_VERSION selects the
+ *        Ethereum-compatible roots (txsRoot/receiptsRoot trie roots, emptyRootHash() for empty
+ *        blocks); lower versions keep the legacy Merkle roots byte-identical (no behaviour
+ *        change on legacy chains).
  */
 task::Task<void> finishExecute(auto& storage, ::ranges::range auto receipts,
     protocol::BlockHeader& newBlockHeader, protocol::Block& block,
     ::ranges::input_range auto transactions, bool& sysBlock, crypto::Hash const& hashImpl,
-    ledger::Features const& features, std::optional<h256> mptStateRoot = {})
+    ledger::Features const& features, int executorVersion, std::optional<h256> mptStateRoot = {})
 {
     ittapi::Report finishReport(ittapi::ITT_DOMAINS::instance().BASELINE_SCHEDULER,
         ittapi::ITT_DOMAINS::instance().FINISH_EXECUTE);
@@ -173,7 +223,16 @@ task::Task<void> finishExecute(auto& storage, ::ranges::range auto receipts,
     h256 stateRoot;
     h256 receiptRoot;
 
-    tbb::parallel_invoke([&]() { transactionRoot = calculateTransactionRoot(block, hashImpl); },
+    // Ethereum-compatible roots for the pure-Ethereum executor (v2): the tx trie is committed
+    // over each transaction's EIP-2718 wire bytes and the receipt trie over EthReceipt RLP
+    // (empty blocks get emptyRootHash()). Legacy executors keep the Merkle roots unchanged.
+    const bool ethereumRoots = executorVersion >= ledger::ETHEREUM_EXECUTOR_VERSION;
+
+    tbb::parallel_invoke(
+        [&]() {
+            transactionRoot = ethereumRoots ? calculateEthereumTransactionRoot(block) :
+                                              calculateTransactionRoot(block, hashImpl);
+        },
         [&]() {
             // When the block was built with an Ethereum MPT root (shouldBuildMPT), the header
             // commits to it verbatim and the legacy XOR fold is skipped; with no MPT root the
@@ -186,7 +245,6 @@ task::Task<void> finishExecute(auto& storage, ::ranges::range auto receipts,
             stateRoot = task::tbb::syncWait(
                 calculateStateRoot(storage, block.blockHeader()->version(), hashImpl, features));
         },
-        [&]() { receiptRoot = calculateReceiptRoot(receipts, block, hashImpl); },
         [&]() {
             size_t logIndex = 0;
             block.clearReceipts();
@@ -209,6 +267,13 @@ task::Task<void> finishExecute(auto& storage, ::ranges::range auto receipts,
                     bcos::precompiled::c_systemTxsAddress, transaction->to());
             });
         });
+
+    // The Ethereum receipts trie root reads cumulativeGasUsed + logsBloom, which the receipt
+    // processing branch above fills — so it is computed strictly AFTER that branch. The legacy
+    // Merkle arm is unaffected by the move (receipt->hash() is cached by the executor and the
+    // finishExecute mutations never clear dataHash), keeping legacy output identical.
+    receiptRoot = ethereumRoots ? calculateEthereumReceiptRoot(receipts, transactions) :
+                                  calculateReceiptRoot(receipts, block, hashImpl);
 
     newBlockHeader.setGasUsed(totalGasUsed);
     newBlockHeader.setTxsRoot(transactionRoot);
@@ -528,7 +593,8 @@ private:
             bool sysBlock = false;
             co_await finishExecute(mutableStorage(view), ::ranges::views::all(receipts),
                 *executedBlockHeader, *block, ::ranges::views::all(transactions), sysBlock,
-                m_hashImpl.get(), ledgerConfig->features(), mptStateRoot);
+                m_hashImpl.get(), ledgerConfig->features(), ledgerConfig->executorVersion(),
+                mptStateRoot);
 
             if (verify && (executedBlockHeader->hash() != blockHeader->hash()))
             {

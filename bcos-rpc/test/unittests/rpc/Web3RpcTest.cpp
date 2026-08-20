@@ -36,7 +36,7 @@
 #include <bcos-rpc/tarsRPC/RPCServer.h>
 #include <bcos-rpc/validator/CallValidator.h>
 #include <bcos-rpc/web3jsonrpc/model/Web3FilterRequest.h>
-#include <bcos-rpc/web3jsonrpc/model/Web3Transaction.h>
+#include <bcos-tars-protocol/protocol/Web3Transaction.h>
 #include <bcos-task/Task.h>
 #include <bcos-utilities/Exceptions.h>
 #include <bcos-utilities/testutils/TestPromptFixture.h>
