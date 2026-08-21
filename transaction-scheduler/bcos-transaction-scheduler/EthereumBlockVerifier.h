@@ -46,6 +46,7 @@
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/throw_exception.hpp>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -59,6 +60,7 @@ namespace bcos::scheduler_v1
 // A zero timestamp means the fork is active from genesis.
 struct EvmcForkTimestamps
 {
+    uint64_t londonTime{0};    // EIP-1559
     uint64_t parisTime{0};     // The Merge (PoS)
     uint64_t shanghaiTime{0};  // EIP-4895 withdrawals
     uint64_t cancunTime{0};    // EIP-4844 blobs
@@ -73,8 +75,19 @@ inline constexpr size_t kChainIdBytes = 8;
 /// The EVMC revision active for a block with the given timestamp. A zero fork
 /// timestamp means "active from genesis" (consistent with HeaderValidator's
 /// isForkActive semantics).
+///
+/// Paris (the Merge) is special: geth activates it at paris_time OR as soon as
+/// the chain's Terminal Total Difficulty has been reached — a PoW-configured
+/// chain then mints blocks whose difficulty is 0. From that block onwards the
+/// 0x44 opcode is PREVRANDAO (returns the mixHash) instead of DIFFICULTY
+/// (EIP-4399). On Sepolia the TTD is reached at block 1450409, months before
+/// the configured paris_time (block 1735371): those intermediate blocks carry
+/// timestamp < paris_time but must execute with EVMC_PARIS. A block with
+/// difficulty 0 is the per-block signal that the TTD has been passed. (A pure
+/// PoS chain, parisTime == 0, is already covered by the forkTime == 0 rule;
+/// its blocks are all difficulty 0 too, so the check is harmless there.)
 inline evmc_revision evmcRevisionForTimestamp(
-    EvmcForkTimestamps const& schedule, int64_t timestamp)
+    EvmcForkTimestamps const& schedule, int64_t timestamp, u256 const& difficulty)
 {
     const uint64_t timestampValue = static_cast<uint64_t>(timestamp);
     auto active = [timestampValue](uint64_t forkTime) {
@@ -96,11 +109,14 @@ inline evmc_revision evmcRevisionForTimestamp(
     {
         return EVMC_SHANGHAI;
     }
-    if (active(schedule.parisTime))
+    // Paris: paris_time reached, or TTD passed (difficulty == 0 on a PoW chain).
+    if (active(schedule.parisTime) || difficulty == 0)
     {
         return EVMC_PARIS;
     }
-    return EVMC_BERLIN;  // pre-Paris fallback (external PoS chains never go below Paris)
+    // Pre-Paris (PoW phase, e.g. Sepolia before 2022-08-22): London is the
+    // latest pre-merge revision on these chains (london_time is 0 = genesis).
+    return EVMC_LONDON;  // pre-Paris fallback
 }
 
 /// u256 -> "0x"-prefixed lowercase hex string (the format buildBlockInfo parses).
@@ -175,8 +191,15 @@ inline void fillExecutionLedgerConfig(protocol::EthBlockHeaderData const& ethHea
     ledger::LedgerConfig& config, EvmcForkTimestamps const& schedule, uint64_t chainId)
 {
     config.setExecutorVersion(ledger::ETHEREUM_EXECUTOR_VERSION);
-    config.setEVMCRevision(evmcRevisionForTimestamp(schedule, ethHeader.timestamp));
-    config.setDifficulty(0);  // PoS
+    config.setEVMCRevision(
+        evmcRevisionForTimestamp(schedule, ethHeader.timestamp, ethHeader.difficulty));
+    // Difficulty: real value for PoW (pre-merge) blocks — the EVM's DIFFICULTY
+    // opcode (0x44) must return it, and the pre-Paris host maps it into
+    // prev_randao (buildBlockInfo). PoS (merge+) blocks have difficulty 0.
+    // Sepolia's merge block is 1735371; blocks below it are PoW.
+    config.setDifficulty(ethHeader.difficulty > std::numeric_limits<int64_t>::max() ?
+                              std::numeric_limits<int64_t>::max() :
+                              static_cast<int64_t>(ethHeader.difficulty));
 
     evmc::bytes32 randao{};
     std::memcpy(randao.bytes, ethHeader.prevRandao.data(), kHashBytes);
@@ -433,9 +456,17 @@ public:
         //     it must happen before the state root is computed. mergeBlock == 0
         //     means the chain has no PoW phase (pure PoS): no rewards are paid.
         //
+        //     TTD caveat: on merge chains (Sepolia), the terminal blocks AFTER
+        //     the Terminal Total Difficulty has been reached carry difficulty 0
+        //     while still being pre-merge. geth stops calling accumulateRewards
+        //     once the TTD is reached (no more mining), so those zero-difficulty
+        //     pre-merge blocks pay NO block reward. We gate on difficulty != 0
+        //     to match — a nonzero-difficulty pre-merge block is always mined.
+        //
         // NOTE: computeMptStateRoot is an INCREMENTAL build that writes MPT nodes
         // into the view, so it must be called EXACTLY ONCE per block (in step 6).
-        if (mergeBlock > 0 && static_cast<uint64_t>(ethHeader.number) < mergeBlock)
+        if (mergeBlock > 0 && static_cast<uint64_t>(ethHeader.number) < mergeBlock &&
+            ethHeader.difficulty != 0)
         {
             co_await accumulatePoWBlockRewards(view, ethHeader, rawUncles, ledgerConfig);
         }

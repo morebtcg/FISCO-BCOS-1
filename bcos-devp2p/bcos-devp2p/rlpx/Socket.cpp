@@ -37,6 +37,12 @@ namespace bcos::devp2p::rlpx
 // the kernel's TCP timeout (tens of seconds to minutes), stalling the whole sync
 // loop. With a bounded connect the loop moves on to the next bootnode and retries.
 constexpr int c_connectTimeoutMs = 5000;
+// I/O timeout for the blocking sendAll/recvFixed helpers. A peer that accepts the
+// TCP connection but then neither sends (auth handshake, frames) nor reads our
+// output would otherwise block the sync thread forever — the RLPx handshake and
+// download loop would stall on a single silent peer. Bounded I/O lets the sync
+// loop treat it as a failed peer and move on to the next bootnode.
+constexpr int c_ioTimeoutMs = 15000;
 Socket::Socket()
 {
     m_fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -153,6 +159,19 @@ void Socket::sendAll(bytesConstRef _data)
     size_t sent = 0;
     while (sent < _data.size())
     {
+        // Wait for writability with a bounded timeout so a peer that never reads
+        // our output (full send buffer) cannot stall the sync loop forever.
+        struct pollfd pfd;
+        pfd.fd = m_fd;
+        pfd.events = POLLOUT;
+        pfd.revents = 0;
+        int pollRc = ::poll(&pfd, 1, c_ioTimeoutMs);
+        if (pollRc <= 0)
+        {
+            throw std::runtime_error(
+                "Socket::sendAll: write timed out after " + std::to_string(c_ioTimeoutMs) +
+                "ms");
+        }
         ssize_t n = ::send(m_fd, _data.data() + sent, _data.size() - sent, MSG_NOSIGNAL);
         if (n < 0)
         {
@@ -172,6 +191,19 @@ bcos::bytes Socket::recvFixed(size_t _size)
     size_t received = 0;
     while (received < _size)
     {
+        // Wait for readability with a bounded timeout so a silent peer (accepts
+        // the connection but never sends) cannot block the sync thread forever.
+        struct pollfd pfd;
+        pfd.fd = m_fd;
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+        int pollRc = ::poll(&pfd, 1, c_ioTimeoutMs);
+        if (pollRc <= 0)
+        {
+            throw std::runtime_error(
+                "Socket::recvFixed: read timed out after " + std::to_string(c_ioTimeoutMs) +
+                "ms");
+        }
         ssize_t n = ::recv(m_fd, out.data() + received, _size - received, 0);
         if (n == 0)
         {

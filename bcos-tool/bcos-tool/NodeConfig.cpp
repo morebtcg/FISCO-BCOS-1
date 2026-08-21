@@ -1030,6 +1030,29 @@ void NodeConfig::loadForkTimestamps(boost::property_tree::ptree const& _genesisC
         }
     };
     m_ethereumForkLondonTime = readTs("london_time");
+    // Paris (The Merge) is timestamp-gated on chains with a PoW phase (Sepolia).
+    // A chain that is PoS from genesis (Holesky) can omit it; readOptionalTs
+    // leaves it at 0 (active from genesis) when absent.
+    if (auto value = section->get_optional<std::string>("paris_time"))
+    {
+        auto trimmed = *value;
+        try
+        {
+            m_ethereumForkParisTime =
+                (trimmed.rfind("0x", 0) == 0 || trimmed.rfind("0X", 0) == 0) ?
+                    std::stoull(trimmed.substr(2), nullptr, 16) :
+                    std::stoull(trimmed);
+        }
+        catch (std::exception const&)
+        {
+            BOOST_THROW_EXCEPTION(InvalidConfig() << errinfo_comment(
+                                      "[fork_timestamps].paris_time invalid: " + trimmed));
+        }
+    }
+    else
+    {
+        m_ethereumForkParisTime = 0;  // active from genesis (pure PoS chain)
+    }
     m_ethereumForkShanghaiTime = readTs("shanghai_time");
     m_ethereumForkCancunTime = readTs("cancun_time");
     m_ethereumForkPragueTime = readTs("prague_time");
@@ -1065,6 +1088,7 @@ void NodeConfig::loadForkTimestamps(boost::property_tree::ptree const& _genesisC
 
     NodeConfig_LOG(INFO) << LOG_DESC("loadForkTimestamps")
                          << LOG_KV("london", m_ethereumForkLondonTime)
+                         << LOG_KV("paris", m_ethereumForkParisTime)
                          << LOG_KV("shanghai", m_ethereumForkShanghaiTime)
                          << LOG_KV("cancun", m_ethereumForkCancunTime)
                          << LOG_KV("prague", m_ethereumForkPragueTime)
@@ -3099,6 +3123,10 @@ uint64_t bcos::tool::NodeConfig::ethereumChainId() const
 uint64_t bcos::tool::NodeConfig::ethereumForkLondonTime() const
 {
     return m_ethereumForkLondonTime;
+}
+uint64_t bcos::tool::NodeConfig::ethereumForkParisTime() const
+{
+    return m_ethereumForkParisTime;
 }
 uint64_t bcos::tool::NodeConfig::ethereumForkShanghaiTime() const
 {

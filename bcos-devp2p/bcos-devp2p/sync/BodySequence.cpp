@@ -89,15 +89,25 @@ std::vector<Block> BodySequence::requestBodies(
         {
             throw std::runtime_error("BodySequence: request id mismatch");
         }
-        if (bodies.bodies.size() != _headers.size())
+        // The eth protocol lets a peer answer GetBlockBodies with FEWER bodies
+        // than requested: geth caps the response at its message size limit, so
+        // large bodies (blocks with many transactions/uncles) truncate it. A
+        // partial response pairs bodies[i] with headers[i]; the caller
+        // (BlockExchange) re-requests the remaining headers. An empty response
+        // is a hard error — retrying it would just loop forever.
+        if (bodies.bodies.size() > _headers.size())
         {
-            throw std::runtime_error("BodySequence: body count mismatch (got " +
+            throw std::runtime_error("BodySequence: body count overflow (got " +
                                      std::to_string(bodies.bodies.size()) + ", want " +
                                      std::to_string(_headers.size()) + ")");
         }
+        if (bodies.bodies.empty())
+        {
+            throw std::runtime_error("BodySequence: peer returned no bodies");
+        }
 
-        out.reserve(_headers.size());
-        for (size_t i = 0; i < _headers.size(); ++i)
+        out.reserve(bodies.bodies.size());
+        for (size_t i = 0; i < bodies.bodies.size(); ++i)
         {
             Block block;
             block.header = _headers[i].header;

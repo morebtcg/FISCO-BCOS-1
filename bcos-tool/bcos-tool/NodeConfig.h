@@ -236,6 +236,7 @@ public:
     // EL-mode fork schedule ([fork_timestamps] in config.genesis): L1 PoS chains fork on
     // timestamps (not block heights); 0 means active from genesis.
     uint64_t ethereumForkLondonTime() const;
+    uint64_t ethereumForkParisTime() const;
     uint64_t ethereumForkShanghaiTime() const;
     uint64_t ethereumForkCancunTime() const;
     uint64_t ethereumForkPragueTime() const;
@@ -575,6 +576,7 @@ private:
     uint64_t m_ethereumChainId = 1;
     // EL-mode fork schedule ([fork_timestamps] in config.genesis); 0 = active from genesis
     uint64_t m_ethereumForkLondonTime = 0;
+    uint64_t m_ethereumForkParisTime = 0;
     uint64_t m_ethereumForkShanghaiTime = 0;
     uint64_t m_ethereumForkCancunTime = 0;
     uint64_t m_ethereumForkPragueTime = 0;

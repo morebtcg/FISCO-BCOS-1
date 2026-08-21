@@ -200,12 +200,11 @@ inline HeaderValidationResult validateHeaderPoS(
     }
     else
     {
-        // PoW: difficulty must be non-zero (a real PoW chain never produces a
-        // zero-difficulty block), ommers are allowed.
-        if (_header.difficulty == 0)
-        {
-            return {false, "PoW difficulty must be non-zero"};
-        }
+        // PoW: on a plain PoW chain difficulty is always non-zero. EXCEPTION —
+        // Terminal Total Difficulty (TTD): on merge chains (Sepolia: TTD 17e15,
+        // reached at block 1450409), the first block at/after the TTD carries
+        // difficulty 0 while still being pre-merge (PoW) until the merge block
+        // (1735371). So a zero difficulty is legal here; ommers remain allowed.
     }
     // Extra-data vanity bound.
     if (_header.extraData.size() > kMaxExtraDataSize)

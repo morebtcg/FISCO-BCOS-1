@@ -63,17 +63,31 @@ public:
             {
                 throw std::runtime_error("BlockExchange: peer returned no headers");
             }
-            auto blocks = m_bodySequence.requestBodies(_session, headers);
-            if (blocks.size() != headers.size())
+            // GetBlockBodies may be answered with FEWER bodies than requested:
+            // geth caps the response at its message size limit, so large bodies
+            // truncate it. Pair the returned bodies with the leading headers,
+            // then re-request the remaining headers until all bodies arrive.
+            size_t processed = 0;
+            while (processed < headers.size())
             {
-                throw std::runtime_error("BlockExchange: body count mismatch");
+                std::vector<HeaderWithHash> pending(headers.begin() +
+                        static_cast<std::ptrdiff_t>(processed),
+                    headers.end());
+                auto blocks = m_bodySequence.requestBodies(_session, pending);
+                if (blocks.empty())
+                {
+                    throw std::runtime_error("BlockExchange: peer returned no bodies");
+                }
+                for (auto const& block : blocks)
+                {
+                    _onBlock(block);
+                }
+                processed += blocks.size();
             }
-            for (auto const& block : blocks)
-            {
-                _onBlock(block);
-            }
-            m_headerChain.advance(blocks.size(), headers.back());
-            remaining -= blocks.size();
+            // `processed` is >= 1 (the first requestBodies returned at least one
+            // body) and <= headers.size().
+            m_headerChain.advance(processed, headers[processed - 1]);
+            remaining -= processed;
         }
     }
 

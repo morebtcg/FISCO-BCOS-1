@@ -307,8 +307,12 @@ private:
     scheduler_v1::EvmcForkTimestamps evmcForkSchedule() const
     {
         scheduler_v1::EvmcForkTimestamps forks;
-        // Paris is active from genesis on all PoS L1 chains (The Merge).
-        forks.parisTime = 0;
+        forks.londonTime = m_nodeConfig->ethereumForkLondonTime();
+        // Paris (The Merge): timestamp from [fork_timestamps] paris_time. Chains
+        // with a PoW phase (Sepolia) must set it (1661128380) so pre-merge blocks
+        // run at LONDON (DIFFICULTY semantics); pure-PoS chains omit it (0 =
+        // active from genesis).
+        forks.parisTime = m_nodeConfig->ethereumForkParisTime();
         forks.shanghaiTime = m_nodeConfig->ethereumForkShanghaiTime();
         forks.cancunTime = m_nodeConfig->ethereumForkCancunTime();
         forks.pragueTime = m_nodeConfig->ethereumForkPragueTime();

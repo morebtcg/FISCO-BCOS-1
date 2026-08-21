@@ -36,6 +36,9 @@
     ; Ethereum L1 PoS fork schedule — timestamp-based (0 = active from genesis).
     ; Sepolia values (verified against the live chain):
     london_time=0
+    ; Paris (The Merge). Set 1661128380 on Sepolia (PoW phase until 2022-08-22);
+    ; omit on pure-PoS chains (Holesky) for 0 = active from genesis.
+    paris_time=1661128380
     shanghai_time=1677557088
     cancun_time=1706655072
     prague_time=1741159776
