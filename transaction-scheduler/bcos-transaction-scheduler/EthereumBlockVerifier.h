@@ -193,6 +193,13 @@ inline void fillExecutionLedgerConfig(protocol::EthBlockHeaderData const& ethHea
     config.setExecutorVersion(ledger::ETHEREUM_EXECUTOR_VERSION);
     config.setEVMCRevision(
         evmcRevisionForTimestamp(schedule, ethHeader.timestamp, ethHeader.difficulty));
+    // Block gas limit: the EVM's GASLIMIT opcode (0x45) must return the BLOCK's
+    // gas limit (header.gasLimit), NOT the chain's tx_gas_limit system config.
+    // geth's BlockContext.GasLimit is the header field; on Sepolia it is 30,000,000
+    // while the FISCO system-config default is 3,000,000,000 — using the latter
+    // makes contracts that store block.gasLimit fork (observed at block 2064597:
+    // contract wrote 2998914560 instead of 30000000).
+    config.setGasLimit({static_cast<uint64_t>(ethHeader.gasLimit), ethHeader.number});
     // Difficulty: real value for PoW (pre-merge) blocks — the EVM's DIFFICULTY
     // opcode (0x44) must return it, and the pre-Paris host maps it into
     // prev_randao (buildBlockInfo). PoS (merge+) blocks have difficulty 0.

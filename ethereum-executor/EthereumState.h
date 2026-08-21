@@ -674,15 +674,19 @@ task::Task<void> EthereumState<Storage>::applyToStorage(evmc_revision rev)
             co_await bcosAcc.create();
         co_await bcosAcc.setNonce(std::to_string(acc.nonce));
         co_await bcosAcc.setBalance(evm::toBcosU256(acc.balance));
-        if (acc.code_changed)
+        // ALWAYS write the codeHash row, not just on code_changed. A previous
+        // transaction in the same block may have self-destructed this address
+        // (clearAccountStorage deletes EVERY account row incl. codeHash as
+        // DELETED_TYPE) and a later transaction re-touched it as an EOA with
+        // code_changed == false. Without this unconditional write the flat
+        // state would carry a deleted codeHash row alongside a live balance/
+        // nonce — the MPT builder rejects exactly that shape
+        // ("core-field row deleted outside a tombstone") and the state root
+        // would fork. setCode() only touches SYS_CODE_BINARY when the hash is
+        // absent, so re-writing an unchanged contract's codeHash is a no-op
+        // there; for an EOA it (re)creates the row with emptyCodeHash.
         {
             bcos::bytes code(acc.code.begin(), acc.code.end());
-            // The host already computed keccak256(code) into acc.code_hash
-            // (Ethereum consensus hashing). This keys SYS_CODE_BINARY by
-            // keccak256 — see the "Known limitation — code hash algorithm"
-            // note in the file header: executor_version=2 targets keccak256
-            // chains only, and must not share the code-binary table with a
-            // v0/v1 layer using the chain's global (e.g. SM3) hash algorithm.
             bcos::bytes codeHash(acc.code_hash.bytes, acc.code_hash.bytes + sizeof(evmc_bytes32));
             co_await bcosAcc.setCode(std::move(code), std::string{}, bcos::h256(codeHash));
         }
