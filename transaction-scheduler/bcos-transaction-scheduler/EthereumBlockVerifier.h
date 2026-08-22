@@ -37,11 +37,13 @@
 #include "bcos-ledger/mpt/MPTBuilder.h"
 #include "bcos-rlp-protocol/EthBlockHeader.h"
 #include "bcos-rlp-protocol/EthReceipt.h"
+#include "bcos-rlp-protocol/EthWithdrawal.h"
 #include "bcos-task/Task.h"
 #include "bcos-utilities/Bloom.h"
 #include "bcos-utilities/Common.h"
 #include "bcos-utilities/DataConvertUtility.h"
 #include "MPTNodeStorage.h"
+#include "ethereum-executor/EthereumExecutor.h"
 #include <evmc/evmc.h>
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/throw_exception.hpp>
@@ -456,6 +458,44 @@ public:
             co_return co_await fail("EthereumBlockVerifier: execution failed");
         }
         result.receipts = receipts;
+
+        // 4a. Finalize the block (EIP-4895 withdrawals, Shanghai+). geth applies the
+        //     CL's validator withdrawals to the recipients' balances AFTER the block's
+        //     transactions; this credit is part of the world state, so it must land in
+        //     the view before the MPT state root is computed. PoS blocks pay no block
+        //     reward here (pre-merge rewards are handled by accumulatePoWBlockRewards
+        //     below), so blockReward is always nullopt on this path. This was missing
+        //     entirely, which forked the first post-Shanghai block with withdrawals
+        //     (Sepolia block 2990908): the recipients' balances stayed short and the
+        //     computed state root diverged from the header's.
+        if (rawWithdrawals && !rawWithdrawals->empty())
+        {
+            std::vector<executor_v1::eth::EthWithdrawal> withdrawals;
+            withdrawals.reserve(rawWithdrawals->size());
+            for (auto const& raw : *rawWithdrawals)
+            {
+                protocol::EthWithdrawal wd;
+                if (auto err = wd.rlpDecode(bcos::bytesConstRef(raw.data(), raw.size())))
+                {
+                    co_return co_await fail("EthereumBlockVerifier: withdrawal RLP decode failed");
+                }
+                auto const& d = wd.data();
+                executor_v1::eth::EthWithdrawal ew;
+                ew.index = d.index;
+                ew.validator_index = d.validatorIndex;
+                std::copy_n(d.address.begin(), sizeof(evmc_address), ew.recipient.bytes);
+                ew.amount_in_gwei = d.amount;
+                withdrawals.push_back(std::move(ew));
+            }
+            auto revOpt = ledgerConfig.evmcRevisionForBlock(ethHeader.number);
+            if (!revOpt)
+            {
+                co_return co_await fail(
+                    "EthereumBlockVerifier: no EVMC revision for withdrawals block");
+            }
+            co_await m_executor.get().finalizeBlock(
+                view, *blockHeader, ledgerConfig, *revOpt, std::nullopt, withdrawals);
+        }
 
         // 4b. PoW (pre-merge) blocks pay the coinbase block reward (2 ETH) plus
         //     uncle rewards, exactly like geth's accumulateRewards. PoS blocks
