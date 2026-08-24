@@ -240,7 +240,7 @@ class EthereumState
         using namespace bcos::ledger::account;
         auto& storage = m_storage;
 
-        EVMAccount<Storage> evmAccount(storage, addr, false);
+        EVMAccount<Storage> evmAccount(storage, addr, false, /*treatSystemAsUser=*/true);
 
         // Do NOT gate on SYS_TABLES existence alone: the PoW reward path writes
         // the flat BALANCE row but (historically) never registers the account
@@ -352,7 +352,7 @@ class EthereumState
     {
         using namespace bcos::ledger::account;
         auto& storage = m_storage;
-        EVMAccount<Storage> evmAccount(storage, addr, false);
+        EVMAccount<Storage> evmAccount(storage, addr, false, /*treatSystemAsUser=*/true);
 
         if (!co_await evmAccount.exists())
             co_return {};
@@ -381,7 +381,7 @@ class EthereumState
     {
         using namespace bcos::ledger::account;
         auto& storage = m_storage;
-        EVMAccount<Storage> evmAccount(storage, addr, false);
+        EVMAccount<Storage> evmAccount(storage, addr, false, /*treatSystemAsUser=*/true);
 
         // SLOAD on a non-existent account returns 0 per EVM spec.
         // EVMAccount::storage() already returns empty bytes32 for missing
@@ -669,7 +669,7 @@ task::Task<void> EthereumState<Storage>::applyToStorage(evmc_revision rev)
         if (acc.erase_if_empty && rev >= EVMC_SPURIOUS_DRAGON && acc.is_empty())
             continue;
 
-        EVMAccount<Storage> bcosAcc(m_storage, addr, false);
+        EVMAccount<Storage> bcosAcc(m_storage, addr, false, /*treatSystemAsUser=*/true);
         if (!co_await bcosAcc.exists())
             co_await bcosAcc.create();
         co_await bcosAcc.setNonce(std::to_string(acc.nonce));
@@ -710,7 +710,7 @@ task::Task<void> EthereumState<Storage>::applyToStorage(evmc_revision rev)
         {
             // Genuine deletion: clear account state (including storage, so that
             // a later CREATE/CREATE2 at this address is not an EIP-7610 collision).
-            EVMAccount<Storage> bcosAcc(m_storage, addr, false);
+            EVMAccount<Storage> bcosAcc(m_storage, addr, false, /*treatSystemAsUser=*/true);
             if (co_await bcosAcc.exists())
             {
                 co_await bcosAcc.setBalance(0);
@@ -723,7 +723,7 @@ task::Task<void> EthereumState<Storage>::applyToStorage(evmc_revision rev)
                  !acc.just_created)
         {
             // EIP-161: empty touched account is deleted.
-            EVMAccount<Storage> bcosAcc(m_storage, addr, false);
+            EVMAccount<Storage> bcosAcc(m_storage, addr, false, /*treatSystemAsUser=*/true);
             if (co_await bcosAcc.exists())
             {
                 co_await bcosAcc.setBalance(0);

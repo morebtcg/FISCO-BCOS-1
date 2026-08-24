@@ -263,7 +263,9 @@ task::Task<void> accumulatePoWBlockRewards(ViewType& view,
         ledgerConfig.features().get(ledger::Features::Flag::feature_raw_address);
 
     auto addBalance = [&](bcos::Address const& address, u256 const& amount) -> task::Task<void> {
-        EVMAccount<ViewType> account(view, address, binaryAddress);
+        // EL mode: a FISCO system-address (e.g. 0x...1000) is an ordinary Ethereum account and
+        // must live under /apps/ so the MPT builder sees it. Pass treatSystemAsUser=true.
+        EVMAccount<ViewType> account(view, address, binaryAddress, /*treatSystemAsUser=*/true);
         // Register the account table (SYS_TABLES) so the executor's
         // readAccountImpl can see it: it decides existence via the flat fields,
         // but the write-back path (applyToStorage) still needs a registered

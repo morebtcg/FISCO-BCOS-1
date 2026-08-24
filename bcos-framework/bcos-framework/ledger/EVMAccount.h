@@ -254,13 +254,14 @@ public:
     EVMAccount(EVMAccount&&) noexcept = default;
     EVMAccount& operator=(const EVMAccount&) = delete;
     EVMAccount& operator=(EVMAccount&&) noexcept = default;
-    EVMAccount(Storage& storage, const evmc_address& address, bool binaryAddress)
+    EVMAccount(Storage& storage, const evmc_address& address, bool binaryAddress,
+        bool treatSystemAsUser = false)
       : m_storage(storage)
     {
         std::array<char, sizeof(address.bytes) * 2> table;  // NOLINT
         boost::algorithm::hex_lower(concepts::bytebuffer::toView(address.bytes), table.data());
-        if (auto view = std::string_view(table.data(), table.size());
-            precompiled::contains(bcos::precompiled::c_systemTxsAddress, view))
+        auto const view = std::string_view(table.data(), table.size());
+        if (!treatSystemAsUser && precompiled::contains(bcos::precompiled::c_systemTxsAddress, view))
         {
             m_tableName.reserve(ledger::SYS_DIRECTORY::SYS_APPS.size() + table.size());
             m_tableName.append(ledger::SYS_DIRECTORY::SYS_APPS);
@@ -290,9 +291,11 @@ public:
      * @param storage storage instance
      * @param address address of the account, hex string, should not contain 0x prefix
      */
-    EVMAccount(Storage& storage, std::string_view address, bool binaryAddress) : m_storage(storage)
+    EVMAccount(Storage& storage, std::string_view address, bool binaryAddress,
+        bool treatSystemAsUser = false)
+      : m_storage(storage)
     {
-        if (precompiled::contains(bcos::precompiled::c_systemTxsAddress, address))
+        if (!treatSystemAsUser && precompiled::contains(bcos::precompiled::c_systemTxsAddress, address))
         {
             m_tableName.reserve(ledger::SYS_DIRECTORY::SYS_APPS.size() + address.size());
             m_tableName.append(ledger::SYS_DIRECTORY::SYS_APPS);
@@ -317,7 +320,8 @@ public:
         }
     }
 
-    EVMAccount(Storage& storage, const bcos::Address& address, bool binaryAddress)
+    EVMAccount(Storage& storage, const bcos::Address& address, bool binaryAddress,
+        bool treatSystemAsUser = false)
       : EVMAccount(
             storage,
             [](const bcos::Address& address) {
@@ -325,7 +329,7 @@ public:
                 ::ranges::copy(address, std::span{evmcAddress.bytes}.data());
                 return evmcAddress;
             }(address),
-            binaryAddress)
+            binaryAddress, treatSystemAsUser)
     {}
     ~EVMAccount() noexcept = default;
 
