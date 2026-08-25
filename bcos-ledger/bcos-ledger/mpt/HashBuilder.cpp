@@ -312,7 +312,5 @@ TrieBuildResult computeTrieRootVarKey(std::span<std::pair<bcos::bytes, bcos::byt
     }
     return TrieBuildResult{.root = root, .newNodes = std::move(newNodes)};
 }
-    return TrieBuildResult{.root = root, .newNodes = std::move(newNodes)};
-}
 
 }  // namespace bcos::ledger::mpt

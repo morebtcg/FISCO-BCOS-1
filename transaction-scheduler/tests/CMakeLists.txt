@@ -16,6 +16,7 @@ target_link_libraries(test-transaction-scheduler
 	engine
 	mempool
 	bcos-devp2p
+	rpc
 	Boost::unit_test_framework
 	FakeIt::FakeIt-boost
 )

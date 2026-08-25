@@ -277,7 +277,8 @@ public:
             .AlwaysDo([](storage::StorageInterface::Ptr storage, protocol::ConstTransactionsPtr,
                           protocol::Block::ConstPtr block,
                           std::function<void(std::string, Error::Ptr&&)> callback, bool,
-                          std::optional<ledger::Features>) {
+                          std::optional<ledger::Features>, std::optional<bcos::crypto::HashType>,
+                          bool) {
                 auto header = block->blockHeader();
                 auto blockNumberStr = boost::lexical_cast<std::string>(header->number());
                 auto hash = header->hash();
