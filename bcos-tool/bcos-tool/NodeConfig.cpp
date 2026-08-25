@@ -24,7 +24,6 @@
 #include "bcos-framework/consensus/ConsensusNode.h"
 #include "bcos-framework/ledger/LedgerTypeDef.h"
 #include "bcos-framework/protocol/ServiceDesc.h"
-#include "bcos-framework/security/CloudKmsType.h"
 #include "bcos-framework/security/KeyEncryptionType.h"
 #include "bcos-framework/security/StorageEncryptionType.h"
 #include "bcos-utilities/BoostLog.h"
@@ -34,20 +33,15 @@
 #include <bcos-framework/protocol/GlobalConfig.h>
 #include <bcos-utilities/DataConvertUtility.h>
 #include <bcos-utilities/FixedBytes.h>
-#include <json/forwards.h>
-#include <json/reader.h>
-#include <json/value.h>
-#include <servant/RemoteLogger.h>
 #include <util/tc_clientsocket.h>
-#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/throw_exception.hpp>
 #include <algorithm>
 #include <cctype>
-#include <charconv>
 #include <cstdint>
 #include <limits>
 #include <set>
@@ -377,10 +371,12 @@ void NodeConfig::loadEthGenesisHeader(boost::property_tree::ptree const& _genesi
     header.m_gasLimit = quantityField("gas_limit");
     header.m_gasUsed = quantityField("gas_used");
     auto timestamp = quantityField("timestamp");
-    if (timestamp > u256(std::numeric_limits<int64_t>::max()))
+    // The artifact timestamp is seconds; Ledger::applyEthGenesisHeader multiplies it by 1000
+    // to store internal milliseconds, so the parse bound must leave headroom for the x1000.
+    if (timestamp > u256(std::numeric_limits<int64_t>::max() / 1000))
     {
-        BOOST_THROW_EXCEPTION(
-            InvalidConfig() << errinfo_comment("[eth_genesis_header].timestamp exceeds int64"));
+        BOOST_THROW_EXCEPTION(InvalidConfig() << errinfo_comment(
+                                  "[eth_genesis_header].timestamp exceeds int64 milliseconds"));
     }
     header.m_timestamp = static_cast<int64_t>(timestamp);
     auto extraData = requireField("extra_data");
@@ -476,6 +472,18 @@ void NodeConfig::validateL2Invariants()
                 "config.genesis (all 22 fields from the merged genesis artifact); an L2 chain "
                 "without it would build a non-Ethereum genesis block"));
     }
+}
+
+bool NodeConfig::opJovianActive() const
+{
+    // OP-Stack Jovian fork semantics are selected by feature_op_jovian in [features] (the
+    // FISCO-native mechanism), replacing the former chain.isthmus_time/chain.jovian_time
+    // timestamp thresholds. OFF → Isthmus semantics (the OP-mode baseline).
+    return std::any_of(m_genesisConfig.m_features.begin(), m_genesisConfig.m_features.end(),
+        [](ledger::FeatureSet const& featureSet) {
+            return featureSet.flag == ledger::Features::Flag::feature_op_jovian &&
+                   featureSet.enable > 0;
+        });
 }
 
 std::string NodeConfig::getServiceName(boost::property_tree::ptree const& _pt,
@@ -2551,14 +2559,19 @@ bool NodeConfig::enableOpEngineRpc() const
     return m_enableOpEngineRpc;
 }
 
-bool NodeConfig::enableSingleNodeConsensus() const
+bool NodeConfig::opEngineAllowV1Executor() const
 {
-    return m_enableSingleNodeConsensus;
+    return m_opEngineAllowV1Executor;
 }
 
 bool NodeConfig::engineDrivenBlockProduction() const
 {
     return m_enableSingleNodeConsensus || m_enableOpEngineRpc;
+}
+
+bool NodeConfig::enableSingleNodeConsensus() const
+{
+    return m_enableSingleNodeConsensus;
 }
 
 uint64_t NodeConfig::singleNodeConsensusBlockInterval() const
@@ -2609,11 +2622,6 @@ uint32_t NodeConfig::opEngineBatchRequestSizeLimit() const
 const std::string& NodeConfig::opEngineJwtSecretFile() const
 {
     return m_opEngineJwtSecretFile;
-}
-
-bool NodeConfig::opEngineAllowV1Executor() const
-{
-    return m_opEngineAllowV1Executor;
 }
 
 int32_t NodeConfig::opEngineClockSkewSecs() const

@@ -34,7 +34,7 @@
 #include <bcos-tool/NodeConfig.h>
 #include <bcos-ledger/GenesisStateRoot.h>
 #include <bcos-ledger/mpt/EthTrieRoots.h>
-#include <bcos-tars-protocol/protocol/Web3Transaction.h>
+#include <bcos-rpc/web3jsonrpc/model/Web3Transaction.h>
 #include <bcos-rlp-protocol/EthBlockHeader.h>
 #include <bcos-rlp-protocol/EthWithdrawal.h>
 #include <bcos-task/Wait.h>

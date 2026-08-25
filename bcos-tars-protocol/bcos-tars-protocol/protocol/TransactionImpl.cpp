@@ -29,16 +29,19 @@
 #include <bcos-concepts/Hash.h>
 #include <bcos-concepts/Serialize.h>
 #include <bcos-crypto/hash/Keccak256.h>
+#include <bcos-rlp-protocol/Web3TxEnvelope.h>
 #include <bcos-utilities/BoostLog.h>
-#include <boost/endian/conversion.hpp>
-#include <boost/exception/diagnostic_information.hpp>
 #include <boost/throw_exception.hpp>
 #include <cstring>
 #include <exception>
-#include <range/v3/view/any_view.hpp>
 #include <set>
 
 DERIVE_BCOS_EXCEPTION(EmptyTransactionHash);
+
+// EIP-2718 deposit transaction type byte (OP Stack). Matches
+// rpc::TransactionType::Deposit in bcos-rpc; defined here as a local literal because
+// bcos-tars-protocol sits below bcos-rpc and must not depend on it.
+constexpr uint8_t kDepositTxType = 0x7e;
 
 #define WEB3_ACCESS_LIST_LOG(LEVEL) BCOS_LOG(LEVEL) << LOG_BADGE("WEB3_ACCESS_LIST")
 
@@ -248,6 +251,24 @@ void bcostars::protocol::TransactionImpl::calculateHash(const bcos::crypto::Hash
     // The recompute is a byte splice plus one keccak, cheap enough to always run.
     if (type() == static_cast<uint8_t>(bcos::protocol::TransactionType::Web3Transaction))
     {
+        // Deposit (0x7e): unsigned — extraTransactionBytes already IS the full 0x7e envelope
+        // (stored by takeToTarsTransaction as encode()), so the hash is keccak of it verbatim;
+        // reassembleWeb3RawTransaction cannot be used (it needs a 65-byte signature).
+        // The deposit determination comes from the SIGNED envelope's first byte, NEVER the
+        // forgeable web3TypedTxKind mirror (tars field 12): a peer can rewrite that mirror to
+        // 0x7e on a signed Web3 tx, which would route the hash to this unsigned-deposit form
+        // and skip reassembleWeb3RawTransaction — defeating the "never believe the wire hash"
+        // defense (kyonRay R4 #1). The mirror is display-only; security decisions key on the
+        // envelope.
+        auto const extraBytes = extraTransactionBytes();
+        bool const isDepositEnvelope =
+            (!extraBytes.empty() && extraBytes[0] == static_cast<bcos::byte>(0x7e));
+        if (isDepositEnvelope)
+        {
+            auto const depositHash = bcos::crypto::keccak256Hash(extraBytes);
+            m_inner()->extraTransactionHash.assign(depositHash.begin(), depositHash.end());
+            return;
+        }
         auto const canonicalTxHash = bcos::crypto::keccak256Hash(
             bcos::ref(reassembleWeb3RawTransaction(extraTransactionBytes(), signatureData())));
         m_inner()->extraTransactionHash.assign(canonicalTxHash.begin(), canonicalTxHash.end());
@@ -411,6 +432,84 @@ uint8_t bcostars::protocol::TransactionImpl::web3TypedTxKind() const
     return static_cast<uint8_t>(m_inner()->web3TypedTxKind);
 }
 
+std::optional<uint64_t> bcostars::protocol::TransactionImpl::web3ChainIdFromEnvelope() const
+{
+    // chainId admission must come from the SIGNED envelope, not the tars mirror (data.chainID):
+    // the signature binds only extraTransactionBytes + signatureData. extraTransactionBytes is
+    // the signing preimage: typed = type byte || rlp([chainId, ...]); legacy = 6 fields or
+    // [...6 fields, chainId, 0, 0]. nullopt means a pre-EIP-155 legacy preimage (no chainId
+    // tail) — a malformed tail (unparseable field 7) also yields nullopt, but is unreachable
+    // through TxValidator: verify() rejects the same bytes first via reassembleWeb3RawTransaction
+    // (the walker is shared with the block path — see Web3TxEnvelope.h — keep one home).
+    if (type() != static_cast<uint8_t>(bcos::protocol::TransactionType::Web3Transaction))
+    {
+        return std::nullopt;
+    }
+    return bcos::rlp::protocol::web3ChainIdFromEnvelope(extraTransactionBytes());
+}
+
+std::string_view bcostars::protocol::TransactionImpl::sourceHash() const
+{
+    // Unprefixed hex (the asymmetry with mint()'s "0x"+hex is by design: sourceHash is a hash
+    // string, mint is a numeric value). Consumers output it directly or parse with fromHex; do
+    // not assume a prefix.
+    return m_inner()->sourceHash;
+}
+
+bcos::u256 bcostars::protocol::TransactionImpl::mint() const
+{
+    if (m_inner()->mint.empty())
+    {
+        return 0;
+    }
+    // Written as "0x"+hex by takeToTarsTransaction, but corrupted data or external writes
+    // may lack the prefix. bcos::u256("100") without 0x-parses as decimal 100, not 0x100=256
+    // (a silent value error for a value-bearing field). Always force a 0x prefix so the
+    // identity "mint stored = mint parsed" holds regardless of input form.
+    // Invalid hex from corrupt data must not throw through the const getter — the length
+    // guard handles over-wide values (u256 uses boost unchecked backend which silently
+    // truncates >256 bits), and try/catch handles remaining corrupt/non-hex input; both
+    // fall back to 0, consistent with the empty-string case.
+    // IMPORTANT: the tars mirror is display-only and unauthenticated — the signature binds
+    // only extraTransactionBytes; execution MUST re-derive mint from the envelope, never
+    // trust this value from an untrusted peer (see Transaction.tars field 14).
+    try
+    {
+        auto const& s = m_inner()->mint;
+        // bcos::u256 (boost unchecked backend) silently truncates >256-bit values rather
+        // than throwing — catch over-wide hex explicitly before the parse: with a 0x/0X
+        // prefix, valid is at most 66 chars (2 prefix + 64 hex digits); without, at most 64.
+        auto const hasPrefix = s.starts_with("0x") || s.starts_with("0X");
+        auto const hexLen = hasPrefix ? s.size() - 2 : s.size();
+        if (hexLen > 64)
+        {
+            return 0;
+        }
+        return bcos::u256(hasPrefix ? s : ("0x" + s));
+    }
+    catch (std::exception const&)
+    {
+        return 0;
+    }
+}
+
+bool bcostars::protocol::TransactionImpl::isDepositTx() const
+{
+    // Use web3TypedTxKind() == 0x7e, NOT isSystemTransaction: isSystemTransaction is a
+    // per-transaction flag, so a non-system deposit (isSystemTx=false, the vast majority) would
+    // be misclassified.
+    // Also use the accessor (not the raw tars field): it returns 0 unless type()==Web3Transaction,
+    // so a forged BCOS tx (type=0, web3TypedTxKind=0x7e) is never treated as a deposit.
+    return web3TypedTxKind() == kDepositTxType;
+}
+
+bool bcostars::protocol::TransactionImpl::depositIsSystemTransaction() const
+{
+    // tars field 15 (optional byte) generates as tars::Char (0 when unset). Distinct from
+    // Transaction::systemTx() (m_systemTx).
+    return m_inner()->isSystemTransaction != 0;
+}
+
 bcos::protocol::Web3AccessList bcostars::protocol::TransactionImpl::web3AccessList() const
 {
     if (type() != static_cast<uint8_t>(bcos::protocol::TransactionType::Web3Transaction))
@@ -556,5 +655,9 @@ size_t bcostars::protocol::TransactionImpl::size() const
     size += m_inner()->extraData.size();
     size += m_inner()->extraTransactionBytes.size();
     size += m_inner()->extraTransactionHash.size();
+    size += m_inner()->sourceHash.size();
+    size += m_inner()->mint.size();
+    // isSystemTransaction (optional byte) is a fixed-length scalar — excluded from
+    // size() like other fixed scalars (type, version, blockLimit).
     return size;
 }

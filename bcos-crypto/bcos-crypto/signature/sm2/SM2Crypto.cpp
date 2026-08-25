@@ -18,11 +18,11 @@
  * @date 2021.03.10
  * @author yujiechen
  */
-#include <bcos-crypto/hash/SM3.h>
 #include <bcos-crypto/signature/Exceptions.h>
 #include <bcos-crypto/signature/codec/SignatureDataWithPub.h>
 #include <bcos-crypto/signature/sm2/SM2Crypto.h>
 #include <bcos-crypto/signature/sm2/SM2KeyPair.h>
+#include <bcos-utilities/BoostLog.h>
 
 using namespace bcos;
 using namespace bcos::crypto;

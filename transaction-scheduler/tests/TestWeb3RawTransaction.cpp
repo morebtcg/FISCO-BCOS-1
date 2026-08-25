@@ -35,7 +35,7 @@
 #include "bcos-framework/transaction-executor/TransactionExecutor.h"
 #include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include "bcos-tars-protocol/protocol/Web3RawTransaction.h"
-#include "bcos-tars-protocol/protocol/Web3Transaction.h"
+#include "bcos-rpc/web3jsonrpc/model/Web3Transaction.h"
 #include "bcos-task/Wait.h"
 #include "bcos-transaction-scheduler/SchedulerSerialImpl.h"
 #include "bcos-utilities/IOServicePool.h"

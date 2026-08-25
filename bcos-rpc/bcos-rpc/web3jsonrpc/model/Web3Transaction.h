@@ -19,17 +19,19 @@
  */
 
 #pragma once
-#include "TransactionImpl.h"
+#include "bcos-tars-protocol/protocol/TransactionImpl.h"
 #include <bcos-codec/rlp/Common.h>
 #include <bcos-codec/rlp/RLPDecode.h>
 #include <bcos-codec/rlp/RLPEncode.h>
 #include <bcos-crypto/interfaces/crypto/CommonType.h>
 #include <bcos-crypto/signature/secp256k1/Secp256k1Crypto.h>
-#include <bcos-utilities/DataConvertUtility.h>
-#include "BlockFactoryImpl.h"
+#include <bcos-rpc/web3jsonrpc/utils/util.h>
+#include <bcos-tars-protocol/protocol/BlockFactoryImpl.h>
 #include <bcos-utilities/FixedBytes.h>
 #include <magic_enum/magic_enum.hpp>
+#include <optional>
 #include <ostream>
+#include <string_view>
 namespace bcos
 {
 namespace rpc
@@ -39,10 +41,11 @@ namespace rpc
 enum class TransactionType : uint8_t
 {
     Legacy = 0,
-    EIP2930 = 1,  // https://eips.ethereum.org/EIPS/eip-2930
-    EIP1559 = 2,  // https://eips.ethereum.org/EIPS/eip-1559
-    EIP4844 = 3,  // https://eips.ethereum.org/EIPS/eip-4844
-    EIP7702 = 4,  // https://eips.ethereum.org/EIPS/eip-7702
+    EIP2930 = 1,     // https://eips.ethereum.org/EIPS/eip-2930
+    EIP1559 = 2,     // https://eips.ethereum.org/EIPS/eip-1559
+    EIP4844 = 3,     // https://eips.ethereum.org/EIPS/eip-4844
+    EIP7702 = 4,     // https://eips.ethereum.org/EIPS/eip-7702
+    Deposit = 0x7e,  // deposit-only system tx (OP Stack)
 };
 
 constexpr auto operator<=>(TransactionType const& ltype, auto rtype)
@@ -78,11 +81,11 @@ struct AuthorizationListEntry
     uint8_t yParity{0};
     u256 r{0};
     u256 s{0};
-    friend bool operator==(const AuthorizationListEntry& lhs, const AuthorizationListEntry& rhs) noexcept
+    friend bool operator==(
+        const AuthorizationListEntry& lhs, const AuthorizationListEntry& rhs) noexcept
     {
-        return lhs.chainId == rhs.chainId && lhs.address == rhs.address &&
-               lhs.nonce == rhs.nonce && lhs.yParity == rhs.yParity && lhs.r == rhs.r &&
-               lhs.s == rhs.s;
+        return lhs.chainId == rhs.chainId && lhs.address == rhs.address && lhs.nonce == rhs.nonce &&
+               lhs.yParity == rhs.yParity && lhs.r == rhs.r && lhs.s == rhs.s;
     }
 };
 
@@ -98,6 +101,10 @@ public:
 
     // encode for sign, rlp(tx_payload)
     bcos::bytes encodeForSign() const;
+    // full RLP (with type byte) — delegates to handlerFor(type).encode
+    bcos::bytes encode() const;
+    // Decode — delegates to handlerFor(type).decode, propagating decode errors
+    bcos::Error::UniquePtr decode(bcos::bytesRef& in, bool withSig = true);
     // tx hash = keccak256(rlp(tx_payload,v,r,s))
     bcos::crypto::HashType txHash() const;
     // hash for sign = keccak256(rlp(tx_payload))
@@ -122,6 +129,11 @@ public:
     // EIP-4844: Shard Blob Transactions
     u256 maxFeePerBlobGas{0};
     h256s blobVersionedHashes;
+    // deposit-only (0x7e)
+    h256 sourceHash;
+    Address from;
+    u256 mint{0};
+    bool isSystemTx{false};
     // TODO)) blob
     // EIP-7702: Set Code Transactions (Prague+)
     std::vector<AuthorizationListEntry> authorizationList;
@@ -129,15 +141,6 @@ public:
     bcos::bytes signatureS;
     uint64_t signatureV{0};
 };
-
-/// Decode raw EIP-2718 transaction bytes (legacy or 0x01/0x02/0x03/0x04 typed) into a
-/// ready-to-execute bcostars TransactionImpl: fields, extraTransactionBytes (the signing
-/// payload), the 65-byte r||s||yParity signature, the canonical tx hash, and the sender
-/// recovered from the signature. Throws std::invalid_argument on malformed input.
-/// This is the shared raw->Transaction path for eth_sendRawTransaction, the devp2p sync
-/// path and the external-block verifier.
-std::shared_ptr<bcostars::protocol::TransactionImpl> decodeWeb3RawTransaction(
-    bcos::bytesConstRef raw, const bcos::crypto::Hash& hashImpl);
 }  // namespace rpc
 namespace codec::rlp
 {
@@ -150,9 +153,6 @@ void encode(bcos::bytes& out, const rpc::AuthorizationListEntry&) noexcept;
 size_t length(const rpc::AuthorizationListEntry&) noexcept;
 
 size_t length(const rpc::Web3Transaction&) noexcept;
-Header headerForSign(const rpc::Web3Transaction& tx) noexcept;
-Header headerTxBase(const rpc::Web3Transaction& tx) noexcept;
-Header header(const rpc::Web3Transaction& tx) noexcept;
 void encode(bcos::bytes& out, const rpc::Web3Transaction&) noexcept;
 bcos::Error::UniquePtr decode(bcos::bytesRef& in, rpc::AccessListEntry&) noexcept;
 bcos::Error::UniquePtr decode(bcos::bytesRef& in, rpc::AuthorizationListEntry&) noexcept;

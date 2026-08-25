@@ -17,9 +17,9 @@
  * @file Transaction.h
  */
 #pragma once
+#include "Authorization.h"
 #include "TransactionSubmitResult.h"
 #include "Web3AccessList.h"
-#include "Authorization.h"
 #include "bcos-utilities/AnyHolder.h"
 #include <bcos-crypto/interfaces/crypto/Hash.h>
 #include <bcos-crypto/interfaces/crypto/Signature.h>
@@ -29,6 +29,8 @@
 #include <concepts>
 #include <functional>
 #include <iosfwd>
+#include <optional>
+#include <string_view>
 #include <utility>
 
 namespace bcostars::protocol
@@ -91,6 +93,22 @@ public:
     /// EIP-2718 typed tx kind when type()==Web3Transaction (see bcos::rpc::TransactionType). 0 if
     /// unset.
     virtual uint8_t web3TypedTxKind() const { return 0; }
+    /// Chain id from the SIGNED envelope (extraTransactionBytes), never the tars mirror
+    /// (data.chainID): typed = RLP field 0 of the preimage; legacy = EIP-155 tail (nullopt =
+    /// pre-EIP-155 unprotected, v=27/28). Default nullopt keeps the framework core free of
+    /// RLP/codec and preserves source compatibility for out-of-tree implementers; the force is
+    /// semantic, not structural — Web3-capable impls override (TransactionImpl does). The
+    /// envelope-keyed gates (TxValidator::validateChainId — the base function reads the tars
+    /// mirror; its envelope-keyed form migrates in part 4b, PR #5477 — and OpstackExecutor::
+    /// m_prepare) rejecting a typed envelope that yields nullopt land with part 4b; in this
+    /// tree EthEndpoint's mempool gate is the enforcer.
+    virtual std::optional<uint64_t> web3ChainIdFromEnvelope() const { return std::nullopt; }
+    /// deposit-only (0x7e) tx metadata (OP Stack). Empty/false when not a deposit.
+    virtual std::string_view sourceHash() const { return {}; }
+    virtual u256 mint() const { return {}; }
+    virtual bool isDepositTx() const { return false; }
+    /// deposit-only RLP field (tars field 15). Distinct from systemTx() (the BCOS m_systemTx flag).
+    virtual bool depositIsSystemTransaction() const { return false; }
     /// Parsed access list when populated at submission (may be empty for non-EIP-2930 Web3 txs).
     virtual Web3AccessList web3AccessList() const;
 
@@ -223,7 +241,7 @@ using TransactionsConstPtr = std::shared_ptr<const Transactions>;
 using ConstTransactions = std::vector<Transaction::ConstPtr>;
 using ConstTransactionsPtr = std::shared_ptr<ConstTransactions>;
 using AnyTransaction =
-    AnyHolder<bcos::protocol::Transaction, 224>;  // 多平台TransactinImpl的最大尺寸 (Maximum size of
+    AnyHolder<bcos::protocol::Transaction, 224>;  // (Maximum size of
                                                   // TransactinImpl across platforms)
 
 std::ostream& operator<<(std::ostream& stream, const Transaction& transaction);

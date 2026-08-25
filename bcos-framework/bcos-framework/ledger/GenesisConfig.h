@@ -63,9 +63,10 @@ struct Alloc
 // key) while the fork-gated fields are OPTIONAL (absent key = field does not
 // exist on this chain's genesis, and is left off the RLP).
 // m_hash is a checksum, not an input: Ledger::buildGenesisBlock recomputes
-// keccak256(rlp(header)) from the other fields and refuses to start if it
-// differs. m_timestamp is in SECONDS (the Ethereum header domain) — B0 is
-// artifact-authoritative, unlike FISCO's millisecond block timestamps.
+// keccak256(rlp(header)) from the other 21 fields and refuses to start if it
+// differs. m_timestamp is in SECONDS (the Ethereum header domain);
+// Ledger::applyEthGenesisHeader multiplies by 1000 when projecting it onto the
+// internal BlockHeader, which stores milliseconds like every other block.
 struct EthGenesisHeader
 {
     crypto::HashType m_parentHash;

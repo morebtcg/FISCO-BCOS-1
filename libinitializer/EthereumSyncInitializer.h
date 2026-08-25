@@ -37,7 +37,7 @@
 #include "bcos-tool/NodeConfig.h"
 #include "bcos-transaction-scheduler/EthereumBlockVerifier.h"
 #include "bcos-transaction-scheduler/SchedulerSerialImpl.h"
-#include "bcos-tars-protocol/protocol/Web3Transaction.h"
+#include "bcos-rpc/web3jsonrpc/model/Web3Transaction.h"
 #include "bcos-task/Wait.h"
 #include "ethereum-executor/EthereumExecutor.h"
 #include <boost/throw_exception.hpp>
