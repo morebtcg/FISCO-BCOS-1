@@ -19,7 +19,9 @@
  */
 #include "EthReceipt.h"
 #include <bcos-protocol/TransactionStatus.h>
-#include <boost/lexical_cast.hpp>
+#include <bcos-utilities/DataConvertUtility.h>
+#include <algorithm>
+#include <cctype>
 #include <cstring>
 
 using namespace bcos;
@@ -129,6 +131,13 @@ bcos::Error::UniquePtr decode(bcos::bytesRef& _in, protocol::EthReceiptData& _re
     }
     else if (firstItem.size() <= 1)
     {
+        // geth's setStatus accepts only 0x01 (success), empty (failure), or a 32-byte
+        // postState; any other single byte is "invalid receipt status" (EIP-658).
+        if (firstItem.size() == 1 && firstItem[0] != 1)
+        {
+            return BCOS_ERROR_UNIQUE_PTR(
+                DecodingError::InvalidFieldset, "invalid receipt status byte");
+        }
         _receipt.postState.reset();
         _receipt.status = firstItem.empty() ? 0 : firstItem[0];
     }
@@ -157,43 +166,187 @@ bcos::Error::UniquePtr decode(bcos::bytesRef& _in, protocol::EthReceiptData& _re
 
 namespace bcos::protocol
 {
-void EthReceipt::rlpEncode(bcos::bytes& out) const
+bcos::Error::UniquePtr EthReceipt::rlpEncode(bcos::bytes& out) const
 {
+    // A type byte >= 0x80 would be written verbatim and then misread by the decoder
+    // as a legacy RLP item head; reject it here so encode/decode accept the same set
+    // (mirrors EthBlock::rlpEncode's typed-arm check).
+    if (m_data.type >= BYTES_HEAD_BASE)
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnsupportedTransactionType,
+            "EthReceipt::rlpEncode: invalid EIP-2718 type byte");
+    }
     codec::rlp::encode(out, m_data);
+    return nullptr;
 }
 
 bcos::Error::UniquePtr EthReceipt::rlpDecode(bcos::bytesConstRef data)
 {
-    // The codec's decode takes a mutable bytesRef& (it advances a view cursor); the bytes
-    // themselves are never written, so a single copy into a mutable buffer is enough.
-    auto mutableData = data.toBytes();
-    bytesRef in(mutableData.data(), mutableData.size());
-    return codec::rlp::decode(in, m_data);
+    // The codec's decode only advances a view cursor and never writes the buffer, so
+    // take the view directly; the const_cast is confined to this read-only entry point.
+    bytesRef in(const_cast<bcos::byte*>(data.data()), data.size());
+    if (auto err = codec::rlp::decode(in, m_data))
+    {
+        return err;
+    }
+    // geth's rlp.DecodeBytes rejects trailing bytes (ErrMoreThanOneValue); mirror that so
+    // two distinct wire encodings cannot map to the same decoded object.
+    if (!in.empty())
+    {
+        return BCOS_ERROR_UNIQUE_PTR(
+            DecodingError::UnexpectedListElements, "trailing bytes after top-level RLP item");
+    }
+    return nullptr;
 }
 
-EthReceiptData toEthReceiptData(TransactionReceipt const& receipt, uint8_t txType)
+bcos::Error::UniquePtr toEthReceiptData(
+    TransactionReceipt const& receipt, uint8_t txType, EthReceiptData& eth)
 {
-    EthReceiptData eth;
+    // Reset the destination at entry so no stale field (notably postState) can
+    // survive from a previous call when the caller reuses the object.
+    eth = EthReceiptData{};
+    // EIP-2718 confines the transaction type to 0x00..0x7f; a type byte >= 0x80 would be
+    // written verbatim as the prefix and then read back as the head of a legacy RLP item,
+    // so the receipt would not round-trip. Fail closed like the other inputs here.
+    if (txType >= BYTES_HEAD_BASE)
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnsupportedTransactionType,
+            "toEthReceiptData: invalid EIP-2718 type " + std::to_string(txType));
+    }
     eth.type = txType;
     // The BCOS receipt carries the FISCO TransactionStatus convention (None = 0 = success,
     // per mapEvmcStatusToBcosStatus); the Ethereum receipt commits EIP-658 status 1 for
     // success and 0 for every failure.
     eth.status =
         (receipt.status() == static_cast<int32_t>(protocol::TransactionStatus::None)) ? 1 : 0;
-    eth.cumulativeGasUsed =
-        boost::lexical_cast<bcos::u256>(std::string(receipt.cumulativeGasUsed()));
+    // cumulativeGasUsed must parse to a number: it feeds the receipts root, so a
+    // missing/non-numeric value fails closed (returns an Error) rather than
+    // substituting 0. Producers write decimal (transaction-scheduler) or
+    // "0x"+minimal hex (opstack-executor), so parse both shapes explicitly
+    // (mirrors jsonStringToInt) instead of relying on boost::lexical_cast.
+    auto const cumStr = std::string(receipt.cumulativeGasUsed());
+    if (cumStr.empty())
+    {
+        return BCOS_ERROR_UNIQUE_PTR(
+            DecodingError::InputTooShort, "toEthReceiptData: empty cumulativeGasUsed");
+    }
+    // Validate the string shape before parsing: boost's implicit base rules (a leading 0
+    // selects octal) and an empty 0x payload would otherwise silently produce a wrong
+    // value, which feeds the receipts root.
+    bool const hexForm =
+        cumStr.size() >= 2 && cumStr[0] == '0' && (cumStr[1] == 'x' || cumStr[1] == 'X');
+    auto const digits = hexForm ? cumStr.substr(2) : cumStr;
+    auto const isDecimalDigit = [](char c) { return c >= '0' && c <= '9'; };
+    auto const isHexDigit = [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    };
+    // Reject an empty digit run ("0x" with no digits): all_of over an empty range
+    // returns true, and fromHex("")/u256 would silently yield 0.
+    if (digits.empty())
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::InvalidFieldset,
+            "toEthReceiptData: empty cumulativeGasUsed payload: " + cumStr);
+    }
+    // A u256 holds at most 256 bits: more hex digits than 64 (or decimal digits than 78)
+    // would wrap modulo 2^256 under boost's unchecked policy — bound before parsing so the
+    // value can never silently wrap into a wrong receipts-root input.
+    if (hexForm ? digits.size() > 64 : digits.size() > 78)
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnexpectedLength,
+            "toEthReceiptData: cumulativeGasUsed exceeds 256 bits: " + cumStr);
+    }
+    bool const shapeOk = hexForm ? std::all_of(digits.begin(), digits.end(), isHexDigit) :
+                                   std::all_of(digits.begin(), digits.end(), isDecimalDigit);
+    if (!shapeOk)
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::InvalidFieldset,
+            "toEthReceiptData: non-numeric cumulativeGasUsed: " + cumStr);
+    }
+    try
+    {
+        if (hexForm)
+        {
+            eth.cumulativeGasUsed = bcos::fromBigEndian<bcos::u256>(bcos::fromHex(digits));
+        }
+        else
+        {
+            // Normalise the decimal form so boost's implicit-base rule (a leading 0
+            // selects octal) can never fire: strip leading zeros, keep at least one digit.
+            auto decimalDigits = digits;
+            auto const firstNonZero = decimalDigits.find_first_not_of('0');
+            if (firstNonZero == std::string::npos)
+            {
+                decimalDigits = "0";
+            }
+            else if (firstNonZero > 0)
+            {
+                decimalDigits.erase(0, firstNonZero);
+            }
+            // 2^256-1 has 78 decimal digits; 78-digit strings above it still truncate
+            // silently under boost's unchecked u256, so reject them lexicographically
+            // (equal-length digit strings compare correctly as strings).
+            if (decimalDigits.size() == 78 && decimalDigits >
+                                                  "115792089237316195423570985008687907853269984665"
+                                                  "640564039457584007913129639935")
+            {
+                return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnexpectedLength,
+                    "toEthReceiptData: cumulativeGasUsed exceeds 256 bits: " + cumStr);
+            }
+            eth.cumulativeGasUsed = bcos::u256(decimalDigits);
+        }
+    }
+    catch (std::exception const&)
+    {
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::InvalidFieldset,
+            "toEthReceiptData: non-numeric cumulativeGasUsed: " + cumStr);
+    }
     auto const bloom = receipt.logsBloom();
     if (bloom.size() == eth.logsBloom.size())
     {
         std::memcpy(eth.logsBloom.data(), bloom.data(), bloom.size());
     }
+    else
+    {
+        // Fail closed: the bloom feeds the receipts root, so a substituted bloom would
+        // silently corrupt the trie. Surface the fault instead of logging and continuing.
+        return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnexpectedLength,
+            "toEthReceiptData: logsBloom size mismatch: " + std::to_string(bloom.size()) +
+                " != " + std::to_string(eth.logsBloom.size()));
+    }
     eth.logs.reserve(receipt.logEntries().size());
     for (auto const& log : receipt.logEntries())
     {
         EthLogData ethLog;
-        auto const addr = log.address();
-        ethLog.address = Address(
-            bcos::bytesConstRef(reinterpret_cast<const bcos::byte*>(addr.data()), addr.size()));
+        auto const& addr = log.address();
+        if (addr.size() == 20)
+        {
+            // Raw 20-byte address.
+            ethLog.address = Address(
+                bcos::bytesConstRef(reinterpret_cast<const bcos::byte*>(addr.data()), addr.size()));
+        }
+        else if (addr.size() == 40)
+        {
+            // In-tree producers (HostContext) store the address as 40 ASCII hex
+            // chars; decode as hex — FixedBytes' default AlignRight would
+            // otherwise truncate the ASCII bytes to the last 20 of them. Validate the
+            // charset first: FixedBytes FromHex throws on non-hex characters outside
+            // the enclosing try, which would break the Error-return contract.
+            auto const addrStr =
+                std::string(reinterpret_cast<const char*>(addr.data()), addr.size());
+            if (!std::all_of(addrStr.begin(), addrStr.end(),
+                    [](unsigned char c) { return std::isxdigit(c) != 0; }))
+            {
+                return BCOS_ERROR_UNIQUE_PTR(
+                    DecodingError::InvalidFieldset, "toEthReceiptData: non-hex log address");
+            }
+            ethLog.address = Address(addrStr, Address::FromHex);
+        }
+        else
+        {
+            return BCOS_ERROR_UNIQUE_PTR(DecodingError::UnexpectedLength,
+                "toEthReceiptData: log address length " + std::to_string(addr.size()) +
+                    " (expected 20 raw bytes or 40 hex chars)");
+        }
         for (auto const& topic : log.topics())
         {
             ethLog.topics.push_back(topic);
@@ -201,6 +354,6 @@ EthReceiptData toEthReceiptData(TransactionReceipt const& receipt, uint8_t txTyp
         ethLog.data = log.data().toBytes();
         eth.logs.push_back(std::move(ethLog));
     }
-    return eth;
+    return nullptr;
 }
 }  // namespace bcos::protocol

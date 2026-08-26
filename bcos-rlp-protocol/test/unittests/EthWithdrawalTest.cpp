@@ -37,8 +37,8 @@ static EthWithdrawalData makeWithdrawal()
     EthWithdrawalData w;
     w.index = 1;
     w.validatorIndex = 2;
-    w.address = Address(
-        std::string_view("0x3333333333333333333333333333333333333333"), Address::FromHex);
+    w.address =
+        Address(std::string_view("0x3333333333333333333333333333333333333333"), Address::FromHex);
     w.amount = 4;
     return w;
 }
@@ -71,7 +71,19 @@ BOOST_AUTO_TEST_CASE(roundTrip)
     BOOST_CHECK(decoded.data() == wd);
 }
 
-// std::vector<EthWithdrawalData> through the generic list codec (used by EthBlockBody).
+// Trailing bytes after the top-level RLP item must be rejected (round-6 F3 guard).
+BOOST_AUTO_TEST_CASE(rlpDecodeRejectsTrailingBytes)
+{
+    auto wd = makeWithdrawal();
+    EthWithdrawal w(wd);
+    bytes out;
+    w.rlpEncode(out);
+    out.push_back(0xff);
+    EthWithdrawal decoded;
+    BOOST_REQUIRE(decoded.rlpDecode(ref(out)) != nullptr);
+}
+
+// std::vector<EthWithdrawalData> through the generic list codec (used by EthBlock).
 BOOST_AUTO_TEST_CASE(vectorRoundTrip)
 {
     std::vector<EthWithdrawalData> ws = {makeWithdrawal(), makeWithdrawal()};

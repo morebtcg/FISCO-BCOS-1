@@ -16,6 +16,13 @@
  * @file EthReceipt.h
  * @brief Ethereum transaction-receipt RLP codec (EIP-2718 typed + legacy status/postState)
  * @date 2026/8/18
+ *
+ * NOTE on eth/69 (EIP-7642): the RECEIPTS MESSAGE (GetReceipts/Receipts, eth codes
+ * 0x0f/0x10) was redefined in eth/69 to [request-id, lastBlockIncomplete, [[receipt, ...], ...]]
+ * with the bloom filter removed. This codec produces the receipt encoding used INSIDE
+ * blocks and the receipts trie (status/type + bloom + logs) — that form is unchanged
+ * and correct for those uses. When the devp2p layer wires GetReceipts/Receipts for an
+ * eth/69 peer, it must build the eth/69 MESSAGE format around this per-receipt encoding.
  */
 #pragma once
 
@@ -76,7 +83,10 @@ public:
     EthReceipt() = default;
     explicit EthReceipt(EthReceiptData data) : m_data(std::move(data)) {}
 
-    void rlpEncode(bcos::bytes& out) const;
+    // Encode the receipt. Returns nullptr on success; fails closed (with an Error) on a
+    // type byte >= 0x80 that the decoder would misread as a legacy RLP item head, so
+    // encode and decode accept the same set.
+    bcos::Error::UniquePtr rlpEncode(bcos::bytes& out) const;
     // Decodes a single receipt item (possibly with an EIP-2718 type prefix) from `data`.
     bcos::Error::UniquePtr rlpDecode(bcos::bytesConstRef data);
 
@@ -91,8 +101,14 @@ private:
 /// transaction type into the Ethereum receipt data struct — the value that feeds the
 /// receiptsRoot trie on Ethereum-compatible (executor_version >= 2) chains. The bcos status
 /// maps None (0, success) -> 1 (EIP-658 success) and every other status -> 0.
-EthReceiptData toEthReceiptData(
-    TransactionReceipt const& receipt, uint8_t txType);
+///
+/// Returns nullptr on success. On failure (e.g. a malformed cumulativeGasUsed or a
+/// logsBloom whose size cannot be represented in the wire format) it returns an Error;
+/// @p out is reset at entry and may hold partially-written fields afterwards, so callers
+/// must fail closed rather than substitute defaults, since this value feeds the receipts
+/// root.
+bcos::Error::UniquePtr toEthReceiptData(
+    TransactionReceipt const& receipt, uint8_t txType, EthReceiptData& out);
 }  // namespace bcos::protocol
 
 namespace bcos::codec::rlp

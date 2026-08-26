@@ -31,10 +31,20 @@ void EthWithdrawal::rlpEncode(bcos::bytes& out) const
 
 bcos::Error::UniquePtr EthWithdrawal::rlpDecode(bcos::bytesConstRef data)
 {
-    // The codec's decode takes a mutable bytesRef& (it advances a view cursor); the bytes
-    // themselves are never written, so a single copy into a mutable buffer is enough.
-    auto mutableData = data.toBytes();
-    bytesRef in(mutableData.data(), mutableData.size());
-    return codec::rlp::decode(in, m_data);
+    // The codec's decode only advances a view cursor and never writes the buffer, so
+    // take the view directly; the const_cast is confined to this read-only entry point.
+    bytesRef in(const_cast<bcos::byte*>(data.data()), data.size());
+    if (auto err = codec::rlp::decode(in, m_data))
+    {
+        return err;
+    }
+    // geth's rlp.DecodeBytes rejects trailing bytes (ErrMoreThanOneValue); mirror that so
+    // two distinct wire encodings cannot map to the same decoded object.
+    if (!in.empty())
+    {
+        return BCOS_ERROR_UNIQUE_PTR(
+            DecodingError::UnexpectedListElements, "trailing bytes after top-level RLP item");
+    }
+    return nullptr;
 }
 }  // namespace bcos::protocol
