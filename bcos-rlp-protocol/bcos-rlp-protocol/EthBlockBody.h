@@ -32,14 +32,10 @@
 
 namespace bcos::protocol
 {
-<<<<<<< HEAD
-// Ethereum block body (the part of a block not committed to by the header hash).
-=======
 // Ethereum block (geth's types.Block): rlp([header, transactions, ommers]) — the
 // ENTIRE block, header included. It is NOT the header-less devp2p BlockBodies element
 // ([transactions, ommers, withdrawals?]); a body codec for that wire form belongs with
 // the devp2p eth protocol.
->>>>>>> upstream/release-3.18.0
 // RLP form (yellow paper, Appendix B):
 //   pre-Shanghai: rlp([header, transactions, ommers])
 //   Shanghai+  :  rlp([header, transactions, ommers, withdrawals])   (EIP-4895)
@@ -47,40 +43,6 @@ namespace bcos::protocol
 // (always empty on PoS chains); `withdrawals` is nullopt for pre-Shanghai bodies and an
 // (possibly empty) list for Shanghai+ bodies — the presence of the field itself is fork
 // significant, so it is an optional<vector>, not a bare vector.
-<<<<<<< HEAD
-struct EthBlockBodyData
-{
-    EthBlockHeaderData header;
-    std::vector<bcos::bytes> transactions;           // opaque EIP-2718 encoded transactions
-    std::vector<EthBlockHeaderData> ommers;          // uncle headers (empty on PoS)
-    std::optional<std::vector<EthWithdrawalData>> withdrawals;  // nullopt = pre-Shanghai
-
-    bool operator==(const EthBlockBodyData& rhs) const
-    {
-        return header == rhs.header && transactions == rhs.transactions &&
-               ommers == rhs.ommers && withdrawals == rhs.withdrawals;
-    }
-    bool operator!=(const EthBlockBodyData& rhs) const { return !(*this == rhs); }
-};
-
-// Class wrapper following the EthBlockHeader pattern: rlpEncode/rlpDecode plus the
-// codec::rlp overloads that let EthBlockBodyData work as an item in larger structures.
-class EthBlockBody
-{
-public:
-    EthBlockBody() = default;
-    explicit EthBlockBody(EthBlockBodyData data) : m_data(std::move(data)) {}
-
-    void rlpEncode(bcos::bytes& out) const;
-    // Decodes a single block body (a 3- or 4-element list) from `data`.
-    bcos::Error::UniquePtr rlpDecode(bcos::bytesConstRef data);
-
-    const EthBlockBodyData& data() const { return m_data; }
-    EthBlockBodyData& data() { return m_data; }
-
-private:
-    EthBlockBodyData m_data;
-=======
 struct EthBlockData
 {
     EthBlockHeaderData header;
@@ -117,38 +79,11 @@ public:
 
 private:
     EthBlockData m_data;
->>>>>>> upstream/release-3.18.0
 };
 }  // namespace bcos::protocol
 
 namespace bcos::codec::rlp
 {
-<<<<<<< HEAD
-// Overloads so EthBlockBodyData works as an item inside the generic list/vector codecs.
-inline size_t length(const protocol::EthBlockBodyData& _body) noexcept
-{
-    if (_body.withdrawals.has_value())
-    {
-        return length(_body.header, _body.transactions, _body.ommers, *_body.withdrawals);
-    }
-    return length(_body.header, _body.transactions, _body.ommers);
-}
-inline void encode(bcos::bytes& _out, const protocol::EthBlockBodyData& _body) noexcept
-{
-    if (_body.withdrawals.has_value())
-    {
-        encode(_out, _body.header, _body.transactions, _body.ommers, *_body.withdrawals);
-        return;
-    }
-    encode(_out, _body.header, _body.transactions, _body.ommers);
-}
-inline bcos::Error::UniquePtr decode(bcos::bytesRef& _in, protocol::EthBlockBodyData& _body) noexcept
-{
-    // The optional-withdrawals argument doubles as the pre-Shanghai marker: when the body
-    // list is exhausted after header/transactions/ommers, the optional decode resets it to
-    // nullopt; otherwise the fourth item is decoded as the withdrawals list.
-    return decode(_in, _body.header, _body.transactions, _body.ommers, _body.withdrawals);
-=======
 namespace detail
 {
 // RLP length of one transaction inside a block-body transactions list, with the
@@ -388,25 +323,11 @@ inline bcos::Error::UniquePtr decode(bcos::bytesRef& _in, protocol::EthBlockData
             "block body has trailing elements after withdrawals");
     }
     return nullptr;
->>>>>>> upstream/release-3.18.0
 }
 }  // namespace bcos::codec::rlp
 
 namespace bcos::protocol
 {
-<<<<<<< HEAD
-// ADL-visible delegators (see EthLog.h): let EthBlockBodyData participate in
-// variadic-list encode/decode.
-inline size_t length(const EthBlockBodyData& _body) noexcept
-{
-    return codec::rlp::length(_body);
-}
-inline void encode(bcos::bytes& _out, const EthBlockBodyData& _body) noexcept
-{
-    codec::rlp::encode(_out, _body);
-}
-inline bcos::Error::UniquePtr decode(bcos::bytesRef& _in, EthBlockBodyData& _body) noexcept
-=======
 // ADL-visible delegators (see EthLog.h): let EthBlockData participate in
 // variadic-list encode/decode.
 inline size_t length(const EthBlockData& _body) noexcept
@@ -418,7 +339,6 @@ inline void encode(bcos::bytes& _out, const EthBlockData& _body) noexcept
     codec::rlp::encode(_out, _body);
 }
 inline bcos::Error::UniquePtr decode(bcos::bytesRef& _in, EthBlockData& _body) noexcept
->>>>>>> upstream/release-3.18.0
 {
     return codec::rlp::decode(_in, _body);
 }

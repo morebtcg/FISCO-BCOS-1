@@ -9,11 +9,7 @@ target_include_directories(rlp-protocol PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include/bcos-rlp-protocol>
 )
-<<<<<<< HEAD
-target_link_libraries(rlp-protocol PUBLIC bcos-crypto codec bcos-framework bcos-protocol)
-=======
 target_link_libraries(rlp-protocol PUBLIC bcos-crypto codec bcos-framework PRIVATE bcos-protocol)
->>>>>>> upstream/release-3.18.0
 set_target_properties(rlp-protocol PROPERTIES UNITY_BUILD "ON")
 
 if(TESTS)

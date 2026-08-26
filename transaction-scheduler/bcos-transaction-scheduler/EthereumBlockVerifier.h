@@ -636,7 +636,14 @@ public:
         size_t index = 0;
         for (auto const& receipt : receipts)
         {
-            auto eth = protocol::toEthReceiptData(*receipt, txTypes[index]);
+            protocol::EthReceiptData eth;
+            if (auto err =
+                    protocol::toEthReceiptData(*receipt, txTypes[index], eth);
+                err != nullptr)
+            {
+                BOOST_THROW_EXCEPTION(
+                    std::runtime_error("toEthReceiptData: " + err->errorMessage()));
+            }
             bcos::bytes encoded;
             protocol::EthReceipt ethReceipt(std::move(eth));
             ethReceipt.rlpEncode(encoded);

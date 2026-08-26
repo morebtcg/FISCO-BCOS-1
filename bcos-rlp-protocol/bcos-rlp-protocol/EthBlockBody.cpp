@@ -14,11 +14,7 @@
  *  limitations under the License.
  *
  * @file EthBlockBody.cpp
-<<<<<<< HEAD
- * @brief EthBlockBody — Ethereum block-body RLP codec implementation
-=======
  * @brief EthBlock — Ethereum block RLP codec implementation
->>>>>>> upstream/release-3.18.0
  * @date 2026/8/18
  */
 #include "EthBlockBody.h"
@@ -28,20 +24,6 @@ using namespace bcos::codec::rlp;
 
 namespace bcos::protocol
 {
-<<<<<<< HEAD
-void EthBlockBody::rlpEncode(bcos::bytes& out) const
-{
-    codec::rlp::encode(out, m_data);
-}
-
-bcos::Error::UniquePtr EthBlockBody::rlpDecode(bcos::bytesConstRef data)
-{
-    // The codec's decode takes a mutable bytesRef& (it advances a view cursor); the bytes
-    // themselves are never written, so a single copy into a mutable buffer is enough.
-    auto mutableData = data.toBytes();
-    bytesRef in(mutableData.data(), mutableData.size());
-    return codec::rlp::decode(in, m_data);
-=======
 bcos::Error::UniquePtr EthBlock::rlpEncode(bcos::bytes& out) const
 {
     // Enforce the same invariants the decoder does (empty or too-short transaction
@@ -102,6 +84,5 @@ bcos::Error::UniquePtr EthBlock::rlpDecode(bcos::bytesConstRef data)
             DecodingError::UnexpectedListElements, "trailing bytes after top-level RLP item");
     }
     return nullptr;
->>>>>>> upstream/release-3.18.0
 }
 }  // namespace bcos::protocol
