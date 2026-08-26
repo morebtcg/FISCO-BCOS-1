@@ -222,12 +222,11 @@ private:
         auto head = localHead.data();
         // The execution path (makeExecutionBlockHeader) stores the Tars timestamp in
         // FISCO milliseconds (the EVM divides by 1000), but the Ethereum header domain
-        // — and therefore the resume anchor's RLP re-encoding — is seconds. Convert
-        // back so the anchor re-encodes to the exact committed RLP and the resume
-        // parent-hash check passes. (The genesis path stores seconds directly, so the
-        // bridge constructor itself must not convert; only this ledger read-back path
-        // sees millisecond headers.)
-        head.timestamp /= 1000;
+        // — and therefore the resume anchor's RLP re-encoding — is seconds. The
+        // EthBlockHeader constructor above already converts (m_data.timestamp =
+        // ms / 1000), so `head.timestamp` is wire seconds here — do NOT divide again
+        // or the anchor re-encodes to a wrong RLP and the resume parent-hash check
+        // fails with "parent hash mismatch (fork or reorg)".
         INITIALIZER_LOG(INFO) << LOG_DESC("EL sync: resuming from local head")
                               << LOG_KV("headNumber", current)
                               << LOG_KV("headHash", anchorHeaderHash(head).hex().substr(0, 18))
