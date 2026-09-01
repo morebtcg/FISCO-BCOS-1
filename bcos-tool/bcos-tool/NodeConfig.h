@@ -241,7 +241,8 @@ public:
     uint32_t ethereumMaxBatchSize() const;
     uint64_t ethereumChainId() const;
     // EL-mode fork schedule ([fork_timestamps] in config.genesis): L1 PoS chains fork on
-    // timestamps (not block heights); 0 means active from genesis.
+    // timestamps (not block heights); 0 means active from genesis, and an absent
+    // schedule reads as UINT64_MAX ("not active") — never 0.
     uint64_t ethereumForkLondonTime() const;
     uint64_t ethereumForkParisTime() const;
     uint64_t ethereumForkShanghaiTime() const;
@@ -398,6 +399,15 @@ private:
     void loadAllocs(boost::property_tree::ptree const& _genesisConfig);
     void loadEthGenesisHeader(boost::property_tree::ptree const& _genesisConfig);
     void validateL2Invariants();
+
+public:
+    // Cross-file EL-mode invariant (config.ini ethereum.mode=el must be backed by
+    // the genesis [ethereum] mode=el declaration). Reads BOTH files' members, so
+    // the node initializers call it after both are loaded — deliberately NOT part
+    // of loadEthereumConfig, because tools load config.ini before config.genesis.
+    void validateELModeInvariants() const;
+
+private:
 
     bcos::consensus::ConsensusNodeList parseConsensusNodeList(
         boost::property_tree::ptree const& _pt, std::string const& _sectionName,
@@ -583,17 +593,18 @@ private:
     std::string m_ethereumBootnodesFile = "./bootnodes.json";
     std::string m_ethereumNodeKeyFile;
     uint32_t m_ethereumMaxBatchSize = 192;
-    uint64_t m_ethereumChainId = 1;
-    // EL-mode fork schedule ([fork_timestamps] in config.genesis); 0 = active from genesis
-    uint64_t m_ethereumForkLondonTime = 0;
-    uint64_t m_ethereumForkParisTime = 0;
-    uint64_t m_ethereumForkShanghaiTime = 0;
-    uint64_t m_ethereumForkCancunTime = 0;
-    uint64_t m_ethereumForkPragueTime = 0;
-    uint64_t m_ethereumForkOsakaTime = 0;
-    uint64_t m_ethereumForkBpo1Time = 0;
-    uint64_t m_ethereumForkBpo2Time = 0;
-    bool m_ethereumForkScheduleSet = false;
+    // The EL-mode chain id, validated and pinned from config.genesis's [web3] chain_id
+    // (validateL2Invariants) when the genesis declares EL mode. 0 = unset: a read
+    // outside EL mode is obviously invalid rather than silently Ethereum mainnet.
+    uint64_t m_ethereumChainId = 0;
+    // The EL-mode fork schedule ([fork_timestamps] in config.genesis) lives on
+    // m_genesisConfig.m_ethereumForkSchedule; the REQUIRED pre-Prague ladder
+    // (london..prague) is part of the genesis pin, while the post-Prague tail
+    // (osaka/bpo1/bpo2) is deliberately not pinned — those forks activate after
+    // genesis and must stay configurable (EIP-2124 fork-id handshake catches
+    // divergence). The ethereumFork*Time() getters declared above forward to it;
+    // an absent schedule reads as UINT64_MAX ("not active") for every fork —
+    // never 0 (0 is the "active from genesis" sentinel).
 
     // config for cert
     std::string m_certPath;

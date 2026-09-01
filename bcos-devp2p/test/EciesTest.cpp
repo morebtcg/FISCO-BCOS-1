@@ -31,10 +31,11 @@ BOOST_AUTO_TEST_SUITE(EciesTest)
 // wire-compatible with geth's crypto/ecies.
 BOOST_AUTO_TEST_CASE(decryptIndependentVector)
 {
-    auto wire = fromHex("040a3111436338a9aff7ac07d2193e9e5327e552c75960c2668663d1859decc8"
-                        "73d50a12c767134cedfd9c11c46dcc59cb1ad456ad8c105113770940077c7dce"
-                        "52f2d6b08ba781a88349bfdd63de1a5dae46bd60b66d4c032570e9402e8bca94"
-                        "d7ee11f4a0d88b629890cd5287454819d422451d51f3d2f0cddaba");
+    auto wire = fromHex(
+        "040a3111436338a9aff7ac07d2193e9e5327e552c75960c2668663d1859decc8"
+        "73d50a12c767134cedfd9c11c46dcc59cb1ad456ad8c105113770940077c7dce"
+        "52f2d6b08ba781a88349bfdd63de1a5dae46bd60b66d4c032570e9402e8bca94"
+        "d7ee11f4a0d88b629890cd5287454819d422451d51f3d2f0cddaba");
     auto privateKey = fromHex("36a7edad64d51a568b00e51d3fa8cd340aa704153010edf7f55ab3066ca4ef21");
     auto macExtra = fromHex("01cf");
 
@@ -58,13 +59,13 @@ BOOST_AUTO_TEST_CASE(authSignatureMatchesGeth)
 
     // staticShared = ecdh(keyA_priv, keyB_pub) — validated against Python.
     auto staticShared = EciesCipher::computeSharedSecret(ref(keyBPair.publicKey()), ref(keyA));
-    BOOST_CHECK_EQUAL(toHex(staticShared),
-        "2d21423c1dc3355da36e7f2c2b530eeffcf0680f93201a958b2ec3a7d04958e6");
+    BOOST_CHECK_EQUAL(
+        toHex(staticShared), "2d21423c1dc3355da36e7f2c2b530eeffcf0680f93201a958b2ec3a7d04958e6");
 
     bcos::bytes signedMsg = staticShared;
     xorBytes(signedMsg, ref(nonceA));
-    BOOST_CHECK_EQUAL(toHex(signedMsg),
-        "53b7c9860e75f0538f22a8de6a9f038b2d5c4dc866b53767ba82a98c0ac7bd30");
+    BOOST_CHECK_EQUAL(
+        toHex(signedMsg), "53b7c9860e75f0538f22a8de6a9f038b2d5c4dc866b53767ba82a98c0ac7bd30");
 
     // Sign with the ephemeral key and recover — must give back the ephemeral pubkey.
     auto signature = signRecoverable(ref(signedMsg), ref(ephA));

@@ -74,12 +74,23 @@ TrieBuildResult computeTrieRootFromSorted(
 /// BranchNode's own value. The RLP-encoded-index keys Ethereum actually uses are prefix-free, so
 /// that case never fires there, but trietest.json exercises it, so it is supported here.
 ///
-/// @param sortedEntries  Unique keys, sorted ascending by raw key bytes (lexicographic == nibble
-///                       path order — note this is NOT numeric index order for RLP-encoded
-///                       indices: rlp(0)=0x80 sorts after rlp(1)=0x01).
+/// The input is NOT required to be sorted (the build sorts by nibble-path order internally —
+/// byte lexicographic == nibble path order — note this is NOT numeric index order for
+/// RLP-encoded indices: rlp(0)=0x80 sorts after rlp(1)=0x01). Uniqueness is ENFORCED
+/// (MPTInvariantViolation on duplicates — two identical keys would both terminate at the same
+/// branch and send hbBuildBranch's nibble indexing out of bounds).
 /// @return {root, newNodes} — root is emptyRootHash() for an empty input.
 TrieBuildResult computeTrieRootFromRawKeys(
-    std::span<std::pair<bcos::bytesConstRef, bcos::bytesConstRef> const> sortedEntries);
+    std::span<std::pair<bcos::bytesConstRef, bcos::bytesConstRef> const> items);
+
+/// Root-only variant of computeTrieRootFromRawKeys: builds the same canonical trie but returns
+/// just the 32-byte root, skipping the per-node RLP accumulation. The block-header
+/// transaction / receipt / withdrawal tries are never persisted (go-ethereum's DeriveSha uses
+/// a throwaway StackTrie for the same reason), so the full newNodes map would only be
+/// discarded — for a large block this drops every hash-map insertion and node copy, three
+/// times per block. Same sorting / uniqueness contract as computeTrieRootFromRawKeys.
+bcos::h256 computeRawTrieRoot(
+    std::span<std::pair<bcos::bytesConstRef, bcos::bytesConstRef> const> items);
 
 /// Non-secure (variable-length key) build entry: computes a canonical MPT over (key, value) pairs
 /// where @p key is an arbitrary-length byte string (each byte → 2 nibbles via bytesToNibbles),

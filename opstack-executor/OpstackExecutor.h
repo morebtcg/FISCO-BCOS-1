@@ -18,7 +18,7 @@
 #include "bcos-framework/protocol/TransactionReceipt.h"
 #include "bcos-framework/protocol/TransactionReceiptFactory.h"
 #include "bcos-task/TBBWait.h"
-#include "ethereum-executor/EVMSupport.h"  // eth::evm::toIntxU256
+#include "ethereum-executor/EVMSupport.h"
 #include "opstack-executor/OpCommon.h"  // detail::narrowU256ToU64 / toEvmcAddress / toEvmcBytes32
 #include "opstack-executor/OpDepositEncode.h"  // detail::encodeRlpItem (call-path sizing envelope)
 #include "opstack-executor/Storage2State.h"    // Storage2State / SharedErrorSlot
@@ -30,8 +30,10 @@
 #include <bcos-utilities/Exceptions.h>
 #include <evmone/evmone.h>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <evmc/evmc.hpp>
+#include <intx/intx.hpp>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -50,10 +52,15 @@ evmone::state::StateDiff finalizeOpBlock(
 
 namespace bcos::executor_v1::eth
 {
-// toIntxU256 lives in bcos::executor_v1::eth::evm (EVMSupport.h); re-import so
-// toEvmoneTransaction's unqualified calls resolve (the deleted StorageStateView.h previously
-// carried a bcos::executor_v1::eth copy).
-using evm::toIntxU256;
+/// Convert bcos::u256 to intx::uint256 for the evmone::state (bcos-evm) types this executor
+/// still drives. ethereum-executor's own arithmetic and interfaces no longer use intx, so the
+/// bridge lives here with its only consumer and retires together with the bcos-evm dependency.
+inline intx::uint256 toIntxU256(bcos::u256 const& val)
+{
+    std::array<bcos::byte, 32> be{};
+    bcos::toBigEndian(val, be);  // writes 32 big-endian bytes, no allocation.
+    return intx::be::unsafe::load<intx::uint256>(be.data());
+}
 
 /// Convert a FISCO `protocol::Transaction` into the evmone `state::Transaction` the OP executor
 /// feeds to the VM. Moved from BCOS2Evmone (the only consumer is OpstackExecutor's transaction
@@ -454,7 +461,7 @@ namespace engine = bcos::evm::engine;
         bcos::u256 envValue{};
         if (auto e = rlp::decode(*valueItem, envValue); e != nullptr)
             return "value decode failed";
-        if (eth::evm::toIntxU256(envValue) != evmTx.value)
+        if (eth::toIntxU256(envValue) != evmTx.value)
             return "value mismatch";
     }
     // data
@@ -478,9 +485,10 @@ namespace engine = bcos::evm::engine;
 }
 
 /// Shared chainId gate (review finding C): the SIGNED envelope's chainId must equal the node
-/// chainId — never the forgeable tars mirror. Typed envelopes always carry chainId (RLP field 0);
-/// nullopt there is malformed, not a pre-EIP-155 exemption. Both execution paths call this
-/// envelope-bytes core so parser semantics and rejection text cannot drift.
+/// chainId — never the forgeable tars mirror. Typed envelopes carry chainId in RLP field 0,
+/// except 0x7E deposits whose field 0 is sourceHash; nullopt elsewhere is malformed, not a
+/// pre-EIP-155 exemption. Both execution paths call this envelope-bytes core so parser
+/// semantics and rejection text cannot drift.
 /// Legacy envelopes: only a genuinely unprotected form (6-field preimage or v=27/28) is exempt;
 /// a malformed v (0/1, 29-34) or unparseable tail fails closed instead of being folded into the
 /// unprotected exemption (op-geth rejects such signatures).
@@ -497,6 +505,7 @@ namespace engine = bcos::evm::engine;
         }
         return "legacy tx envelope has a malformed chainId/v field";
     }
+    // Deposit (0x7E): no chainId field. executeDeposit skips this gate; pool/RPC reject.
     if (classified.kind == protocol::Web3EnvelopeChainIdKind::Protected &&
         classified.chainId != nodeChainId)
     {
@@ -712,9 +721,9 @@ public:
         fail("deposit envelope: trailing bytes inside the RLP list");
 
     dep.mint = mint.has_value() ?
-                   std::optional<intx::uint256>{bcos::executor_v1::eth::evm::toIntxU256(*mint)} :
+                   std::optional<intx::uint256>{bcos::executor_v1::eth::toIntxU256(*mint)} :
                    std::nullopt;
-    dep.value = bcos::executor_v1::eth::evm::toIntxU256(value);
+    dep.value = bcos::executor_v1::eth::toIntxU256(value);
     dep.gas_limit = static_cast<int64_t>(gas);
     dep.is_system_tx = isSystemTxValue != 0;
     dep.data = evmc::bytes(data.begin(), data.end());
@@ -1341,15 +1350,18 @@ private:
         auto envRef = transaction.extraTransactionBytes();
         evmc::bytes_view env{envRef.data(), envRef.size()};
 
-        // eth_call/estimateGas cannot carry a signed envelope: CallRequest builds the
-        // transaction with no extraTransactionBytes (CallRequest.cpp:65-67), so the envelope
-        // here is empty for every simulation. opValidate uses the envelope only for L1-cost /
-        // calldata sizing (computeL1Cost / flzCompressLen / bedrockCalldataGasUsed) — estimates
-        // on a simulation, not a correctness precondition — so failing closed on it would reject
-        // every eth_call. Re-encode the executing transaction into its EIP-2718 form as the
-        // sizing input instead, keeping the estimates self-consistent with what is simulated.
-        // The block path (call=false) keeps the raw signed envelope: there it is the trust
-        // anchor for the mirror↔envelope cross-check and must never be synthesized.
+        // eth_call/estimateGas USUALLY carries no signed envelope, but that is not an
+        // invariant: for OP headers (baseFee present) CallRequest takes the TARS path and
+        // DOES store an envelope (CallRequest.cpp buildCallTransaction, via
+        // takeToTarsTransaction). Treat empty as the common case, not a certainty — the
+        // guard below synthesizes a sizing envelope only when none is present. The
+        // envelope is used only for L1-cost / calldata sizing (computeL1Cost /
+        // flzCompressLen / bedrockCalldataGasUsed) — estimates on a simulation, not a
+        // correctness precondition — so failing closed on it would reject every eth_call.
+        // Re-encoding the executing transaction into its EIP-2718 form keeps the estimates
+        // self-consistent with what is simulated. The block path (call=false) keeps the
+        // raw signed envelope: there it is the trust anchor for the mirror↔envelope
+        // cross-check and must never be synthesized.
         bcos::bytes synthesizedEnvelope;
         if (call && env.empty())
         {
